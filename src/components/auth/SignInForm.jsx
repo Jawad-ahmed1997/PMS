@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import ActionButton from "@/components/ui/ActionButton";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function SignInForm() {
   const router = useRouter();
   const { addToast } = useToast();
+  const [viewPassword, setviewPassword] = useState(true)
   const [formState, setFormState] = useState({
     email: "",
     password: "",
@@ -64,14 +66,24 @@ export default function SignInForm() {
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--color-text-muted)]">
         Password
-        <input
-          type="password"
-          name="password"
-          value={formState.password}
-          onChange={handleChange}
-          placeholder="••••••••"
-          className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
-        />
+        <div className="relative">
+          <input
+            type={viewPassword ? "text" : "password"}
+            name="password"
+            value={formState.password}
+            onChange={handleChange}
+            placeholder="••••••••"
+            className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 pr-10 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+          />
+
+          <button
+            type="button"
+            onClick={() => setviewPassword((prev) => !prev)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--color-text)] opacity-70 hover:opacity-100"
+          >
+            {viewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
       </label>
       {status.error && (
         <p className="text-xs text-rose-300">{status.error}</p>

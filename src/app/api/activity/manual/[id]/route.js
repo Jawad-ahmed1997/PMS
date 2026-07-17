@@ -18,6 +18,12 @@ import {
   withManualLogStatus,
 } from "@/lib/manualLogMutations";
 
+import {
+  toDateKeyInTZ,
+  normalizeTimeString,
+  MANUAL_LOG_TIME_ZONE,
+} from "@/lib/manualLogDateTime";
+
 async function getManualLog(logId) {
   return prisma.activityLog.findUnique({
     where: { id: logId },
@@ -65,11 +71,19 @@ export async function PATCH(request, { params }) {
   }
 
   if (body?.date) {
-    return buildError("Date cannot be changed for manual activity logs.", 400);
+    const existingDateKey = toDateKeyInTZ(log.date, MANUAL_LOG_TIME_ZONE);
+    const newDateKey = toDateKeyInTZ(body.date, MANUAL_LOG_TIME_ZONE);
+    if (existingDateKey !== newDateKey) {
+      return buildError("Date cannot be changed for manual activity logs.", 400);
+    }
   }
 
   if (body?.startTime) {
-    return buildError("Start time cannot be changed for manual activity logs.", 400);
+    const existingStart = existingStartTime ? normalizeTimeString(existingStartTime) : null;
+    const newStart = normalizeTimeString(body.startTime);
+    if (existingStart !== newStart) {
+      return buildError("Start time cannot be changed for manual activity logs.", 400);
+    }
   }
 
   const hasTimeUpdate = Object.prototype.hasOwnProperty.call(body ?? {}, "endTime");

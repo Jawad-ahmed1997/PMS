@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Info } from "lucide-react";
 import ActionButton from "@/components/ui/ActionButton";
 import Drawer from "@/components/ui/Drawer";
 import Modal from "@/components/ui/Modal";
@@ -922,8 +923,16 @@ export default function ActivityDashboard({
                   ) : null}
                 </div>
               </div>
-              <label className="flex flex-col gap-1 text-xs text-[color:var(--color-text-muted)]">
-                Date
+              <div className="flex flex-col gap-1">
+                <label className="flex items-center gap-1.5 text-xs text-[color:var(--color-text-muted)]">
+                  Date
+                  <div className="group relative flex items-center">
+                    <Info size={14} className="cursor-help text-[color:var(--color-text-subtle)] hover:text-[color:var(--color-text)] transition-colors" />
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-48 -translate-x-1/2 rounded-lg bg-[color:var(--color-surface)] border border-[color:var(--color-border)] p-2 text-[11px] text-[color:var(--color-text)] opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                      Only today or the last 2 days are allowed.
+                    </div>
+                  </div>
+                </label>
                 <input
                   type="date"
                   name="date"
@@ -932,12 +941,9 @@ export default function ActivityDashboard({
                   disabled={logModal.mode === "edit"}
                   min={dateBounds.min ?? undefined}
                   max={dateBounds.max ?? undefined}
-                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm"
-  />
-                <span className="min-h-[14px] text-[11px] text-[color:var(--color-text-subtle)]">
-    Only today or the last 2 days are allowed.
-  </span>
-              </label>
+                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+                />
+              </div>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Start time
                 <input
@@ -954,8 +960,16 @@ export default function ActivityDashboard({
                   className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
                 />
               </label>
-              <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
-                End time
+              <div className="flex flex-col gap-1">
+                <label className="flex items-center gap-1.5 text-xs text-[color:var(--color-text-muted)]">
+                  End time
+                  <div className="group relative flex items-center">
+                    <Info size={14} className="cursor-help text-[color:var(--color-text-subtle)] hover:text-[color:var(--color-text)] transition-colors" />
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-48 -translate-x-1/2 rounded-lg bg-[color:var(--color-surface)] border border-[color:var(--color-border)] p-2 text-[11px] text-[color:var(--color-text)] opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                      Leave empty to keep this manual activity running.
+                    </div>
+                  </div>
+                </label>
                 <input
                   type="time"
                   name="endTime"
@@ -968,10 +982,7 @@ export default function ActivityDashboard({
                   }
                   className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
                 />
-                <span className="min-h-[14px] text-[11px] text-[color:var(--color-text-subtle)]">
-                  Leave empty to keep this manual activity running.
-                </span>
-              </label>
+              </div>
             </div>
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               Description

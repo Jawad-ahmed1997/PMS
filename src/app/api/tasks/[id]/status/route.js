@@ -315,6 +315,21 @@ export async function PATCH(request, { params }) {
               startedAt: now,
             },
           });
+        } else if (nextStatus === "IN_PROGRESS" && activeLog) {
+          // Close the stale open log from a previous IN_PROGRESS session
+          // (it was never closed when the task moved to TESTING / ON_HOLD)
+          // and start a fresh log so "Spent" shows only the current session.
+          await tx.taskTimeLog.update({
+            where: { id: activeLog.id },
+            data: { endedAt: now },
+          });
+          await tx.taskTimeLog.create({
+            data: {
+              taskId,
+              status: nextStatus,
+              startedAt: now,
+            },
+          });
         } else if (!shouldTrackWork && activeLog) {
           await tx.taskTimeLog.update({
             where: { id: activeLog.id },
