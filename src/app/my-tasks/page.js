@@ -1,14 +1,9 @@
-import ProjectDetailView from "@/components/projects/ProjectDetailView";
+import MyTasksView from "@/components/my-tasks/MyTasksView";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { canCreateMilestones, normalizeRoleId } from "@/lib/roles";
 
-export default async function ProjectDetailPage({ params }) {
-  const { projectId } = await params;
+export default async function MyTasksPage() {
   const session = await getSession();
-  const roleId = normalizeRoleId(session?.role);
-  const canManageMilestones = canCreateMilestones(roleId);
-
   const hasDatabase = Boolean(process.env.DATABASE_URL);
   const currentUser =
     hasDatabase && session?.email
@@ -19,9 +14,7 @@ export default async function ProjectDetailPage({ params }) {
       : null;
 
   return (
-    <ProjectDetailView
-      projectId={projectId}
-      canManageMilestones={canManageMilestones}
+    <MyTasksView
       role={session?.role}
       currentUserId={currentUser?.id ?? null}
     />

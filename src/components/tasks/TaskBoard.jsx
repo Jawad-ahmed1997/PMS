@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import ActionButton from "@/components/ui/ActionButton";
 import Drawer from "@/components/ui/Drawer";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
 import { TASK_STATUSES, getNextStatuses, getStatusLabel } from "@/lib/kanban";
-import { canMarkTaskDone, roles } from "@/lib/roles";
+import { canMarkTaskDone, normalizeRoleId, roles } from "@/lib/roles";
 import { BREAK_TYPES, formatBreakTypes } from "@/lib/breakTypes";
 
 const COLLAPSED_WIDTH = 64;
@@ -111,6 +111,7 @@ export default function TaskBoard({
   role,
   currentUserId,
   onEditTask,
+  hideFilterButton = false,
 }) {
   const { addToast } = useToast();
   const searchParams = useSearchParams();
@@ -123,6 +124,7 @@ export default function TaskBoard({
   const [scope, setScope] = useState("all");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [ownerFilter, setOwnerFilter] = useState("ALL");
+  const [milestoneFilter, setMilestoneFilter] = useState("ALL");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -146,6 +148,52 @@ export default function TaskBoard({
   const [resizeState, setResizeState] = useState(null);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [hasSavedPrefs, setHasSavedPrefs] = useState(false);
+
+  const scrollContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (!draggingTaskId) return;
+
+    let animationFrameId;
+    let scrollSpeed = 0;
+
+    const handleDragOver = (event) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+
+      const threshold = 100;
+      const maxSpeed = 15;
+
+      if (x < threshold) {
+        const ratio = (threshold - x) / threshold;
+        scrollSpeed = -ratio * maxSpeed;
+      } else if (x > rect.width - threshold) {
+        const ratio = (x - (rect.width - threshold)) / threshold;
+        scrollSpeed = ratio * maxSpeed;
+      } else {
+        scrollSpeed = 0;
+      }
+    };
+
+    const scrollTick = () => {
+      const container = scrollContainerRef.current;
+      if (container && scrollSpeed !== 0) {
+        container.scrollLeft += scrollSpeed;
+      }
+      animationFrameId = requestAnimationFrame(scrollTick);
+    };
+
+    window.addEventListener("dragover", handleDragOver);
+    animationFrameId = requestAnimationFrame(scrollTick);
+
+    return () => {
+      window.removeEventListener("dragover", handleDragOver);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [draggingTaskId]);
 
   useEffect(() => {
     setTaskItems(tasks);
@@ -325,7 +373,12 @@ export default function TaskBoard({
   );
   const selectedSpentSeconds = Number(selectedTask?.spentTimeSeconds ?? 0);
 
-  const isManager = [roles.PM, roles.CTO].includes(role);
+  const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
+
+  const isManager = useMemo(
+    () => [roles.PM, roles.CTO, roles.CEO].includes(normalizedRole),
+    [normalizedRole]
+  );
 
   const isTaskOwner = (task) => {
     if (!currentUserId || !task) {
@@ -390,6 +443,16 @@ export default function TaskBoard({
     }
   }, [selectedTaskId, selectedTask, taskItems.length]);
 
+  const milestoneOptions = useMemo(() => {
+    const map = new Map();
+    taskItems.forEach((task) => {
+      if (task.milestone) {
+        map.set(task.milestone.id, task.milestone.title);
+      }
+    });
+    return Array.from(map.entries()).map(([id, title]) => ({ id, title }));
+  }, [taskItems]);
+
   const filteredTasks = useMemo(() => {
     return taskItems.filter((task) => {
       if (scope === "mine" && currentUserId) {
@@ -406,9 +469,13 @@ export default function TaskBoard({
         return false;
       }
 
+      if (milestoneFilter !== "ALL" && task.milestoneId !== milestoneFilter) {
+        return false;
+      }
+
       return true;
     });
-  }, [taskItems, scope, currentUserId, statusFilter, ownerFilter]);
+  }, [taskItems, scope, currentUserId, statusFilter, ownerFilter, milestoneFilter]);
 
   const groupedTasks = useMemo(() => {
     const buckets = {};
@@ -469,98 +536,143 @@ export default function TaskBoard({
       }
     }
 
+    const previousTaskItems = [...taskItems];
+
+    setTaskItems((prev) =>
+      prev.map((item) => (item.id === task.id ? { ...item, status: nextStatus } : item))
+    );
+
     setPendingTaskId(task.id);
-    const response = await fetch(`/api/tasks/${task.id}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
 
-    const responseText = await response.text();
-    let data = null;
-    if (responseText) {
-      try {
-        data = JSON.parse(responseText);
-      } catch (error) {
-        data = null;
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const responseText = await response.text();
+      let data = null;
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch (error) {
+          data = null;
+        }
       }
-    }
 
-    if (!response.ok) {
-      addToast({
-        title: "Action blocked",
-        message: data?.error ?? "This action is not permitted.",
-        variant: "error",
-      });
-      setPendingTaskId(null);
-      return;
-    }
-
-    if (!data?.task) {
-      addToast({
-        title: "Update failed",
-        message: "Unable to refresh task details after the move.",
-        variant: "error",
-      });
-      setPendingTaskId(null);
-      return;
-    }
-
-    if (Array.isArray(data?.updatedTasks) && data.updatedTasks.length > 0) {
-      setTaskItems((prev) => {
-        const map = new Map(prev.map((item) => [item.id, item]));
-        data.updatedTasks.forEach((updatedTask) => {
-          map.set(updatedTask.id, updatedTask);
+      if (!response.ok) {
+        setTaskItems(previousTaskItems);
+        addToast({
+          title: "Action blocked",
+          message: data?.error ?? "This action is not permitted.",
+          variant: "error",
         });
-        return Array.from(map.values());
-      });
-    } else {
-      setTaskItems((prev) =>
-        prev.map((item) => (item.id === task.id ? data.task : item))
-      );
-    }
+        return;
+      }
 
-    if (data?.warning) {
+      if (!data?.task) {
+        setTaskItems(previousTaskItems);
+        addToast({
+          title: "Update failed",
+          message: "Unable to refresh task details after the move.",
+          variant: "error",
+        });
+        return;
+      }
+
+      if (Array.isArray(data?.updatedTasks) && data.updatedTasks.length > 0) {
+        setTaskItems((prev) => {
+          const map = new Map(prev.map((item) => [item.id, item]));
+          data.updatedTasks.forEach((updatedTask) => {
+            map.set(updatedTask.id, updatedTask);
+          });
+          return Array.from(map.values());
+        });
+      } else {
+        setTaskItems((prev) =>
+          prev.map((item) => (item.id === task.id ? data.task : item))
+        );
+      }
+
+      if (data?.warning) {
+        addToast({
+          title: "Off duty",
+          message: data.warning,
+          variant: "warning",
+        });
+      }
+
+      setColumnPrefs((prev) => {
+        const current = prev?.[nextStatus] ?? {};
+        const expandedWidth = clampExpandedWidth(
+          current.expandedWidth ?? current.width ?? DEFAULT_EXPANDED_WIDTH
+        );
+
+        return {
+          ...prev,
+          [nextStatus]: {
+            ...current,
+            collapsed: false,
+            width: expandedWidth,
+            expandedWidth,
+          },
+        };
+      });
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
+        window.dispatchEvent(new CustomEvent("pms:timer-changed"));
+      }
+    } catch (error) {
+      setTaskItems(previousTaskItems);
       addToast({
-        title: "Off duty",
-        message: data.warning,
-        variant: "warning",
+        title: "Network error",
+        message: "Failed to update task status.",
+        variant: "error",
       });
+    } finally {
+      setPendingTaskId(null);
     }
-
-    addToast({
-      title: "Task moved",
-      message:
-        nextStatus === "IN_PROGRESS" && (data?.updatedTasks?.length ?? 0) > 1
-          ? "Started task. Previous task moved to On Hold."
-          : `Moved to ${getStatusLabel(nextStatus)}.`,
-      variant: "success",
-    });
-
-    setColumnPrefs((prev) => {
-      const current = prev?.[nextStatus] ?? {};
-      const expandedWidth = clampExpandedWidth(
-        current.expandedWidth ?? current.width ?? DEFAULT_EXPANDED_WIDTH
-      );
-
-      return {
-        ...prev,
-        [nextStatus]: {
-          ...current,
-          collapsed: false,
-          width: expandedWidth,
-          expandedWidth,
-        },
-      };
-    });
-
-    setPendingTaskId(null);
   };
 
   const updateTaskState = (taskId, updater) => {
     setTaskItems((prev) =>
       prev.map((item) => (item.id === taskId ? updater(item) : item))
     );
+  };
+
+  const handlePersonalTodoToggle = async (todo, isCompleted) => {
+    updateTaskState(selectedTask.id, (task) => ({
+      ...task,
+      personalTodos: (task.personalTodos ?? []).map((t) =>
+        t.id === todo.id ? { ...t, isCompleted } : t
+      ),
+    }));
+
+    try {
+      const response = await fetch(`/api/todos/${todo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCompleted }),
+      });
+      if (!response.ok) {
+        throw new Error("Unable to update personal to-do.");
+      }
+    } catch (err) {
+      addToast({
+        title: "To-Do update failed",
+        message: "Failed to update personal to-do status.",
+        variant: "error",
+      });
+      // Revert state
+      updateTaskState(selectedTask.id, (task) => ({
+        ...task,
+        personalTodos: (task.personalTodos ?? []).map((t) =>
+          t.id === todo.id ? { ...t, isCompleted: !isCompleted } : t
+        ),
+      }));
+    }
   };
 
   const refreshTask = useCallback(async (taskId) => {
@@ -725,6 +837,9 @@ export default function TaskBoard({
       }));
     }
     setBreakPanelOpen(false);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("pms:timer-changed"));
+    }
     setBreakSubmitting(false);
   };
 
@@ -763,6 +878,9 @@ export default function TaskBoard({
           : item.breaks ?? [],
         activeBreak: null,
       }));
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("pms:timer-changed"));
     }
     setBreakSubmitting(false);
   };
@@ -826,7 +944,7 @@ export default function TaskBoard({
       return false;
     }
 
-    if ([roles.PM, roles.CTO].includes(role)) {
+    if ([roles.PM, roles.CTO, roles.CEO].includes(normalizedRole)) {
       return true;
     }
 
@@ -838,11 +956,11 @@ export default function TaskBoard({
       return false;
     }
 
-    return isTaskOwner(task) && [roles.DEV, roles.SENIOR_DEV].includes(role);
+    return isTaskOwner(task) && [roles.DEV, roles.SENIOR_DEV, roles.INTERN, roles.JUNIOR_INTERN].includes(normalizedRole);
   };
 
   const canControlBreaks = (task) =>
-    isTaskOwner(task) && ![roles.PM, roles.CTO].includes(role);
+    isTaskOwner(task) && ![roles.PM, roles.CTO, roles.CEO].includes(normalizedRole);
 
   const handleDragStart = (event, task) => {
     if (!canMoveTaskForTask(task)) {
@@ -931,7 +1049,7 @@ export default function TaskBoard({
     const buttonClass = isPending ? "pointer-events-none opacity-60" : "";
 
     if (task.status === "TESTING") {
-      if (canMarkTaskDone(role)) {
+      if (canMarkTaskDone(normalizedRole)) {
         return (
           <div className="flex flex-wrap gap-2">
             <ActionButton
@@ -1047,31 +1165,36 @@ export default function TaskBoard({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setIsFilterOpen(true)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
-          aria-label="Open filters"
-          title="Filters"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
+      {!hideFilterButton && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen(true)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
+            aria-label="Open filters"
+            title="Filters"
           >
-            <path
-              d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      </div>
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
+              <path
+                d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
 
-      <div className="flex gap-4 overflow-x-auto pb-2">
+      <div
+        ref={scrollContainerRef}
+        className="flex gap-4 overflow-x-auto pb-2 items-start hide-scrollbar"
+      >
         {TASK_STATUSES.map((status) => {
           const pref = columnPrefs?.[status.id] ?? {};
           const isCollapsed = Boolean(pref.collapsed);
@@ -1196,27 +1319,51 @@ export default function TaskBoard({
                       )}
                     </div>
                     <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3 overflow-hidden">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-muted-bg)] text-xs font-semibold text-[color:var(--color-text)]">
+                      <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                        <span
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-muted-bg)] text-[10px] font-semibold text-[color:var(--color-text)]"
+                          title={task.owner?.name ?? "Unassigned"}
+                        >
                           {(task.owner?.name ?? "U").charAt(0).toUpperCase()}
                         </span>
-                        <div className="flex min-w-0 items-center gap-1 overflow-hidden text-xs text-[color:var(--color-text-subtle)]">
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                          >
-                            <path
-                              d="M9 12h8M9 7h8M5 7h.01M5 12h.01M5 17h.01M9 17h8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                          <span>
-                            {completedChecklistCount}/{checklistTotal}
+                        <div className="flex flex-col min-w-0">
+                          <span className="truncate text-[11px] font-medium text-[color:var(--color-text-subtle)] leading-tight">
+                            {task.owner?.name ?? "Unassigned"}
                           </span>
+                          <div className="flex min-w-0 items-center gap-0.5 text-[10px] text-[color:var(--color-text-subtle)]">
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-3 w-3 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                            >
+                              <path
+                                d="M9 12h8M9 7h8M5 7h.01M5 12h.01M5 17h.01M9 17h8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            <span>
+                              {completedChecklistCount}/{checklistTotal}
+                            </span>
+                            {task.personalTodos && task.personalTodos.length > 0 && (
+                              <span
+                                className="ml-1.5 inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md"
+                                title="Your Personal To-Dos linked to this task"
+                              >
+                                ☑ {task.personalTodos.filter((t) => t.isCompleted).length}/{task.personalTodos.length}
+                              </span>
+                            )}
+                            {task.personalNotes && task.personalNotes.length > 0 && (
+                              <span
+                                className="ml-1 inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded-md"
+                                title="Your Personal Notes linked to this task"
+                              >
+                                📝 {task.personalNotes.length}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-col items-center text-[10px] text-[color:var(--color-text-subtle)]">
@@ -1329,6 +1476,23 @@ export default function TaskBoard({
               ))}
             </select>
           </label>
+          {milestoneOptions.length > 1 && (
+            <label className="flex flex-col gap-2 text-xs text-[color:var(--color-text-muted)]">
+              Milestone
+              <select
+                className="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-xs text-[color:var(--color-text)]"
+                value={milestoneFilter}
+                onChange={(event) => setMilestoneFilter(event.target.value)}
+              >
+                <option value="ALL">All</option>
+                {milestoneOptions.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </Drawer>
 
@@ -1345,6 +1509,10 @@ export default function TaskBoard({
                 { id: "overview", label: "Overview" },
                 { id: "checklist", label: "Checklist" },
                 { id: "comments", label: "Comments" },
+                {
+                  id: "personal",
+                  label: `Personal (${(selectedTask.personalTodos?.length ?? 0) + (selectedTask.personalNotes?.length ?? 0)})`,
+                },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -1812,7 +1980,7 @@ export default function TaskBoard({
                     No checklist items assigned.
                   </p>
                 )}
-                {selectedTask.status === "TESTING" && canMarkTaskDone(role) && (
+                {selectedTask.status === "TESTING" && canMarkTaskDone(normalizedRole) && (
                   <p className="mt-3 text-xs text-sky-500">
                     PM review checklist for testing sign-off.
                   </p>
@@ -1831,6 +1999,85 @@ export default function TaskBoard({
                   currentUser={{ id: currentUserId }}
                   users={mentionUsers}
                 />
+              </div>
+            ) : null}
+
+            {activeTab === "personal" ? (
+              <div className="space-y-6">
+                {/* Personal To-Dos */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)] flex items-center gap-1.5">
+                    <span className="text-emerald-400">☑</span> Personal To-Dos
+                  </p>
+                  {selectedTask.personalTodos && selectedTask.personalTodos.length > 0 ? (
+                    <ul className="space-y-2">
+                      {selectedTask.personalTodos.map((todo) => (
+                        <li
+                          key={todo.id}
+                          className="flex items-start gap-2.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-3 transition hover:border-[color:var(--color-accent)]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={todo.isCompleted}
+                            onChange={(e) => handlePersonalTodoToggle(todo, e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-[color:var(--color-border)] bg-transparent text-emerald-500 cursor-pointer"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-medium text-[color:var(--color-text)] break-words ${todo.isCompleted ? "line-through opacity-50" : ""}`}>
+                              {todo.content}
+                            </p>
+                            {todo.reminderAt && (
+                              <p className="mt-1 text-[10px] text-[color:var(--color-text-muted)] flex items-center gap-1">
+                                🔔 Reminder: {new Date(todo.reminderAt).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-[color:var(--color-text-subtle)] italic">
+                      No personal to-dos linked to this task.
+                    </p>
+                  )}
+                </div>
+
+                {/* Personal Notes */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)] flex items-center gap-1.5">
+                    <span className="text-sky-400">📝</span> Personal Notes
+                  </p>
+                  {selectedTask.personalNotes && selectedTask.personalNotes.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedTask.personalNotes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-3 space-y-1.5"
+                        >
+                          <h4 className="text-xs font-bold text-[color:var(--color-text)]">
+                            {note.title || "Untitled Note"}
+                          </h4>
+                          {note.content && (
+                            <p className="text-xs text-[color:var(--color-text-subtle)] whitespace-pre-wrap leading-relaxed line-clamp-4">
+                              {note.content}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[color:var(--color-text-subtle)] italic">
+                      No personal notes linked to this task.
+                    </p>
+                  )}
+                </div>
+
+                {/* Info Note */}
+                <div className="rounded-xl bg-[color:var(--color-surface-muted)]/40 border border-[color:var(--color-border)]/50 p-3">
+                  <p className="text-[11px] text-[color:var(--color-text-muted)] leading-relaxed">
+                    💡 <strong>Note:</strong> These items are private to your account. Other team members, managers, or administrators cannot see your linked personal To-Dos and Notes. You can manage them anytime inside your <strong>My Desk</strong> workspace.
+                  </p>
+                </div>
               </div>
             ) : null}
 

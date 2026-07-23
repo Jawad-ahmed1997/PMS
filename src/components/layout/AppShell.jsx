@@ -11,6 +11,7 @@ import useOutsideClick from "@/hooks/useOutsideClick";
 import NotificationDrawer from "@/components/notifications/NotificationDrawer";
 import RouteProgress from "@/components/layout/RouteProgress";
 import FloatingTaskTimer from "@/components/layout/FloatingTaskTimer";
+import TodoReminderManager from "@/components/layout/TodoReminderManager";
 import {
   NotificationCountsProvider,
   useNotificationCounts,
@@ -128,7 +129,7 @@ function AppShellContent({ children, session }) {
               />
             </svg>
             {counts.total > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-[color:var(--color-accent)] px-1 text-[10px] font-semibold text-white">
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
                 {counts.total}
               </span>
             ) : null}
@@ -194,6 +195,7 @@ function AppShellContent({ children, session }) {
         onClose={() => setIsNotificationsOpen(false)}
       />
       <FloatingTaskTimer session={session} />
+      <TodoReminderManager session={session} />
     </div>
   );
 }

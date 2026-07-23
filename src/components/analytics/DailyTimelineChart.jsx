@@ -247,46 +247,72 @@ export default function DailyTimelineChart({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
-        <div className="w-full" style={{ minWidth }}>
-          <div className={`grid items-center gap-3 pb-4 ${showUserNames ? "grid-cols-[220px,minmax(0,1fr)]" : "grid-cols-1"}`}>
-            {showUserNames ? <div /> : null}
-            <div className="relative h-7 text-[11px] text-[#86a0c0]">
-              {ticks.map((tick) => (
-                <div
-                  key={tick.value}
-                  className="absolute top-0 h-full"
-                  style={{ left: `${tick.left}%` }}
-                >
-                  <span className="absolute left-0 top-0 -translate-x-1/2 whitespace-nowrap">
-                    {tick.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            {rowMarkers.map((row) => (
+      <div className="mt-4 space-y-6">
+        {/* Time Ticks Header Row - Static */}
+        <div className="px-8 pb-1">
+          <div className="relative h-7 text-[11px] text-[#86a0c0]">
+            {ticks.map((tick) => (
               <div
-                key={row.user?.id ?? row.user?.name ?? "row"}
-                className={`grid items-center gap-3 ${
-                  showUserNames ? "grid-cols-[220px,minmax(0,1fr)]" : "grid-cols-1"
-                }`}
+                key={tick.value}
+                className="absolute top-0 h-full"
+                style={{ left: `${tick.left}%` }}
               >
+                <span className="absolute left-0 top-0 -translate-x-1/2 whitespace-nowrap">
+                  {tick.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* User Rows */}
+        <div className="space-y-6">
+          {rowMarkers.map((row) => (
+            <div
+              key={row.user?.id ?? row.user?.name ?? "row"}
+              className="space-y-2 border-b border-[color:var(--color-border)]/30 pb-5 last:border-0 last:pb-0"
+            >
+              {/* Header Row: User Info on Left, Summary Stats on Right - Static */}
+              <div className="flex items-center justify-between gap-4 px-8">
                 {showUserNames ? (
-                  <div className="flex items-center gap-3 pr-2">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#253242] text-base text-white/90">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#253242] text-sm text-white/90">
                       {(row.user?.name ?? "U").trim().charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-base font-medium text-white">{row.user?.name ?? "Unknown"}</p>
-                      <p className="text-sm text-[#7c9fc4]">Developer</p>
+                      <p className="truncate text-sm font-semibold text-white leading-tight">
+                        {row.user?.name ?? "Unknown"}
+                      </p>
+                      <p className="text-xs text-[#7c9fc4]">Developer</p>
                     </div>
                   </div>
-                ) : null}
-                <div>
-                  <div className="relative h-12 overflow-hidden rounded-xl bg-[#050b17]">
+                ) : <div />}
+
+                <p className="text-xs text-[#8ea8c8] font-semibold shrink-0">
+                  {formatDurationSeconds(row.totals?.dutySeconds)} total
+                  <span className="px-2">•</span>
+                  {formatDurationSeconds(row.totals?.workTaskSeconds)} task
+                  <span className="px-2">•</span>
+                  {formatDurationSeconds(row.totals?.workManualSeconds)} manual
+                  <span className="px-2">•</span>
+                  {formatDurationSeconds(row.totals?.idleSeconds)} idle
+                </p>
+              </div>
+
+              {/* Progress Bar Row - Scrollable */}
+              <div className="px-8">
+                <div className="overflow-x-auto hide-scrollbar">
+                  <div style={{ minWidth }} className="relative h-8 overflow-hidden rounded-xl bg-[#050b17]">
+                    {/* Vertical slot guide lines */}
+                    {ticks.map((tick) => (
+                      <div
+                        key={`grid-${tick.value}`}
+                        className="absolute top-0 bottom-0 w-px bg-white/[0.12] pointer-events-none z-10"
+                        style={{ left: `${tick.left}%` }}
+                      />
+                    ))}
+
+                    {/* Color segments */}
                     {row.segments
                       .filter((segment) => segment.type !== "NO_DUTY")
                       .map((segment) => (
@@ -306,19 +332,10 @@ export default function DailyTimelineChart({
                         />
                       ))}
                   </div>
-                  <p className="mt-2 text-sm text-[#8ea8c8]">
-                    {formatDurationSeconds(row.totals?.dutySeconds)} total
-                    <span className="px-2">•</span>
-                    {formatDurationSeconds(row.totals?.workTaskSeconds)} task
-                    <span className="px-2">•</span>
-                    {formatDurationSeconds(row.totals?.workManualSeconds)} manual
-                    <span className="px-2">•</span>
-                    {formatDurationSeconds(row.totals?.idleSeconds)} idle
-                  </p>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

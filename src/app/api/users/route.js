@@ -24,6 +24,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const roleParam = normalizeRole(searchParams.get("role"));
   const isActiveParam = parseBoolean(searchParams.get("isActive"));
+  const projectIdParam = searchParams.get("projectId");
 
   const where = {};
   if (roleParam) {
@@ -31,6 +32,9 @@ export async function GET(request) {
   }
   if (isActiveParam !== null) {
     where.isActive = isActiveParam;
+  }
+  if (projectIdParam) {
+    where.memberProjects = { some: { projectId: projectIdParam } };
   }
 
   const users = await prisma.user.findMany({

@@ -13,6 +13,8 @@ enum UserRole {
   CTO
   SENIOR_DEVELOPER
   DEVELOPER
+  INTERN
+  JUNIOR_INTERN
 }
 
 enum TaskStatus {
@@ -123,6 +125,8 @@ model User {
   notificationRecipients NotificationRecipient[]
   attendances      Attendance[]
   attendanceBreaks AttendanceBreak[]
+  personalTodos    PersonalTodo[]
+  personalNotes    PersonalNote[]
 }
 
 model Project {
@@ -188,6 +192,8 @@ model Task {
   workSessions   TaskWorkSession[]
   activityLogs   ActivityLog[]
   notifications  Notification[]
+  personalTodos  PersonalTodo[]
+  personalNotes  PersonalNote[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime?      @updatedAt
 }
@@ -389,4 +395,36 @@ model NotificationRecipient {
   createdAt      DateTime      @default(now())
 
   @@unique([notificationId, userId])
+}
+
+model PersonalTodo {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String    @db.ObjectId
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId       String?   @db.ObjectId
+  task         Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  content      String
+  isCompleted  Boolean   @default(false)
+  reminderAt   DateTime?
+  reminderSent Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([taskId])
+}
+
+model PersonalNote {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId    String?  @db.ObjectId
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([taskId])
 }

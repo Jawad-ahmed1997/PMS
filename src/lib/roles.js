@@ -4,6 +4,8 @@ export const roles = {
   CTO: "cto",
   SENIOR_DEV: "senior-developer",
   DEV: "developer",
+  INTERN: "intern",
+  JUNIOR_INTERN: "junior-intern",
 };
 
 export const roleOptions = [
@@ -32,6 +34,16 @@ export const roleOptions = [
     label: "Developer",
     description: "Execute and update tasks",
   },
+  {
+    id: roles.INTERN,
+    label: "Intern",
+    description: "Execute and update tasks",
+  },
+  {
+    id: roles.JUNIOR_INTERN,
+    label: "Junior Intern",
+    description: "Execute and update tasks",
+  },
 ];
 
 export const routeAccess = {
@@ -41,15 +53,44 @@ export const routeAccess = {
     roles.CTO,
     roles.SENIOR_DEV,
     roles.DEV,
+    roles.INTERN,
+    roles.JUNIOR_INTERN,
   ],
-  "/projects": [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV],
-  "/milestones": [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV],
+  "/projects": [
+    roles.CEO,
+    roles.PM,
+    roles.CTO,
+    roles.SENIOR_DEV,
+    roles.DEV,
+    roles.INTERN,
+    roles.JUNIOR_INTERN,
+  ],
+  "/my-tasks": [
+    roles.CEO,
+    roles.PM,
+    roles.CTO,
+    roles.SENIOR_DEV,
+    roles.DEV,
+    roles.INTERN,
+    roles.JUNIOR_INTERN,
+  ],
+  "/my-desk": [
+    roles.CEO,
+    roles.PM,
+    roles.CTO,
+    roles.SENIOR_DEV,
+    roles.DEV,
+    roles.INTERN,
+    roles.JUNIOR_INTERN,
+  ],
   "/activity": [
     roles.CEO,
     roles.PM,
     roles.CTO,
     roles.SENIOR_DEV,
     roles.DEV,
+    roles.INTERN,
+    roles.JUNIOR_INTERN,
   ],
   "/attendance": [
     roles.CEO,
@@ -57,6 +98,8 @@ export const routeAccess = {
     roles.CTO,
     roles.SENIOR_DEV,
     roles.DEV,
+    roles.INTERN,
+    roles.JUNIOR_INTERN,
   ],
   "/reports": [roles.CEO, roles.PM, roles.CTO],
   "/users": [roles.CEO, roles.PM, roles.CTO],
@@ -80,6 +123,14 @@ export const taskPermissions = {
     canMarkDone: false,
   },
   [roles.DEV]: {
+    canMoveTask: true,
+    canMarkDone: false,
+  },
+  [roles.INTERN]: {
+    canMoveTask: true,
+    canMarkDone: false,
+  },
+  [roles.JUNIOR_INTERN]: {
     canMoveTask: true,
     canMarkDone: false,
   },
@@ -107,6 +158,8 @@ export function normalizeRoleId(roleId) {
     SENIOR_DEVELOPER: roles.SENIOR_DEV,
     DEVELOPER: roles.DEV,
     DEV: roles.DEV,
+    INTERN: roles.INTERN,
+    JUNIOR_INTERN: roles.JUNIOR_INTERN,
   };
 
   return mapping[normalized] ?? null;

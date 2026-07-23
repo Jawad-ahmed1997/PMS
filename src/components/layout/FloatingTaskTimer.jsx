@@ -183,6 +183,16 @@ export default function FloatingTaskTimer({ session }) {
     return () => window.removeEventListener("focus", onFocus);
   }, [syncFromServer]);
 
+  useEffect(() => {
+    const handleTimerChange = () => {
+      syncFromServer();
+    };
+    window.addEventListener("pms:timer-changed", handleTimerChange);
+    return () => {
+      window.removeEventListener("pms:timer-changed", handleTimerChange);
+    };
+  }, [syncFromServer]);
+
   const clampPosition = useCallback((nextX, nextY) => {
     const el = containerRef.current;
     const width = el?.offsetWidth ?? 320;

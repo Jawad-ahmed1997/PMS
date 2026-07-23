@@ -115,13 +115,15 @@ export default function MilestoneDetailView({
   }, [loadMilestone]);
 
   useEffect(() => {
-    if (!canManageAssignments) {
+    if (!canManageAssignments || !milestone?.projectId) {
       return;
     }
 
     const loadUsers = async () => {
       try {
-        const response = await fetch("/api/users?isActive=true");
+        const response = await fetch(
+          `/api/users?isActive=true&projectId=${milestone.projectId}`
+        );
         const data = await response.json();
         if (response.ok) {
           setUsers(data?.users ?? []);
@@ -132,7 +134,7 @@ export default function MilestoneDetailView({
     };
 
     loadUsers();
-  }, [canManageAssignments]);
+  }, [canManageAssignments, milestone?.projectId]);
 
   const resetTaskForm = () => {
     setTaskForm({
@@ -284,6 +286,9 @@ export default function MilestoneDetailView({
           : "Task added to milestone execution queue.",
         variant: "success",
       });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
+      }
       resetTaskForm();
       setIsModalOpen(false);
       if (editingTaskId) {

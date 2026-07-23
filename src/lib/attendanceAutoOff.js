@@ -65,84 +65,104 @@ export async function normalizeAttendanceAutoOff(prismaClient, attendance, now =
     return null;
   }
 
-  return prismaClient.$transaction(async (tx) => {
-    const fresh = await tx.attendance.findUnique({
-      where: { id: attendance.id },
-      include: { breaks: true },
-    });
+  let retries = 3;
+  let delayMs = 100;
 
-    if (!fresh || !shouldAutoOffAttendance(fresh, now)) {
-      return null;
-    }
+  while (retries > 0) {
+    try {
+      return await prismaClient.$transaction(async (tx) => {
+        const fresh = await tx.attendance.findUnique({
+          where: { id: attendance.id },
+          include: { breaks: true },
+        });
 
-    await tx.attendance.update({
-      where: { id: fresh.id },
-      data: {
-        outTime: autoOffAt,
-        autoOff: true,
-        autoOffReason: ATTENDANCE_AUTO_OFF_REASON,
-      },
-    });
+        if (!fresh || !shouldAutoOffAttendance(fresh, now)) {
+          return null;
+        }
 
-    await tx.attendanceBreak.updateMany({
-      where: {
-        attendanceId: fresh.id,
-        OR: [{ endAt: null }, { endAt: { gt: autoOffAt } }],
-      },
-      data: {
-        endAt: autoOffAt,
-        endedBy: "AUTO_OFF",
-      },
-    });
+        await tx.attendance.update({
+          where: { id: fresh.id },
+          data: {
+            outTime: autoOffAt,
+            autoOff: true,
+            autoOffReason: ATTENDANCE_AUTO_OFF_REASON,
+          },
+        });
 
-    const activeSessions = await tx.taskWorkSession.findMany({
-      where: {
-        userId: fresh.userId,
-        endedAt: null,
-        startedAt: { lt: autoOffAt },
-      },
-    });
+        await tx.attendanceBreak.updateMany({
+          where: {
+            attendanceId: fresh.id,
+            OR: [{ endAt: null }, { endAt: { gt: autoOffAt } }],
+          },
+          data: {
+            endAt: autoOffAt,
+            endedBy: "AUTO_OFF",
+          },
+        });
 
-    for (const session of activeSessions) {
-      await endWorkSession({
-        prismaClient: tx,
-        session,
-        endedAt: autoOffAt,
-        includeBreaks: true,
-        endedBy: "AUTO_OFF",
+        const activeSessions = await tx.taskWorkSession.findMany({
+          where: {
+            userId: fresh.userId,
+            endedAt: null,
+            startedAt: { lt: autoOffAt },
+          },
+        });
+
+        for (const session of activeSessions) {
+          await endWorkSession({
+            prismaClient: tx,
+            session,
+            endedAt: autoOffAt,
+            includeBreaks: true,
+            endedBy: "AUTO_OFF",
+          });
+        }
+
+        const runningManualLogs = await tx.activityLog.findMany({
+          where: {
+            userId: fresh.userId,
+            type: "MANUAL",
+            endAt: null,
+            startAt: { lt: autoOffAt },
+          },
+          select: { id: true, startAt: true },
+        });
+
+        for (const log of runningManualLogs) {
+          const startAt = log.startAt instanceof Date ? log.startAt : new Date(log.startAt);
+          if (Number.isNaN(startAt.getTime()) || startAt >= autoOffAt) {
+            continue;
+          }
+          const durationSeconds = Math.max(
+            0,
+            Math.floor((autoOffAt.getTime() - startAt.getTime()) / 1000)
+          );
+          await tx.activityLog.update({
+            where: { id: log.id },
+            data: {
+              endAt: autoOffAt,
+              durationSeconds,
+            },
+          });
+        }
+
+        return { id: fresh.id, outTime: autoOffAt };
       });
-    }
+    } catch (error) {
+      const isWriteConflict =
+        error?.code === "P2034" ||
+        error?.message?.toLowerCase().includes("write conflict") ||
+        error?.message?.toLowerCase().includes("deadlock");
 
-    const runningManualLogs = await tx.activityLog.findMany({
-      where: {
-        userId: fresh.userId,
-        type: "MANUAL",
-        endAt: null,
-        startAt: { lt: autoOffAt },
-      },
-      select: { id: true, startAt: true },
-    });
-
-    for (const log of runningManualLogs) {
-      const startAt = log.startAt instanceof Date ? log.startAt : new Date(log.startAt);
-      if (Number.isNaN(startAt.getTime()) || startAt >= autoOffAt) {
+      if (isWriteConflict && retries > 1) {
+        retries--;
+        const waitTime = Math.random() * delayMs + 50;
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
         continue;
       }
-      const durationSeconds = Math.max(
-        0,
-        Math.floor((autoOffAt.getTime() - startAt.getTime()) / 1000)
-      );
-      await tx.activityLog.update({
-        where: { id: log.id },
-        data: {
-          endAt: autoOffAt,
-          durationSeconds,
-        },
-      });
+      throw error;
     }
-
-    return { id: fresh.id, outTime: autoOffAt };
-  });
+  }
 }
 
 export async function normalizeAutoOffForAttendances(prismaClient, attendances, now = new Date()) {

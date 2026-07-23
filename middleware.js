@@ -5,7 +5,8 @@ import { getDefaultRouteForRole, roleHasRouteAccess } from "@/lib/roles";
 const protectedRoutes = [
   "/dashboard",
   "/projects",
-  "/milestones",
+  "/my-tasks",
+  "/my-desk",
   "/activity",
   "/attendance",
   "/reports",

@@ -195,6 +195,9 @@ export default function CommentThread({
       }
       setComments((prev) => [...prev, data.comment]);
       onCommentAdded?.(data.comment);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
+      }
       setMessage("");
     } catch (error) {
       const message =

@@ -10,42 +10,55 @@ import { computeTaskSpentTime } from "@/lib/taskTimeCalculator";
 import { TASK_TYPE_CHECKLISTS } from "@/lib/taskChecklists";
 import { createNotification } from "@/lib/notifications";
 
-async function getTask(taskId) {
+async function getTask(taskId, userId) {
+  const select = {
+    id: true,
+    title: true,
+    description: true,
+    status: true,
+    type: true,
+    ownerId: true,
+    milestoneId: true,
+    estimatedHours: true,
+    blockedReason: true,
+    blockedType: true,
+    holdReason: true,
+    holdNote: true,
+    reworkCount: true,
+    totalTimeSpent: true,
+    lastStartedAt: true,
+    createdAt: true,
+    owner: { select: { id: true, name: true, email: true, role: true } },
+    milestone: {
+      select: {
+        id: true,
+        title: true,
+        projectId: true,
+        project: { select: { members: { select: { userId: true } } } },
+      },
+    },
+    checklistItems: true,
+    statusHistory: true,
+    activityLogs: true,
+    timeLogs: true,
+    workSessions: { orderBy: { startedAt: "desc" } },
+    breaks: { orderBy: { startedAt: "desc" } },
+  };
+
+  if (userId) {
+    select.personalTodos = {
+      where: { userId },
+      select: { id: true, content: true, isCompleted: true, reminderAt: true },
+    };
+    select.personalNotes = {
+      where: { userId },
+      select: { id: true, title: true, content: true },
+    };
+  }
+
   return prisma.task.findUnique({
     where: { id: taskId },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      status: true,
-      type: true,
-      ownerId: true,
-      milestoneId: true,
-      estimatedHours: true,
-      blockedReason: true,
-      blockedType: true,
-      holdReason: true,
-      holdNote: true,
-      reworkCount: true,
-      totalTimeSpent: true,
-      lastStartedAt: true,
-      createdAt: true,
-      owner: { select: { id: true, name: true, email: true, role: true } },
-      milestone: {
-        select: {
-          id: true,
-          title: true,
-          projectId: true,
-          project: { select: { members: { select: { userId: true } } } },
-        },
-      },
-      checklistItems: true,
-      statusHistory: true,
-      activityLogs: true,
-      timeLogs: true,
-      workSessions: { orderBy: { startedAt: "desc" } },
-      breaks: { orderBy: { startedAt: "desc" } },
-    },
+    select,
   });
 }
 
@@ -74,7 +87,7 @@ export async function GET(request, { params }) {
     return buildError("Task id is required.", 400);
   }
 
-  const task = await getTask(taskId);
+  const task = await getTask(taskId, context.user.id);
   if (!task) {
     return buildError("Task not found.", 404);
   }
@@ -122,7 +135,7 @@ export async function PATCH(request, { params }) {
     return buildError("Task id is required.", 400);
   }
 
-  const task = await getTask(taskId);
+  const task = await getTask(taskId, context.user.id);
   if (!task) {
     return buildError("Task not found.", 404);
   }
@@ -166,6 +179,27 @@ export async function PATCH(request, { params }) {
   }
 
   if (body?.ownerId !== undefined) {
+    if (body.ownerId) {
+      const owner = await prisma.user.findUnique({
+        where: { id: body.ownerId },
+        select: { id: true },
+      });
+      if (!owner) {
+        return buildError("Task owner not found.", 404);
+      }
+
+      const isOwnerProjectMember = task.milestone?.project?.members?.some(
+        (member) => member.userId === body.ownerId
+      );
+      if (!isOwnerProjectMember) {
+        return buildError(
+          "The assigned user is not a member of this project.",
+          400
+        );
+      }
+    } else {
+      return buildError("Task owner is required.", 400);
+    }
     updates.ownerId = body.ownerId;
   }
 
@@ -257,6 +291,14 @@ export async function PATCH(request, { params }) {
         timeLogs: true,
         workSessions: { orderBy: { startedAt: "desc" } },
         breaks: { orderBy: { startedAt: "desc" } },
+        personalTodos: {
+          where: { userId: context.user.id },
+          select: { id: true, content: true, isCompleted: true, reminderAt: true },
+        },
+        personalNotes: {
+          where: { userId: context.user.id },
+          select: { id: true, title: true, content: true },
+        },
       },
     });
 

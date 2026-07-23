@@ -198,7 +198,7 @@ export async function DELETE(request, { params }) {
     return authError;
   }
 
-  const allowedRoles = [...ADMIN_ROLES, "DEVELOPER"];
+  const allowedRoles = [...ADMIN_ROLES, "DEVELOPER", "INTERN", "JUNIOR_INTERN"];
   const roleError = ensureRole(context.role, allowedRoles);
   if (roleError) {
     return roleError;
