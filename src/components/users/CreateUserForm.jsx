@@ -42,7 +42,6 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
             name: formState.name,
             email: formState.email,
             role: formState.role,
-            password: formState.password,
           };
 
       const response = await fetch(url, {
@@ -58,8 +57,8 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
       }
 
       addToast({
-        title: user ? "User updated successfully" : "User created successfully",
-        message: user ? "The user details have been updated." : "The new user can now sign in.",
+        title: user ? "User updated successfully" : "Invitation sent",
+        message: user ? "The user details have been updated." : "An invitation email has been sent to the user.",
         variant: "success",
       });
 
@@ -75,9 +74,9 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
       onSuccess?.();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : `Unable to ${user ? "update" : "create"} user.`;
+        error instanceof Error ? error.message : `Unable to ${user ? "update" : "invite"} user.`;
       addToast({
-        title: user ? "User update failed" : "User creation failed",
+        title: user ? "User update failed" : "Invitation failed",
         message,
         variant: "error",
       });
@@ -155,19 +154,7 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
               <option value="false">Inactive</option>
             </select>
           </label>
-        ) : (
-          <label className="text-xs text-[color:var(--color-text-muted)]">
-            Password
-            <input
-              type="password"
-              name="password"
-              value={formState.password}
-              onChange={handleChange}
-              className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-              required
-            />
-          </label>
-        )}
+        ) : null}
 
         {user && (
           <label className="text-xs text-[color:var(--color-text-muted)] opacity-60">
@@ -194,7 +181,7 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
           </button>
         )}
         <ActionButton
-          label={status.loading ? (user ? "Updating..." : "Creating...") : (user ? "Update user" : "Create user")}
+          label={status.loading ? (user ? "Updating..." : "Sending invite...") : (user ? "Update user" : "Send Invitation")}
           variant="primary"
           type="submit"
           className={status.loading ? "pointer-events-none opacity-60" : ""}

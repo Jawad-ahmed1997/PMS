@@ -29,7 +29,7 @@ export const navigationItems = [
     roles: [roles.CEO, roles.PM, roles.CTO],
   },
   {
-    label: "Create user",
+    label: "Members",
     href: "/users/create",
     roles: [roles.CEO, roles.PM, roles.CTO],
   },

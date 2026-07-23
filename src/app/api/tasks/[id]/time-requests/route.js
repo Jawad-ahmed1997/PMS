@@ -150,7 +150,7 @@ export async function POST(request, { params }) {
   });
 
   const leaders = await prisma.user.findMany({
-    where: { role: { in: ["PM", "CTO"] } },
+    where: { role: { in: ["PM", "CTO"] }, isActive: true },
     select: { id: true },
   });
   const leaderIds = leaders.map((leader) => leader.id);

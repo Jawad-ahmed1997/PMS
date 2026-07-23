@@ -5,6 +5,7 @@ import ActionButton from "@/components/ui/ActionButton";
 import Modal from "@/components/ui/Modal";
 import CreateUserForm from "@/components/users/CreateUserForm";
 import { roleOptions, normalizeRoleId } from "@/lib/roles";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const getRoleLabel = (roleId) => {
   const normId = normalizeRoleId(roleId);
@@ -17,6 +18,36 @@ export default function UserManagementView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const { addToast } = useToast();
+  const [reinvitingIds, setReinvitingIds] = useState({});
+
+  const handleReinvite = async (userId) => {
+    setReinvitingIds((prev) => ({ ...prev, [userId]: true }));
+    try {
+      const response = await fetch("/api/users/reinvite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to resend invitation");
+      }
+      addToast({
+        title: "Invitation sent",
+        message: "A new invitation email has been sent successfully.",
+        variant: "success",
+      });
+    } catch (err) {
+      addToast({
+        title: "Failed to reinvite",
+        message: err instanceof Error ? err.message : "Could not send invitation email.",
+        variant: "error",
+      });
+    } finally {
+      setReinvitingIds((prev) => ({ ...prev, [userId]: false }));
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -80,7 +111,7 @@ export default function UserManagementView() {
         </div>
 
         <ActionButton
-          label="Create User"
+          label="Invite Member"
           variant="primary"
           onClick={() => {
             setSelectedUser(null);
@@ -138,13 +169,22 @@ export default function UserManagementView() {
                           Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-500/10 px-2 py-1 text-xs font-semibold text-zinc-400">
-                          <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
-                          Inactive
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          Pending Invite
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                      {user.isActive === false && (
+                        <button
+                          onClick={() => handleReinvite(user.id)}
+                          disabled={reinvitingIds[user.id]}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--color-border)] px-2.5 py-1.5 text-xs font-medium text-amber-400 hover:border-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
+                        >
+                          {reinvitingIds[user.id] ? "Sending..." : "Resend Invite"}
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setSelectedUser(user);
@@ -179,8 +219,8 @@ export default function UserManagementView() {
       {/* Reusable Modal containing the creation/edit form */}
       <Modal
         isOpen={isCreateOpen}
-        title={selectedUser ? "Edit User Account" : "Create User Account"}
-        description={selectedUser ? "Modify account details for this team member." : "Fill in the details below to add a new team member."}
+        title={selectedUser ? "Edit User Account" : "Invite Team Member"}
+        description={selectedUser ? "Modify account details for this team member." : "Enter their details to send an invitation email."}
         onClose={() => setIsCreateOpen(false)}
       >
         <div className="pb-6">

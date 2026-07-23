@@ -430,9 +430,9 @@ export async function buildDailyTimeline({
     if (targetUserId) {
       const user = await prismaClient.user.findUnique({
         where: { id: targetUserId },
-        select: { id: true, name: true, role: true },
+        select: { id: true, name: true, role: true, isActive: true },
       });
-      if (user) {
+      if (user && user.isActive) {
         users = [user];
       }
     } else {
@@ -445,9 +445,9 @@ export async function buildDailyTimeline({
   } else {
     const user = await prismaClient.user.findUnique({
       where: { id: viewerUserId },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, role: true, isActive: true },
     });
-    if (user) {
+    if (user && user.isActive) {
       users = [user];
     }
   }

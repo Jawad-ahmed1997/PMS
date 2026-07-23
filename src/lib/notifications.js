@@ -8,7 +8,7 @@ export function isLeadershipRole(role) {
 
 export async function getLeadershipUserIds(prismaClient = prisma) {
   const leaders = await prismaClient.user.findMany({
-    where: { role: { in: LEADERSHIP_ROLES } },
+    where: { role: { in: LEADERSHIP_ROLES }, isActive: true },
     select: { id: true },
   });
   return leaders.map((leader) => leader.id);
@@ -21,7 +21,12 @@ export async function getProjectMemberIds(projectId, prismaClient = prisma) {
 
   const project = await prismaClient.project.findUnique({
     where: { id: projectId },
-    select: { members: { select: { userId: true } } },
+    select: {
+      members: {
+        where: { user: { isActive: true } },
+        select: { userId: true },
+      },
+    },
   });
 
   return project?.members?.map((member) => member.userId) ?? [];
@@ -35,10 +40,17 @@ export async function getTaskMemberIds(taskId, prismaClient = prisma) {
   const task = await prismaClient.task.findUnique({
     where: { id: taskId },
     select: {
-      ownerId: true,
+      owner: { select: { id: true, isActive: true } },
       milestone: {
         select: {
-          project: { select: { members: { select: { userId: true } } } },
+          project: {
+            select: {
+              members: {
+                where: { user: { isActive: true } },
+                select: { userId: true },
+              },
+            },
+          },
         },
       },
     },
@@ -46,7 +58,8 @@ export async function getTaskMemberIds(taskId, prismaClient = prisma) {
 
   const memberIds =
     task?.milestone?.project?.members?.map((member) => member.userId) ?? [];
-  return Array.from(new Set([task?.ownerId, ...memberIds].filter(Boolean)));
+  const ownerId = task?.owner?.isActive ? task.owner.id : null;
+  return Array.from(new Set([ownerId, ...memberIds].filter(Boolean)));
 }
 
 export async function createNotification({

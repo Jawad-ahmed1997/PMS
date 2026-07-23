@@ -44,7 +44,7 @@ export default async function AttendancePage() {
     });
 
     if (currentUser) {
-      const userFilter = isLeader ? {} : { id: currentUser.id };
+      const userFilter = isLeader ? { isActive: true } : { id: currentUser.id, isActive: true };
       users = await prisma.user.findMany({
         where: userFilter,
         orderBy: { name: "asc" },
@@ -53,7 +53,7 @@ export default async function AttendancePage() {
 
       attendance = await prisma.attendance.findMany({
         where: {
-          ...(isLeader ? {} : { userId: currentUser.id }),
+          ...(isLeader ? { user: { isActive: true } } : { userId: currentUser.id }),
           date: {
             gte: start,
             lte: end,
@@ -70,7 +70,7 @@ export default async function AttendancePage() {
 
       attendance = await prisma.attendance.findMany({
         where: {
-          ...(isLeader ? {} : { userId: currentUser.id }),
+          ...(isLeader ? { user: { isActive: true } } : { userId: currentUser.id }),
           date: {
             gte: start,
             lte: end,
