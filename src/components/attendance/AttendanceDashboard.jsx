@@ -6,7 +6,13 @@ import Modal from "@/components/ui/Modal";
 import PageHeader from "@/components/layout/PageHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import useOutsideClick from "@/hooks/useOutsideClick";
-import { getCutoffTime } from "@/lib/dutyHours";
+import { getAttendanceAutoOffTime } from "@/lib/attendanceAutoOff";
+import { formatBreakTypes, normalizeBreakTypes } from "@/lib/breakTypes";
+import {
+  formatDateInPSTDateString,
+  getTodayInPSTDateString,
+  shiftDateStringByDays,
+} from "@/lib/pstDate";
 
 const badgeOptions = [
   { id: "all", label: "All" },
@@ -28,11 +34,7 @@ const breakTypeOptions = [
 ];
 
 function formatDateForInput(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return date.toLocaleDateString("en-CA");
+  return formatDateInPSTDateString(value);
 }
 
 function formatDisplayDate(value) {
@@ -141,33 +143,21 @@ function getRecordDurations(record) {
 }
 
 function isTodayDate(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const target = formatDateForInput(value);
+  if (!target) {
     return false;
   }
-  const today = new Date();
-  return (
-    date.getUTCFullYear() === today.getUTCFullYear() &&
-    date.getUTCMonth() === today.getUTCMonth() &&
-    date.getUTCDate() === today.getUTCDate()
-  );
+  return target === getTodayInPSTDateString();
 }
 
 function isEditableAttendanceDate(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const target = formatDateForInput(value);
+  const today = getTodayInPSTDateString();
+  if (!target || !today) {
     return false;
   }
-  const today = new Date();
-  const startOfToday = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
-  );
-  const earliest = new Date(startOfToday);
-  earliest.setUTCDate(startOfToday.getUTCDate() - 2);
-  const target = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-  );
-  return target >= earliest && target <= startOfToday;
+  const earliest = shiftDateStringByDays(today, -2);
+  return Boolean(earliest) && target >= earliest && target <= today;
 }
 
 function isAttendanceRunning(attendance, now = new Date()) {
@@ -178,7 +168,7 @@ function isAttendanceRunning(attendance, now = new Date()) {
   if (Number.isNaN(start.getTime())) {
     return false;
   }
-  const cutoff = getCutoffTime(start);
+  const cutoff = getAttendanceAutoOffTime(start);
   if (!cutoff) {
     return false;
   }
@@ -186,18 +176,18 @@ function isAttendanceRunning(attendance, now = new Date()) {
 }
 
 function getPresetRange(preset) {
-  const now = new Date();
-  const start = new Date(now);
-  const end = new Date(now);
+  const today = getTodayInPSTDateString();
+  const [year, month, day] = today.split("-").map((part) => Number(part));
+  const start = new Date(Date.UTC(year, month - 1, day));
+  const end = new Date(start);
 
   if (preset === "week") {
-    const day = now.getDay();
-    const diff = (day + 6) % 7;
-    start.setDate(now.getDate() - diff);
-    end.setDate(start.getDate() + 6);
+    const weekday = (start.getUTCDay() + 6) % 7;
+    start.setUTCDate(start.getUTCDate() - weekday);
+    end.setUTCDate(start.getUTCDate() + 6);
   } else if (preset === "month") {
-    start.setDate(1);
-    end.setMonth(start.getMonth() + 1, 0);
+    start.setUTCDate(1);
+    end.setUTCMonth(start.getUTCMonth() + 1, 0);
   }
 
   return {
@@ -217,9 +207,8 @@ function formatPresenceLabel(presence) {
   return "Off duty";
 }
 
-function formatBreakType(value) {
-  const option = breakTypeOptions.find((item) => item.id === value);
-  return option?.label ?? "Other";
+function formatBreakType(types, fallbackType = null) {
+  return formatBreakTypes(types, fallbackType);
 }
 
 function combineDateTime(dateValue, timeValue) {
@@ -361,12 +350,12 @@ export default function AttendanceDashboard({
   const [presenceNow, setPresenceNow] = useState(initialPresenceNow ?? null);
   const [status, setStatus] = useState({ loading: false, error: null });
   const [activeBadge, setActiveBadge] = useState("all");
-  const [activePreset, setActivePreset] = useState(initialRange?.preset ?? "week");
+  const [activePreset, setActivePreset] = useState(initialRange?.preset ?? "today");
   const [range, setRange] = useState(() => {
     if (initialRange?.from && initialRange?.to) {
       return { from: initialRange.from, to: initialRange.to };
     }
-    return getPresetRange("week");
+    return getPresetRange("today");
   });
   const [selectedUser, setSelectedUser] = useState(null);
   const [userQuery, setUserQuery] = useState("");
@@ -376,7 +365,7 @@ export default function AttendanceDashboard({
   const [modalState, setModalState] = useState({ open: false, mode: "create" });
   const [activeRecord, setActiveRecord] = useState(null);
   const [form, setForm] = useState({
-    date: formatDateForInput(new Date()),
+    date: "",
     inTime: "",
     outTime: "",
     note: "",
@@ -392,7 +381,7 @@ export default function AttendanceDashboard({
     attendanceId: null,
   });
   const [breakForm, setBreakForm] = useState({
-    type: "LUNCH",
+    types: ["LUNCH"],
     startTime: "",
     durationMinutes: "",
     notes: "",
@@ -408,6 +397,17 @@ export default function AttendanceDashboard({
     () => setIsFormUserMenuOpen(false),
     isFormUserMenuOpen
   );
+
+  useEffect(() => {
+    const today = getTodayInPSTDateString();
+    setForm((prev) => (prev.date ? prev : { ...prev, date: today }));
+    setRange((prev) => {
+      if (prev.from && prev.to) {
+        return prev;
+      }
+      return { from: today, to: today };
+    });
+  }, []);
 
   const filteredUsers = useMemo(() => {
     const query = userQuery.toLowerCase();
@@ -535,7 +535,7 @@ export default function AttendanceDashboard({
   const openCreateModal = () => {
     const defaultUser = selectedUser ?? currentUser;
     setForm({
-      date: range.from || formatDateForInput(new Date()),
+      date: getTodayInPSTDateString(),
       inTime: "",
       outTime: "",
       note: "",
@@ -663,8 +663,9 @@ export default function AttendanceDashboard({
     const startTimeValue = breakItem?.startAt
       ? formatTimeInput(breakItem.startAt)
       : formatTimeInput(new Date());
+    const nextTypes = normalizeBreakTypes(breakItem?.types, breakItem?.type);
     setBreakForm({
-      type: breakItem?.type ?? "LUNCH",
+      types: nextTypes.length ? nextTypes : ["LUNCH"],
       startTime: startTimeValue,
       durationMinutes: breakItem?.durationMinutes?.toString() ?? "",
       notes: breakItem?.notes ?? "",
@@ -681,6 +682,16 @@ export default function AttendanceDashboard({
     setBreakForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleBreakTypeToggle = (type) => {
+    setBreakForm((prev) => {
+      const hasType = prev.types.includes(type);
+      const nextTypes = hasType
+        ? prev.types.filter((item) => item !== type)
+        : [...prev.types, type];
+      return { ...prev, types: nextTypes };
+    });
+  };
+
   const handleBreakSubmit = async (event) => {
     event.preventDefault();
     const targetAttendanceId =
@@ -688,6 +699,14 @@ export default function AttendanceDashboard({
         ? breakModal.attendanceId ?? activeBreakRecord?.id
         : breakModal.breakItem?.attendanceId;
     if (!targetAttendanceId) {
+      return;
+    }
+    if (!breakForm.types.length) {
+      addToast({
+        title: "Break type required",
+        message: "Select at least one break type.",
+        variant: "warning",
+      });
       return;
     }
     if (!breakForm.startTime || !breakForm.durationMinutes) {
@@ -701,7 +720,7 @@ export default function AttendanceDashboard({
     setBreakSubmitting(true);
     try {
       const payload = {
-        type: breakForm.type,
+        types: breakForm.types,
         startTime: breakForm.startTime,
         durationMinutes: Number(breakForm.durationMinutes),
         notes: breakForm.notes,
@@ -1017,7 +1036,7 @@ export default function AttendanceDashboard({
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-[color:var(--color-text-muted)]">
-                        {formatBreakType(item.type)}
+                        {formatBreakType(item.types, item.type)}
                       </span>
                       <span className="text-xs text-[color:var(--color-text-muted)]">
                         {formatDurationFromMinutes(item.durationMinutes)}
@@ -1107,7 +1126,17 @@ export default function AttendanceDashboard({
                   </td>
                   <td className="px-4 py-4 text-[color:var(--color-text)]">
                     {record.outTime ? (
-                      formatDisplayTime(record.outTime)
+                      <div className="space-y-1">
+                        <p>{formatDisplayTime(record.outTime)}</p>
+                        {record.autoOff ? (
+                          <span
+                            className="inline-flex rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200"
+                            title="Auto closed after 10 hours (missing out time)"
+                          >
+                            Auto Off
+                          </span>
+                        ) : null}
+                      </div>
                     ) : record.inTime ? (
                       <div className="space-y-1 text-[color:var(--color-text-subtle)]">
                         <p>Out time not added yet</p>
@@ -1355,7 +1384,7 @@ export default function AttendanceDashboard({
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-full border border-[color:var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
-                          {formatBreakType(item.type)}
+                          {formatBreakType(item.types, item.type)}
                             </span>
                             <span>{formatDurationFromMinutes(item.durationMinutes)}</span>
                             <span>
@@ -1390,7 +1419,7 @@ export default function AttendanceDashboard({
               </div>
             ) : null}
           </div>
-          <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
+          <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] py-4">
             <ActionButton
               label={modalState.mode === "edit" ? "Save changes" : "Save attendance"}
               variant="primary"
@@ -1409,21 +1438,21 @@ export default function AttendanceDashboard({
       >
         <form onSubmit={handleBreakSubmit} className="flex h-full flex-col">
           <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1 hide-scrollbar">
-            <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
-              Break type
-              <select
-                name="type"
-                value={breakForm.type}
-                onChange={handleBreakFormChange}
-                className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
-              >
+            <div className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
+              <p>Break type</p>
+              <div className="grid gap-2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] p-3">
                 {breakTypeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
+                  <label key={option.id} className="flex items-center gap-2 text-sm text-[color:var(--color-text)]">
+                    <input
+                      type="checkbox"
+                      checked={breakForm.types.includes(option.id)}
+                      onChange={() => handleBreakTypeToggle(option.id)}
+                    />
                     {option.label}
-                  </option>
+                  </label>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
             <div className="grid gap-3 lg:grid-cols-2">
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Start time
@@ -1450,12 +1479,13 @@ export default function AttendanceDashboard({
               </label>
             </div>
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
-              Notes (optional)
+              Notes
               <textarea
                 name="notes"
                 value={breakForm.notes}
                 onChange={handleBreakFormChange}
                 rows={3}
+                
                 className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
               />
             </label>

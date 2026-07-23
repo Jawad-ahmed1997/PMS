@@ -1,11 +1,12 @@
 import {
   getDutyIntervals,
   getDutyIntervalsForRange,
+  getDutyDate,
   getPresenceFromIntervals,
   mergeIntervals,
 } from "@/lib/dutyHours";
 
-const WORKING_STATUSES = new Set(["IN_PROGRESS", "DEV_TEST"]);
+const WORKING_STATUSES = new Set(["IN_PROGRESS"]);
 
 function normalizeDate(value) {
   if (!value) {
@@ -194,7 +195,11 @@ export async function computeTaskSpentTime(prismaClient, taskId, userId) {
 
   const effectiveSpentSeconds = Math.max(0, dutyOverlapSeconds - breakSeconds);
 
-  const todayIntervals = await getDutyIntervals(prismaClient, userId, now, now);
+  const dutyDate = getDutyDate(now);
+  const dutyDateValue = dutyDate ? new Date(dutyDate) : null;
+  const presenceDate =
+    dutyDateValue && !Number.isNaN(dutyDateValue.getTime()) ? dutyDateValue : now;
+  const todayIntervals = await getDutyIntervals(prismaClient, userId, presenceDate, now);
   const presence = getPresenceFromIntervals(todayIntervals, now);
   const isWFHNow = presence.status === "WFH";
   const isOnDutyNow = presence.status !== "OFF_DUTY";

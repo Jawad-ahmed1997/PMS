@@ -4,6 +4,8 @@ import {
   getUserPresenceNow,
 } from "@/lib/dutyHours";
 import { getTimeZoneNow, normalizeAttendanceTimes } from "@/lib/attendanceTimes";
+import { dateKeyToUtcDate, isDateKeyInRange, shiftDateKey, toDateKey } from "@/lib/dateKeys";
+import { normalizeAutoOffForAttendances } from "@/lib/attendanceAutoOff";
 import {
   PROJECT_MANAGEMENT_ROLES,
   buildError,
@@ -17,14 +19,11 @@ function isLeader(role) {
 }
 
 function normalizeDateOnly(value) {
-  if (!value) {
+  const dateKey = toDateKey(value);
+  if (!dateKey) {
     return null;
   }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+  return dateKeyToUtcDate(dateKey);
 }
 
 function normalizeDateRange(from, to) {
@@ -46,21 +45,24 @@ function normalizeDateRange(from, to) {
 }
 
 function getEditWindow() {
-  const today = normalizeDateOnly(new Date());
+  const today = toDateKey(new Date());
   if (!today) {
     return null;
   }
-  const earliest = new Date(today);
-  earliest.setUTCDate(today.getUTCDate() - 2);
+  const earliest = shiftDateKey(today, -2);
+  if (!earliest) {
+    return null;
+  }
   return { earliest, today };
 }
 
 function isDateEditable(date) {
   const window = getEditWindow();
-  if (!window || !date) {
+  const targetKey = toDateKey(date);
+  if (!window || !targetKey) {
     return false;
   }
-  return date >= window.earliest && date <= window.today;
+  return isDateKeyInRange(targetKey, window.earliest, window.today);
 }
 
 function parseDateTime(value) {
@@ -125,7 +127,19 @@ export async function GET(request) {
     where.date = range;
   }
 
-  const attendance = await prisma.attendance.findMany({
+  let attendance = await prisma.attendance.findMany({
+    where,
+    orderBy: { date: "desc" },
+    include: {
+      user: { select: { id: true, name: true, role: true, email: true } },
+      wfhIntervals: { orderBy: { startAt: "asc" } },
+      breaks: { orderBy: { startAt: "asc" } },
+    },
+  });
+
+  await normalizeAutoOffForAttendances(prisma, attendance, getTimeZoneNow());
+
+  attendance = await prisma.attendance.findMany({
     where,
     orderBy: { date: "desc" },
     include: {
@@ -213,6 +227,8 @@ export async function POST(request) {
       inTime,
       outTime,
       note: normalizeNote(body?.note),
+      autoOff: false,
+      autoOffReason: null,
       userId: targetUserId,
       date,
     },
@@ -222,6 +238,8 @@ export async function POST(request) {
       inTime,
       outTime,
       note: normalizeNote(body?.note),
+      autoOff: false,
+      autoOffReason: null,
     },
     include: {
       user: { select: { id: true, name: true, role: true, email: true } },

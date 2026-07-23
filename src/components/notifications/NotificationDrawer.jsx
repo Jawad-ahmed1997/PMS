@@ -121,7 +121,9 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   const loadNotifications = async () => {
     setIsLoading(true);
     const query = activeQuery ? `?tab=${activeQuery}` : "";
-    const response = await fetch(`/api/notifications${query}`);
+    const response = await fetch(`/api/notifications${query}`, {
+      cache: "no-store",
+    });
     if (!response.ok) {
       setIsLoading(false);
       return;

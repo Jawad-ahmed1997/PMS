@@ -11,20 +11,18 @@ import {
   getUserPresenceNow,
 } from "@/lib/dutyHours";
 import { getTimeZoneNow, normalizeAttendanceTimes } from "@/lib/attendanceTimes";
+import { dateKeyToUtcDate, isDateKeyInRange, shiftDateKey, toDateKey } from "@/lib/dateKeys";
 
 function isLeader(role) {
   return PROJECT_MANAGEMENT_ROLES.includes(role);
 }
 
 function normalizeDateOnly(value) {
-  if (!value) {
+  const dateKey = toDateKey(value);
+  if (!dateKey) {
     return null;
   }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+  return dateKeyToUtcDate(dateKey);
 }
 
 function parseDateTime(value) {
@@ -39,21 +37,24 @@ function parseDateTime(value) {
 }
 
 function getEditWindow() {
-  const today = normalizeDateOnly(new Date());
+  const today = toDateKey(new Date());
   if (!today) {
     return null;
   }
-  const earliest = new Date(today);
-  earliest.setUTCDate(today.getUTCDate() - 2);
+  const earliest = shiftDateKey(today, -2);
+  if (!earliest) {
+    return null;
+  }
   return { earliest, today };
 }
 
 function isDateEditable(date) {
   const window = getEditWindow();
-  if (!window || !date) {
+  const targetKey = toDateKey(date);
+  if (!window || !targetKey) {
     return false;
   }
-  return date >= window.earliest && date <= window.today;
+  return isDateKeyInRange(targetKey, window.earliest, window.today);
 }
 
 function normalizeNote(note) {
@@ -183,6 +184,8 @@ export async function PATCH(request, { params }) {
         inTime,
         outTime,
         note: normalizeNote(body?.note),
+        autoOff: false,
+        autoOffReason: null,
         userId: targetUserId,
       },
       include: {

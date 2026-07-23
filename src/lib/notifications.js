@@ -59,7 +59,9 @@ export async function createNotification({
   milestoneId = null,
   recipientIds = [],
 }) {
-  const uniqueRecipients = Array.from(new Set(recipientIds.filter(Boolean)));
+  const uniqueRecipients = Array.from(
+    new Set(recipientIds.filter((userId) => userId && userId !== actorId))
+  );
   if (!uniqueRecipients.length) {
     return null;
   }
@@ -73,7 +75,10 @@ export async function createNotification({
       projectId,
       milestoneId,
       recipients: {
-        create: uniqueRecipients.map((userId) => ({ userId })),
+        create: uniqueRecipients.map((userId) => ({
+          userId,
+          readAt: null,
+        })),
       },
     },
   });

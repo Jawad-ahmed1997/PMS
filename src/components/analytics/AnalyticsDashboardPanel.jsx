@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import useOutsideClick from "@/hooks/useOutsideClick";
+import DailyTimelineChart from "@/components/analytics/DailyTimelineChart";
+import DashboardStatsCards from "@/components/analytics/DashboardStatsCards";
+import { getTodayInPSTDateString } from "@/lib/pstDate";
 
 const periodOptions = [
   { id: "daily", label: "Daily" },
@@ -22,17 +25,15 @@ const AnalyticsResults = dynamic(
   }
 );
 
-function formatDateOnly(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return date.toISOString().slice(0, 10);
-}
 
-export default function AnalyticsDashboardPanel({ users, currentUser, isManager }) {
+export default function AnalyticsDashboardPanel({
+  users,
+  currentUser,
+  isManager,
+  todayPST = "",
+}) {
   const [period, setPeriod] = useState("daily");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDate, setSelectedDate] = useState(todayPST || getTodayInPSTDateString());
   const [selectedUser, setSelectedUser] = useState(null);
   const [userQuery, setUserQuery] = useState("");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -40,9 +41,6 @@ export default function AnalyticsDashboardPanel({ users, currentUser, isManager 
 
   useOutsideClick(userMenuRef, () => setIsUserMenuOpen(false), isUserMenuOpen);
 
-  useEffect(() => {
-    setSelectedDate(formatDateOnly(new Date()));
-  }, []);
 
   const filteredUsers = useMemo(() => {
     const query = userQuery.toLowerCase();
@@ -93,7 +91,7 @@ export default function AnalyticsDashboardPanel({ users, currentUser, isManager 
                 }
               }}
               onFocus={() => setIsUserMenuOpen(true)}
-              placeholder="Search user"
+              placeholder="All users"
               className="w-full rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-4 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
             />
             {selectedUser ? (
@@ -113,7 +111,19 @@ export default function AnalyticsDashboardPanel({ users, currentUser, isManager 
             {isUserMenuOpen ? (
               <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
                 {filteredUsers.length ? (
-                  filteredUsers.map((user) => (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setUserQuery("");
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
+                    >
+                      <span className="text-sm font-semibold">All users</span>
+                    </button>
+                    {filteredUsers.map((user) => (
                     <button
                       key={user.id}
                       type="button"
@@ -129,7 +139,8 @@ export default function AnalyticsDashboardPanel({ users, currentUser, isManager 
                         {user.role}
                       </span>
                     </button>
-                  ))
+                  ))}
+                  </>
                 ) : (
                   <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
                     No users found.
@@ -141,7 +152,18 @@ export default function AnalyticsDashboardPanel({ users, currentUser, isManager 
         ) : null}
       </div>
 
+      <DashboardStatsCards period={period} userId={activeUserId} />
+
       <AnalyticsResults period={period} date={selectedDate} userId={activeUserId} />
+
+      {period === "daily" ? (
+        <DailyTimelineChart
+          date={selectedDate}
+          userId={activeUserId}
+          showNames={isManager}
+          title="Daily working timeline"
+        />
+      ) : null}
     </div>
   );
 }

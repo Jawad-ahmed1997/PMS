@@ -4,17 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import MilestoneCard from "@/components/milestones/MilestoneCard";
 import ActionButton from "@/components/ui/ActionButton";
 import { useToast } from "@/components/ui/ToastProvider";
-import { getMilestoneProgress } from "@/lib/milestoneProgress";
+import { getMilestoneStatus } from "@/lib/milestoneProgress";
 import PageHeader from "@/components/layout/PageHeader";
 import Modal from "@/components/ui/Modal";
 import ViewToggle from "@/components/ui/ViewToggle";
+import { getTodayInPSTDateString } from "@/lib/pstDate";
+import { canCreateMilestones } from "@/lib/roles";
 
 const VIEW_PREFERENCE_KEY = "pms.milestones.view";
 
 const buildErrorMessage = (data) =>
   data?.error ?? data?.message ?? "Unable to load milestones.";
 
-export default function MilestonesOverview() {
+export default function MilestonesOverview({ role }) {
   const { addToast } = useToast();
   const [milestones, setMilestones] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -24,6 +26,7 @@ export default function MilestonesOverview() {
   const [viewMode, setViewMode] = useState("grid");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const canCreate = useMemo(() => canCreateMilestones(role), [role]);
   const [milestoneForm, setMilestoneForm] = useState({
     title: "",
     startDate: "",
@@ -98,12 +101,21 @@ export default function MilestonesOverview() {
   }, [addToast]);
 
   useEffect(() => {
-    if (!isModalOpen) return;
+    if (!isModalOpen || !canCreate) return;
     loadProjects();
-  }, [isModalOpen, loadProjects]);
+  }, [canCreate, isModalOpen, loadProjects]);
 
   const handleCreateMilestone = async (event) => {
     event.preventDefault();
+    if (!canCreate) {
+      addToast({
+        title: "Not allowed",
+        message: "Not allowed",
+        variant: "error",
+      });
+      return;
+    }
+
     if (!milestoneForm.title.trim() || !milestoneForm.projectId) {
       addToast({
         title: "Milestone details needed",
@@ -135,10 +147,11 @@ export default function MilestonesOverview() {
         message: "Timeline checkpoint added.",
         variant: "success",
       });
+      const today = getTodayInPSTDateString();
       setMilestoneForm({
         title: "",
-        startDate: "",
-        endDate: "",
+        startDate: today,
+        endDate: today,
         projectId: projects[0]?.id ?? "",
       });
       setIsModalOpen(false);
@@ -183,11 +196,11 @@ export default function MilestonesOverview() {
       }
 
       if (statusFilter !== "ALL") {
-        const { remainingDays } = getMilestoneProgress(
+        const { state } = getMilestoneStatus(
           milestone.startDate,
           milestone.endDate
         );
-        const isExpired = remainingDays === 0;
+        const isExpired = state === "overdue";
         if (statusFilter === "ACTIVE" && isExpired) {
           return false;
         }
@@ -207,11 +220,21 @@ export default function MilestonesOverview() {
         title="Global milestone tracking"
         subtitle="Monitor active checkpoints across every project in the workspace."
         actions={
-          <ActionButton
-            label="Create milestone"
-            variant="success"
-            onClick={() => setIsModalOpen(true)}
-          />
+          canCreate ? (
+            <ActionButton
+              label="Create milestone"
+              variant="success"
+              onClick={() => {
+                const today = getTodayInPSTDateString();
+                setMilestoneForm((prev) => ({
+                  ...prev,
+                  startDate: today,
+                  endDate: today,
+                }));
+                setIsModalOpen(true);
+              }}
+            />
+          ) : null
         }
         viewToggle={
           <ViewToggle value={viewMode} onChange={setViewMode} />

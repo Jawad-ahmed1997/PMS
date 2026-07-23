@@ -1,13 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import {
-  ADMIN_ROLES,
   buildError,
   buildSuccess,
   ensureAuthenticated,
-  ensureRole,
   getAuthContext,
   isAdminRole,
   isManagementRole,
+  WORK_ITEM_CREATION_ROLES,
 } from "@/lib/api";
 import { TASK_STATUSES } from "@/lib/kanban";
 import { getChecklistForTaskType } from "@/lib/taskChecklists";
@@ -26,42 +25,75 @@ export async function GET(request) {
   const ownerId = searchParams.get("ownerId");
   const status = searchParams.get("status");
   const milestoneId = searchParams.get("milestoneId");
+  const projectId = searchParams.get("projectId");
+  const assignedToMe = searchParams.get("assignedToMe") === "true";
+  const allTasks = searchParams.get("allTasks") === "true";
 
   const where = {};
 
-  if (!milestoneId) {
-    return buildError("Milestone id is required.", 400);
-  }
-
-  const milestone = await prisma.milestone.findUnique({
-    where: { id: milestoneId },
-    select: {
-      id: true,
-      project: { select: { members: { select: { userId: true } } } },
-    },
-  });
-
-  if (!milestone) {
-    return buildError("Milestone not found.", 404);
-  }
-
-  if (!isManagementRole(context.role)) {
-    if (
-      !milestone.project.members?.some(
-        (member) => member.userId === context.user.id
-      )
-    ) {
-      return buildError("You do not have permission to view these tasks.", 403);
+  if (assignedToMe) {
+    where.ownerId = context.user.id;
+  } else if (allTasks) {
+    if (!isManagementRole(context.role) && context.role !== "CEO") {
+      return buildError("You do not have permission to view all tasks.", 403);
     }
+  } else if (projectId) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        members: { select: { userId: true } },
+      },
+    });
+
+    if (!project) {
+      return buildError("Project not found.", 404);
+    }
+
+    if (!isManagementRole(context.role) && context.role !== "CEO") {
+      if (
+        !project.members?.some(
+          (member) => member.userId === context.user.id
+        )
+      ) {
+        return buildError("You do not have permission to view these tasks.", 403);
+      }
+    }
+
+    where.milestone = { projectId };
+  } else if (milestoneId) {
+    const milestone = await prisma.milestone.findUnique({
+      where: { id: milestoneId },
+      select: {
+        id: true,
+        project: { select: { members: { select: { userId: true } } } },
+      },
+    });
+
+    if (!milestone) {
+      return buildError("Milestone not found.", 404);
+    }
+
+    if (!isManagementRole(context.role) && context.role !== "CEO") {
+      if (
+        !milestone.project.members?.some(
+          (member) => member.userId === context.user.id
+        )
+      ) {
+        return buildError("You do not have permission to view these tasks.", 403);
+      }
+    }
+
+    where.milestoneId = milestoneId;
+  } else {
+    return buildError("Either milestoneId, projectId, assignedToMe=true, or allTasks=true is required.", 400);
   }
 
   if (status) {
     where.status = status;
   }
 
-  where.milestoneId = milestoneId;
-
-  if (ownerId) {
+  if (ownerId && !assignedToMe) {
     where.ownerId = ownerId;
   }
 
@@ -79,6 +111,10 @@ export async function GET(request) {
       ownerId: true,
       milestoneId: true,
       estimatedHours: true,
+      blockedReason: true,
+      blockedType: true,
+      holdReason: true,
+      holdNote: true,
       reworkCount: true,
       totalTimeSpent: true,
       lastStartedAt: true,
@@ -98,6 +134,14 @@ export async function GET(request) {
       timeLogs: true,
       workSessions: { orderBy: { startedAt: "desc" } },
       breaks: { orderBy: { startedAt: "desc" } },
+      personalTodos: {
+        where: { userId: context.user.id },
+        select: { id: true, content: true, isCompleted: true, reminderAt: true },
+      },
+      personalNotes: {
+        where: { userId: context.user.id },
+        select: { id: true, title: true, content: true },
+      },
     },
   });
 
@@ -137,10 +181,8 @@ export async function POST(request) {
     return authError;
   }
 
-  const allowedRoles = [...ADMIN_ROLES, "DEVELOPER"];
-  const roleError = ensureRole(context.role, allowedRoles);
-  if (roleError) {
-    return roleError;
+  if (!WORK_ITEM_CREATION_ROLES.includes(context.role)) {
+    return buildError("You are not allowed to create tasks.", 403);
   }
 
   const body = await request.json();
@@ -218,6 +260,16 @@ export async function POST(request) {
     resolvedOwnerId = context.user.id;
   }
 
+  const isOwnerProjectMember = milestone.project?.members?.some(
+    (member) => member.userId === resolvedOwnerId
+  );
+  if (!isOwnerProjectMember) {
+    return buildError(
+      "The assigned user is not a member of this project.",
+      400
+    );
+  }
+
   const createdTask = await prisma.$transaction(async (tx) => {
     const now = new Date();
     const task = await tx.task.create({
@@ -279,8 +331,6 @@ export async function POST(request) {
       data: {
         userId: task.ownerId,
         taskId: task.id,
-        category: "TASK",
-        hoursSpent: 0,
         description: `Task created: ${task.title} (${status}).`,
       },
     });

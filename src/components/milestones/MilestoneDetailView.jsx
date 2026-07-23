@@ -8,7 +8,12 @@ import TaskBoard from "@/components/tasks/TaskBoard";
 import PageHeader from "@/components/layout/PageHeader";
 import { TASK_STATUSES } from "@/lib/kanban";
 import { TASK_TYPE_CHECKLISTS } from "@/lib/taskChecklists";
-import { roles } from "@/lib/roles";
+import { canCreateTasks, normalizeRoleId, roles } from "@/lib/roles";
+import {
+  getMilestoneCapacity,
+  getMilestoneStatus,
+  getTaskEstimatedMinutes,
+} from "@/lib/milestoneProgress";
 
 const buildErrorMessage = (data) =>
   data?.error ?? data?.message ?? "Unable to load milestone.";
@@ -37,10 +42,27 @@ export default function MilestoneDetailView({
   });
 
   const taskTypes = useMemo(() => Object.keys(TASK_TYPE_CHECKLISTS), []);
+  const milestoneStatus = useMemo(
+    () => getMilestoneStatus(milestone?.startDate, milestone?.endDate),
+    [milestone?.endDate, milestone?.startDate]
+  );
+  const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
+  const canCreateTask = useMemo(() => canCreateTasks(normalizedRole), [normalizedRole]);
+  const milestoneCapacity = useMemo(() => {
+    const plannedMinutes = tasks.reduce(
+      (sum, task) => sum + getTaskEstimatedMinutes(task),
+      0
+    );
+    return getMilestoneCapacity({
+      startDate: milestone?.startDate,
+      endDate: milestone?.endDate,
+      plannedMinutes,
+    });
+  }, [milestone?.endDate, milestone?.startDate, tasks]);
   const canManageAssignments = useMemo(
     () =>
-      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(role),
-    [role]
+      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole),
+    [normalizedRole]
   );
 
   const loadMilestone = useCallback(async () => {
@@ -93,13 +115,15 @@ export default function MilestoneDetailView({
   }, [loadMilestone]);
 
   useEffect(() => {
-    if (!canManageAssignments) {
+    if (!canManageAssignments || !milestone?.projectId) {
       return;
     }
 
     const loadUsers = async () => {
       try {
-        const response = await fetch("/api/users?isActive=true");
+        const response = await fetch(
+          `/api/users?isActive=true&projectId=${milestone.projectId}`
+        );
         const data = await response.json();
         if (response.ok) {
           setUsers(data?.users ?? []);
@@ -110,7 +134,7 @@ export default function MilestoneDetailView({
     };
 
     loadUsers();
-  }, [canManageAssignments]);
+  }, [canManageAssignments, milestone?.projectId]);
 
   const resetTaskForm = () => {
     setTaskForm({
@@ -191,6 +215,16 @@ export default function MilestoneDetailView({
 
   const handleTaskSubmit = async (event) => {
     event.preventDefault();
+
+    if (!editingTaskId && !canCreateTask) {
+      addToast({
+        title: "Not allowed",
+        message: "Not allowed",
+        variant: "error",
+      });
+      return;
+    }
+
     if (!taskForm.title.trim() || !taskForm.description.trim()) {
       addToast({
         title: "Task details needed",
@@ -252,6 +286,9 @@ export default function MilestoneDetailView({
           : "Task added to milestone execution queue.",
         variant: "success",
       });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
+      }
       resetTaskForm();
       setIsModalOpen(false);
       if (editingTaskId) {
@@ -290,16 +327,45 @@ export default function MilestoneDetailView({
         }
         backLabel="Back to milestones"
         actions={
-          <ActionButton
-            label="Create task"
-            variant="success"
-            onClick={() => {
-              resetTaskForm();
-              setIsModalOpen(true);
-            }}
-          />
+          canCreateTask ? (
+            <ActionButton
+              label="Create task"
+              variant="success"
+              onClick={() => {
+                resetTaskForm();
+                setIsModalOpen(true);
+              }}
+            />
+          ) : null
         }
       />
+
+      {!status.loading && !status.error && milestone && (
+        <div
+          className={`rounded-2xl border p-4 ${milestoneCapacity.overbooked ? "border-rose-500/60 bg-rose-500/5" : "border-[color:var(--color-border)] bg-[color:var(--color-card)]"}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
+              {milestoneStatus.statusText}
+            </p>
+            <div className="text-right text-xs text-[color:var(--color-text-muted)]">
+              <p>Capacity: {milestoneCapacity.capacityHours.toFixed(1)}h</p>
+              <p>Planned: {milestoneCapacity.plannedHours.toFixed(1)}h</p>
+              <p className={milestoneCapacity.overbooked ? "text-rose-400" : ""}>
+                {milestoneCapacity.overbooked
+                  ? `Over by: +${Math.abs(milestoneCapacity.remainingHours).toFixed(1)}h`
+                  : `Left: ${milestoneCapacity.remainingHours.toFixed(1)}h`}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[color:var(--color-muted-bg)]">
+            <div
+              className={`h-full ${milestoneCapacity.overbooked ? "bg-rose-500" : "bg-[color:var(--color-accent)]"}`}
+              style={{ width: `${milestoneCapacity.fillPercent}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {status.loading && (
         <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">

@@ -5,6 +5,7 @@ import AnalyticsDashboardPanel from "@/components/analytics/AnalyticsDashboardPa
 import { getSession } from "@/lib/session";
 import { getRoleById, roles } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import { getTodayInPSTDateString } from "@/lib/pstDate";
 
 const metricDefinitions = [
   {
@@ -145,7 +146,11 @@ export default async function DashboardPage() {
 
   const isExecutiveSummary = roleId === roles.CEO || !roleId;
   const isFullVisibility = roleId === roles.PM || roleId === roles.CTO;
-  const isDeveloper = roleId === roles.DEV || roleId === roles.SENIOR_DEV;
+  const isDeveloper =
+    roleId === roles.DEV ||
+    roleId === roles.SENIOR_DEV ||
+    roleId === roles.INTERN ||
+    roleId === roles.JUNIOR_INTERN;
 
   const headline = isFullVisibility
     ? {
@@ -190,6 +195,7 @@ export default async function DashboardPage() {
           users={users}
           currentUser={currentUser}
           isManager={isFullVisibility || isExecutiveSummary}
+          todayPST={getTodayInPSTDateString()}
         />
       </div>
 
@@ -329,7 +335,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {isDeveloper && (
+      {/* {isDeveloper && (
         <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -368,16 +374,16 @@ export default async function DashboardPage() {
             ))}
           </div>
         </div>
-      )}
+      )} */}
 
-      <PlaceholderUpload
+      {/* <PlaceholderUpload
         label={isDeveloper ? "Personal highlights" : "Quarterly highlights"}
         helperText={
           isDeveloper
             ? "Upload demos and metrics to include in your status emails."
             : "Upload leadership-ready visuals and decks."
         }
-      />
+      /> */}
     </div>
   );
 }

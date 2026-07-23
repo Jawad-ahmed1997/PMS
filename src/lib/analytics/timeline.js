@@ -1,6 +1,8 @@
-import { getCutoffTime, getShiftWindow, mergeIntervals } from "@/lib/dutyHours";
+import { getShiftWindow, mergeIntervals } from "@/lib/dutyHours";
+import { normalizeAutoOffForAttendances, resolveAttendanceOutTime } from "@/lib/attendanceAutoOff";
+import { formatBreakTypes, normalizeBreakTypes } from "@/lib/breakTypes";
 
-const WORKING_STATUSES = new Set(["IN_PROGRESS", "DEV_TEST"]);
+const WORKING_STATUSES = new Set(["IN_PROGRESS"]);
 
 function normalizeDate(value) {
   if (!value) {
@@ -11,22 +13,6 @@ function normalizeDate(value) {
     return null;
   }
   return date;
-}
-
-function isSameUtcDate(left, right) {
-  if (!left || !right) {
-    return false;
-  }
-  const leftDate = new Date(left);
-  const rightDate = new Date(right);
-  if (Number.isNaN(leftDate.getTime()) || Number.isNaN(rightDate.getTime())) {
-    return false;
-  }
-  return (
-    leftDate.getUTCFullYear() === rightDate.getUTCFullYear() &&
-    leftDate.getUTCMonth() === rightDate.getUTCMonth() &&
-    leftDate.getUTCDate() === rightDate.getUTCDate()
-  );
 }
 
 function clampIntervalToBounds(interval, bounds) {
@@ -62,15 +48,7 @@ function buildAttendanceIntervals(attendance, bounds, now) {
   if (attendance.inTime) {
     const start = normalizeDate(attendance.inTime);
     if (start) {
-      const cutoffTime = getCutoffTime(start);
-      let end = attendance.outTime ? normalizeDate(attendance.outTime) : null;
-      if (!end && cutoffTime) {
-        end = isSameUtcDate(attendance.date, now)
-          ? now > cutoffTime
-            ? cutoffTime
-            : now
-          : cutoffTime;
-      }
+      const end = resolveAttendanceOutTime(attendance, now);
       if (end) {
         const clamped = clampIntervalToBounds({ start, end, source: "ATTENDANCE" }, bounds);
         if (clamped) {
@@ -232,7 +210,8 @@ function buildSegments({
       startAt: interval.start,
       endAt: interval.end,
       type: "BREAK",
-      reason: interval.reason ?? "OTHER",
+      reason: interval.reasonLabel ?? formatBreakTypes(interval.reasons, interval.reason),
+      breakType: interval.breakType ?? "ATTENDANCE",
       isWFH: isIntervalOverlapping(interval, wfhIntervals),
     });
   });
@@ -316,7 +295,7 @@ function buildTimelineDetails({ dutyWindows, segments, breakIntervals, totals })
       : null;
 
   const pauseBreakdown = (breakIntervals ?? []).reduce((acc, brk) => {
-    const key = brk.reason ?? "OTHER";
+    const key = brk.reasonLabel ?? formatBreakTypes(brk.reasons, brk.reason);
     if (!acc[key]) {
       acc[key] = { count: 0, seconds: 0 };
     }
@@ -385,7 +364,7 @@ export async function getUserDailyTimeline(prismaClient, userId, date, now = new
     };
   }
 
-  const attendances = await prismaClient.attendance.findMany({
+  let attendances = await prismaClient.attendance.findMany({
     where: {
       userId,
       inTime: { lte: dayWindow.end },
@@ -395,6 +374,18 @@ export async function getUserDailyTimeline(prismaClient, userId, date, now = new
     orderBy: { inTime: "asc" },
   });
 
+
+  await normalizeAutoOffForAttendances(prismaClient, attendances, now);
+
+  attendances = await prismaClient.attendance.findMany({
+    where: {
+      userId,
+      inTime: { lte: dayWindow.end },
+      OR: [{ outTime: null }, { outTime: { gte: dayWindow.start } }],
+    },
+    include: { wfhIntervals: true, breaks: true },
+    orderBy: { inTime: "asc" },
+  });
   const attendanceIntervals = attendances.flatMap((attendance) => {
     const { dutyIntervals } = buildAttendanceIntervals(attendance, dayWindow, now);
     return dutyIntervals;
@@ -480,6 +471,34 @@ export async function getUserDailyTimeline(prismaClient, userId, date, now = new
     })
     .filter(Boolean);
 
+  const manualLogs = await prismaClient.activityLog.findMany({
+    where: {
+      userId,
+      type: "MANUAL",
+      startAt: { lte: dayWindow.end },
+      OR: [{ endAt: null }, { endAt: { gte: dayWindow.start } }],
+    },
+    select: {
+      id: true,
+      startAt: true,
+      endAt: true,
+    },
+  });
+
+  const rawManualIntervals = manualLogs
+    .map((log) => {
+      const start = normalizeDate(log.startAt);
+      const end = normalizeDate(log.endAt) ?? now;
+      if (!start || !end || end <= start) {
+        return null;
+      }
+      return clampIntervalToBounds(
+        { start, end, manualLogId: log.id, manualRunning: !log.endAt },
+        dayWindow
+      );
+    })
+    .filter(Boolean);
+
   const rawBreakIntervals = attendances
     .flatMap((attendance) => attendance.breaks ?? [])
     .map((brk) => {
@@ -489,14 +508,55 @@ export async function getUserDailyTimeline(prismaClient, userId, date, now = new
         return null;
       }
       return clampIntervalToBounds(
-        { start, end, reason: brk.type ?? "OTHER" },
+        {
+          start,
+          end,
+          reasons: normalizeBreakTypes(brk.types, brk.type),
+          reasonLabel: formatBreakTypes(brk.types, brk.type),
+          breakType: "ATTENDANCE",
+        },
         dayWindow
       );
     })
     .filter(Boolean);
 
-  const workIntervals = intersectIntervalsWithWindows(rawWorkIntervals, dutyWindows);
-  const breakIntervals = intersectIntervalsWithWindows(rawBreakIntervals, dutyWindows);
+  const taskBreaks = await prismaClient.taskBreak.findMany({
+    where: {
+      userId,
+      startedAt: { lte: dayWindow.end },
+      OR: [{ endedAt: null }, { endedAt: { gte: dayWindow.start } }],
+    },
+    select: { startedAt: true, endedAt: true, reason: true, reasons: true },
+  });
+
+  const rawTaskBreakIntervals = taskBreaks
+    .map((brk) => {
+      const start = normalizeDate(brk.startedAt);
+      const end = normalizeDate(brk.endedAt) ?? now;
+      if (!start || !end || end <= start) {
+        return null;
+      }
+      return clampIntervalToBounds(
+        {
+          start,
+          end,
+          reasons: normalizeBreakTypes(brk.reasons, brk.reason),
+          reasonLabel: formatBreakTypes(brk.reasons, brk.reason),
+          breakType: "TASK_PAUSE",
+        },
+        dayWindow
+      );
+    })
+    .filter(Boolean);
+
+  const workIntervals = intersectIntervalsWithWindows(
+    [...rawWorkIntervals, ...rawManualIntervals],
+    dutyWindows
+  );
+  const breakIntervals = intersectIntervalsWithWindows(
+    [...rawBreakIntervals, ...rawTaskBreakIntervals],
+    dutyWindows
+  );
 
   const segments = buildSegments({
     dayWindow,
