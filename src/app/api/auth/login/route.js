@@ -33,6 +33,13 @@ export async function POST(request) {
     );
   }
 
+  if (!user.password) {
+    return NextResponse.json(
+      { error: "Please set your password using the invitation link sent to your email." },
+      { status: 403 }
+    );
+  }
+
   const matches = await bcrypt.compare(password, user.password);
   if (!matches) {
     return NextResponse.json(

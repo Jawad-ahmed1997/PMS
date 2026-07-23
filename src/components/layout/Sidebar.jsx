@@ -115,7 +115,7 @@ const iconMap = {
       />
     </svg>
   ),
-  "Create user": (
+  "Members": (
     <svg
       viewBox="0 0 24 24"
       className="h-5 w-5"

@@ -13,7 +13,7 @@ const protectedRoutes = [
   "/users",
 ];
 
-const authRoutes = ["/auth", "/auth/sign-in"];
+const authRoutes = ["/auth", "/auth/sign-in", "/auth/set-password"];
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
