@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import MilestoneCard from "@/components/milestones/MilestoneCard";
 import PageHeader from "@/components/layout/PageHeader";
 import TaskBoard from "@/components/tasks/TaskBoard";
+import ProjectKTHub from "@/components/projects/ProjectKTHub";
 import { TASK_STATUSES } from "@/lib/kanban";
 import { TASK_TYPE_CHECKLISTS } from "@/lib/taskChecklists";
 import { canCreateTasks, normalizeRoleId, roles } from "@/lib/roles";
@@ -50,6 +51,10 @@ export default function ProjectDetailView({
   const [modalOpen, setModalOpen] = useState(false); // Milestone modal
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false); // Task modal
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [selectedAddUserId, setSelectedAddUserId] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+  const [systemUsers, setSystemUsers] = useState([]);
 
   // Milestone Form
   const [milestoneForm, setMilestoneForm] = useState({
@@ -182,6 +187,79 @@ export default function ProjectDetailView({
 
     loadUsers();
   }, [canManageAssignments, projectId]);
+
+  const loadSystemUsers = useCallback(async () => {
+    try {
+      const response = await fetch("/api/users?isActive=true");
+      const data = await response.json();
+      if (response.ok) {
+        setSystemUsers(data?.users ?? []);
+      }
+    } catch (error) {
+      console.error("Failed to load system users", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAddMemberModalOpen) {
+      loadSystemUsers();
+    }
+  }, [isAddMemberModalOpen, loadSystemUsers]);
+
+  const nonMemberUsers = useMemo(() => {
+    const memberIds = new Set((project?.members ?? []).map((m) => m.id));
+    return systemUsers.filter((u) => !memberIds.has(u.id));
+  }, [systemUsers, project?.members]);
+
+  const handleAddMember = async (event) => {
+    event.preventDefault();
+    if (!selectedAddUserId || !project) return;
+
+    setAddingMember(true);
+    try {
+      const currentMemberIds = (project.members ?? []).map((m) => m.id);
+      const newMemberIds = [...currentMemberIds, selectedAddUserId];
+
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberIds: newMemberIds }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message ?? "Failed to add member.");
+      }
+
+      addToast({
+        title: "Member added",
+        message: "Successfully added the member to the project.",
+        variant: "success",
+      });
+
+      setSelectedAddUserId("");
+      setIsAddMemberModalOpen(false);
+
+      await loadProject();
+      if (canManageAssignments) {
+        const usersResponse = await fetch(
+          `/api/users?isActive=true&projectId=${projectId}`
+        );
+        const usersData = await usersResponse.json();
+        if (usersResponse.ok) {
+          setUsers(usersData?.users ?? []);
+        }
+      }
+    } catch (error) {
+      addToast({
+        title: "Action failed",
+        message: error instanceof Error ? error.message : "Failed to add member.",
+        variant: "error",
+      });
+    } finally {
+      setAddingMember(false);
+    }
+  };
 
   // Milestone Form Management
   const resetMilestoneForm = () => {
@@ -483,26 +561,77 @@ export default function ProjectDetailView({
         }
       />
 
-      {/* Tabs Menu */}
-      <div className="flex border-b border-[color:var(--color-border)]">
-        <button
-          onClick={() => setActiveTab("board")}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "board"
-              ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
-              : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
-            }`}
-        >
-          Task Board
-        </button>
-        <button
-          onClick={() => setActiveTab("milestones")}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "milestones"
-              ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
-              : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
-            }`}
-        >
-          Milestones ({milestones.length})
-        </button>
+      {/* Tabs Menu Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-[color:var(--color-border)] pb-0 gap-3">
+        {/* Left Side: Tabs */}
+        <div className="flex">
+          <button
+            onClick={() => setActiveTab("board")}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "board"
+                ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
+                : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
+              }`}
+          >
+            Task Board
+          </button>
+          <button
+            onClick={() => setActiveTab("milestones")}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "milestones"
+                ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
+                : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
+              }`}
+          >
+            Milestones ({milestones.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("kt")}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "kt"
+                ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
+                : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
+              }`}
+          >
+            KT / Dev Hub
+          </button>
+        </div>
+
+        {/* Right Side: Members and Filter Button */}
+        {!status.loading && !status.error && project && (
+          <div className="flex items-center gap-4 px-4 pb-2 sm:pb-0">
+            {/* Members Avatars */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[color:var(--color-text-subtle)]">
+                Members:
+              </span>
+              <div className="flex items-center -space-x-1.5 overflow-hidden">
+                {(project.members ?? []).map((member) => (
+                  <span
+                    key={member.id}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-[color:var(--color-card)] bg-[color:var(--color-muted-bg)] text-[10px] font-bold text-[color:var(--color-text)] cursor-pointer"
+                    title={`${member.name} (${member.role})`}
+                  >
+                    {(member.name ?? "U").charAt(0).toUpperCase()}
+                  </span>
+                ))}
+                {/* Add Member Button */}
+                {canManageAssignments && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddMemberModalOpen(true)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-[color:var(--color-border)] bg-transparent text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white transition-colors ml-2"
+                    title="Add Member to Project"
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Toggle Button Portal Target */}
+            {activeTab === "board" && (
+              <div id="project-board-filter-button-portal" className="shrink-0" />
+            )}
+          </div>
+        )}
       </div>
 
       {status.loading && (
@@ -520,7 +649,7 @@ export default function ProjectDetailView({
 
       {!status.loading && !status.error && project && (
         <>
-          {activeTab === "milestones" ? (
+          {activeTab === "milestones" && (
             <div className="space-y-4">
               {milestones.length ? (
                 <div className="grid gap-4 lg:grid-cols-2">
@@ -547,7 +676,13 @@ export default function ProjectDetailView({
                 </div>
               )}
             </div>
-          ) : (
+          )}
+
+          {activeTab === "kt" && (
+            <ProjectKTHub projectId={projectId} />
+          )}
+
+          {activeTab === "board" && (
             <div className="space-y-4">
               {tasksLoading && tasks.length === 0 ? (
                 <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">
@@ -799,6 +934,63 @@ export default function ProjectDetailView({
               variant="primary"
               type="submit"
               className={savingTask ? "pointer-events-none opacity-60" : ""}
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Project Member Modal */}
+      <Modal
+        isOpen={isAddMemberModalOpen}
+        title="Add Member to Project"
+        description="Search and assign a team member to this project."
+        onClose={addingMember ? undefined : () => {
+          setIsAddMemberModalOpen(false);
+          setSelectedAddUserId("");
+        }}
+      >
+        <form onSubmit={handleAddMember} className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-[color:var(--color-text-muted)]">
+              Select Team Member
+              <select
+                value={selectedAddUserId}
+                onChange={(e) => setSelectedAddUserId(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)]"
+                required
+              >
+                <option value="">Choose a member...</option>
+                {nonMemberUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.role})
+                  </option>
+                ))}
+              </select>
+            </label>
+            {nonMemberUsers.length === 0 && (
+              <p className="mt-2 text-xs text-[color:var(--color-text-subtle)] italic">
+                All active system members are already in this project.
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAddMemberModalOpen(false);
+                setSelectedAddUserId("");
+              }}
+              disabled={addingMember}
+              className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-muted-bg)] transition"
+            >
+              Cancel
+            </button>
+            <ActionButton
+              label={addingMember ? "Adding..." : "Add to Project"}
+              variant="success"
+              type="submit"
+              disabled={addingMember || !selectedAddUserId}
             />
           </div>
         </form>
