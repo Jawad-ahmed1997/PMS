@@ -1,90 +1,90 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
+import { toast as sonnerToast, Toaster } from "sonner";
+import {
+  CheckCircle2,
+  CircleAlert,
+  Info,
+  Loader2,
+  TriangleAlert,
+} from "lucide-react";
+import { useTheme } from "@/lib/theme";
+
+import "sonner/dist/styles.css";
 
 const ToastContext = createContext(null);
 
-const variantStyles = {
-  success: "border-emerald-500/30 bg-emerald-500/10",
-  error: "border-rose-500/30 bg-rose-500/10",
-  warning: "border-amber-500/30 bg-amber-500/10",
-  info: "border-sky-500/30 bg-sky-500/10",
+const toastIcons = {
+  success: <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />,
+  error: <CircleAlert className="h-5 w-5 text-rose-600 dark:text-rose-400" aria-hidden="true" />,
+  warning: <TriangleAlert className="h-5 w-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />,
+  info: <Info className="h-5 w-5 text-sky-600 dark:text-sky-400" aria-hidden="true" />,
+  loading: <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />,
+};
+
+const toastMethods = {
+  success: sonnerToast.success,
+  error: sonnerToast.error,
+  warning: sonnerToast.warning,
+  info: sonnerToast.info,
+  loading: sonnerToast.loading,
+};
+
+function showToast(toast = {}) {
+  const variant = toast.variant ?? "info";
+  const method = toastMethods[variant] ?? sonnerToast;
+  const title = toast.title ?? "Notification";
+  const message = toast.message ?? "Your action is ready.";
+
+  return method(title, {
+    description: message,
+    duration: toast.duration ?? 4500,
+    icon: toastIcons[variant] ?? toastIcons.info,
+    id: toast.id,
+    closeButton: true,
+  });
+}
+
+const toastOptions = {
+  classNames: {
+    toast: "!w-[calc(100vw-2rem)] !max-w-[460px] !rounded-xl !border !bg-card !px-4 !py-3 !text-card-foreground !shadow-xl",
+    title: "!text-sm !font-medium !leading-5",
+    description: "!mt-1 !text-sm !leading-5 !text-muted-foreground",
+    closeButton: "!border-border !bg-transparent !text-muted-foreground hover:!bg-muted hover:!text-foreground",
+    success: "!border-emerald-500/35",
+    error: "!border-rose-500/35",
+    warning: "!border-amber-500/35",
+    info: "!border-sky-500/35",
+    loading: "!border-primary/35",
+  },
 };
 
 export function ToastProvider({ children }) {
-  const [toasts, setToasts] = useState([]);
-
-  const removeToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
-
-  const addToast = useCallback((toast) => {
-    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const nextToast = {
-      id,
-      title: toast.title ?? "Notification",
-      message: toast.message ?? "Your action is ready.",
-      variant: toast.variant ?? "info",
-    };
-
-    setToasts((prev) => [nextToast, ...prev].slice(0, 4));
-
-    window.setTimeout(() => removeToast(id), 4500);
-  }, [removeToast]);
-
+  const addToast = useCallback((toast) => showToast(toast), []);
   const value = useMemo(() => ({ addToast }), [addToast]);
+  const { resolvedTheme } = useTheme();
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <ToastViewport toasts={toasts} onDismiss={removeToast} />
+      <Toaster
+        theme={resolvedTheme}
+        className="pms-toaster"
+        position="top-right"
+        visibleToasts={4}
+        expand={false}
+        closeButton
+        gap={12}
+        offset={24}
+        toastOptions={toastOptions}
+      />
     </ToastContext.Provider>
   );
 }
 
 export function useToast() {
   const context = useContext(ToastContext);
-
-  if (!context) {
-    throw new Error("useToast must be used within ToastProvider");
-  }
-
+  if (!context) throw new Error("useToast must be used within ToastProvider");
   return context;
-}
-
-function ToastViewport({ toasts, onDismiss }) {
-  return (
-    <div
-      className="fixed right-6 top-6 z-50 flex w-full max-w-sm flex-col gap-3"
-      role="status"
-      aria-live="polite"
-    >
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`rounded-2xl border px-4 py-3 shadow-lg backdrop-blur ${
-            variantStyles[toast.variant]
-          }`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-[color:var(--color-text)]">
-                {toast.title}
-              </p>
-              <p className="text-xs text-[color:var(--color-text-muted)]">
-                {toast.message}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onDismiss(toast.id)}
-              className="rounded-full border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)] transition hover:text-[color:var(--color-text)]"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 }

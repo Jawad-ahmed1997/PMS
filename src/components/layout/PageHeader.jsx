@@ -17,7 +17,7 @@ export default function PageHeader({
         {backHref ? (
           <Link
             href={backHref}
-            className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
+            className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={backLabel}
           >
             <svg

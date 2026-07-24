@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import ActionButton from "@/components/ui/ActionButton";
-import Drawer from "@/components/ui/Drawer";
-import Modal from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import { Sheet } from "@/components/ui/sheet";
+import { Dialog } from "@/components/ui/dialog";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
 import PageHeader from "@/components/layout/PageHeader";
 import useOutsideClick from "@/hooks/useOutsideClick";
 import AnalyticsResults from "@/components/analytics/AnalyticsResults";
 import ClientOnly from "@/components/ui/ClientOnly";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const periodOptions = [
   { id: "daily", label: "Daily" },
@@ -97,7 +100,7 @@ const ActivityMenu = ({ onLeaveComment }) => {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <Button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -110,13 +113,13 @@ const ActivityMenu = ({ onLeaveComment }) => {
         aria-haspopup="menu"
       >
         <span className="text-lg leading-none">⋮</span>
-      </button>
+      </Button>
       {isOpen ? (
         <div
           className="absolute right-0 z-10 mt-2 w-44 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <button
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -139,7 +142,7 @@ const ActivityMenu = ({ onLeaveComment }) => {
               />
             </svg>
             <span>Leave Comment</span>
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>
@@ -162,8 +165,8 @@ export default function ActivityDashboard({
   const [userQuery, setUserQuery] = useState("");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [commentCounts, setCommentCounts] = useState({});
-  const [taskDrawer, setTaskDrawer] = useState({ open: false, task: null });
-  const [logModal, setLogModal] = useState({ open: false, mode: "create" });
+  const [taskSheet, setTaskSheet] = useState({ open: false, task: null });
+  const [logDialog, setLogDialog] = useState({ open: false, mode: "create" });
   const [activeLog, setActiveLog] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const userMenuRef = useRef(null);
@@ -300,7 +303,7 @@ export default function ActivityDashboard({
     setLogForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const openCreateLogModal = () => {
+  const openCreateLogDialog = () => {
     setLogForm({
       type: "MANUAL",
       category: "LEARNING",
@@ -310,10 +313,10 @@ export default function ActivityDashboard({
       taskId: "",
     });
     setActiveLog(null);
-    setLogModal({ open: true, mode: "create" });
+    setLogDialog({ open: true, mode: "create" });
   };
 
-  const openEditLogModal = (log) => {
+  const openEditLogDialog = (log) => {
     setActiveLog(log);
     setLogForm({
       type: log.type ?? "MANUAL",
@@ -323,11 +326,11 @@ export default function ActivityDashboard({
       description: log.description ?? "",
       taskId: log.taskId ?? "",
     });
-    setLogModal({ open: true, mode: "edit" });
+    setLogDialog({ open: true, mode: "edit" });
   };
 
-  const closeLogModal = () => {
-    setLogModal({ open: false, mode: "create" });
+  const closeLogDialog = () => {
+    setLogDialog({ open: false, mode: "create" });
     setActiveLog(null);
   };
 
@@ -351,11 +354,11 @@ export default function ActivityDashboard({
 
     try {
       const response = await fetch(
-        logModal.mode === "edit" && activeLog
+        logDialog.mode === "edit" && activeLog
           ? `/api/activity-logs/${activeLog.id}`
           : "/api/activity-logs",
         {
-          method: logModal.mode === "edit" ? "PATCH" : "POST",
+          method: logDialog.mode === "edit" ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         }
@@ -365,14 +368,14 @@ export default function ActivityDashboard({
         throw new Error(data?.error ?? "Unable to save activity log.");
       }
       addToast({
-        title: logModal.mode === "edit" ? "Log updated" : "Log created",
+        title: logDialog.mode === "edit" ? "Log updated" : "Log created",
         message:
-          logModal.mode === "edit"
+          logDialog.mode === "edit"
             ? "Manual activity updated."
             : "Manual activity saved to your timeline.",
         variant: "success",
       });
-      closeLogModal();
+      closeLogDialog();
       await fetchLogs({ targetUserId: selectedUser?.id ?? "" });
     } catch (error) {
       addToast({
@@ -393,10 +396,10 @@ export default function ActivityDashboard({
         title="Activity & comment timeline"
         subtitle="Track daily logs, task auto-activity, and leadership feedback."
         actions={
-          <ActionButton
+          <Button
             label="Manual Log Activity"
             variant="success"
-            onClick={openCreateLogModal}
+            onClick={openCreateLogDialog}
           />
         }
       />
@@ -404,7 +407,7 @@ export default function ActivityDashboard({
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-4">
         <div className="flex flex-wrap items-center gap-2">
           {badgeOptions.map((badge) => (
-            <button
+            <Button
               key={badge.id}
               type="button"
               onClick={() => setActiveBadge(badge.id)}
@@ -418,10 +421,10 @@ export default function ActivityDashboard({
               <span className="rounded-full bg-[color:var(--color-muted-bg)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--color-text-muted)]">
                 {badgeCounts[badge.id] ?? 0}
               </span>
-            </button>
+            </Button>
           ))}
           <div className="ml-2">
-            <select
+            <Select
               value={period}
               onChange={(event) => setPeriod(event.target.value)}
               className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
@@ -431,9 +434,9 @@ export default function ActivityDashboard({
                   {option.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
-          <input
+          <Input
             type="date"
             value={selectedDate}
             onChange={(event) => setSelectedDate(event.target.value)}
@@ -443,7 +446,7 @@ export default function ActivityDashboard({
 
         {isManager ? (
           <div className="relative w-full max-w-xs" ref={userMenuRef}>
-            <input
+            <Input
               value={userQuery}
               onChange={(event) => {
                 setUserQuery(event.target.value);
@@ -457,7 +460,7 @@ export default function ActivityDashboard({
               className="w-full rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-4 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
             />
             {selectedUser ? (
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setSelectedUser(null);
@@ -468,13 +471,13 @@ export default function ActivityDashboard({
                 aria-label="Clear user filter"
               >
                 ×
-              </button>
+              </Button>
             ) : null}
             {isUserMenuOpen ? (
               <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
                 {filteredUsers.length ? (
                   filteredUsers.map((user) => (
-                    <button
+                    <Button
                       key={user.id}
                       type="button"
                       onClick={() => {
@@ -488,7 +491,7 @@ export default function ActivityDashboard({
                       <span className="text-[11px] text-[color:var(--color-text-subtle)]">
                         {user.role}
                       </span>
-                    </button>
+                    </Button>
                   ))
                 ) : (
                   <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
@@ -565,9 +568,9 @@ export default function ActivityDashboard({
                     </div>
                     <div className="flex items-center gap-2">
                       {commentCount > 0 ? (
-                        <button
+                        <Button
                           type="button"
-                          onClick={() => openEditLogModal(log)}
+                          onClick={() => openEditLogDialog(log)}
                           className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
                           aria-label="View comments"
                         >
@@ -584,7 +587,7 @@ export default function ActivityDashboard({
                               strokeLinejoin="round"
                             />
                           </svg>
-                        </button>
+                        </Button>
                       ) : null}
                       <span className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
                         {badgeLabel}
@@ -592,9 +595,9 @@ export default function ActivityDashboard({
                       <ActivityMenu
                         onLeaveComment={() => {
                           if (log.category === "TASK" && log.task) {
-                            setTaskDrawer({ open: true, task: log.task });
+                            setTaskSheet({ open: true, task: log.task });
                           } else {
-                            openEditLogModal(log);
+                            openEditLogDialog(log);
                           }
                         }}
                       />
@@ -625,15 +628,15 @@ export default function ActivityDashboard({
         </div>
       )}
 
-      <Modal
-        isOpen={logModal.open}
-        title={logModal.mode === "edit" ? "Edit manual log" : "Manual log activity"}
+      <Dialog
+        isOpen={logDialog.open}
+        title={logDialog.mode === "edit" ? "Edit manual log" : "Manual log activity"}
         description={
-          logModal.mode === "edit"
+          logDialog.mode === "edit"
             ? "Update your manual activity log and review comments."
             : "Capture a manual activity entry for the timeline."
         }
-        onClose={closeLogModal}
+        onClose={closeLogDialog}
       >
         <form
           onSubmit={handleSubmitLog}
@@ -643,7 +646,7 @@ export default function ActivityDashboard({
             <div className="grid gap-3 lg:grid-cols-4">
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Log type
-                <select
+                <Select
                   name="type"
                   value={logForm.type}
                   onChange={handleLogChange}
@@ -654,12 +657,12 @@ export default function ActivityDashboard({
                       {option.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               {logForm.type === "MANUAL" ? (
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   Category
-                  <select
+                  <Select
                     name="category"
                     value={logForm.category}
                     onChange={handleLogChange}
@@ -670,12 +673,12 @@ export default function ActivityDashboard({
                         {category.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               ) : null}
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Date
-                <input
+                <Input
                   type="date"
                   name="date"
                   value={logForm.date}
@@ -685,7 +688,7 @@ export default function ActivityDashboard({
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Hours
-                <input
+                <Input
                   type="number"
                   name="hoursSpent"
                   min="0"
@@ -698,7 +701,7 @@ export default function ActivityDashboard({
             </div>
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               Description
-              <textarea
+              <Textarea
                 name="description"
                 value={logForm.description}
                 onChange={handleLogChange}
@@ -708,7 +711,7 @@ export default function ActivityDashboard({
               />
             </label>
 
-            {logModal.mode === "edit" && activeLog ? (
+            {logDialog.mode === "edit" && activeLog ? (
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
                   Comments
@@ -730,23 +733,23 @@ export default function ActivityDashboard({
             ) : null}
           </div>
           <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
-            <ActionButton
-              label={logModal.mode === "edit" ? "Save changes" : "Save log"}
+            <Button
+              label={logDialog.mode === "edit" ? "Save changes" : "Save log"}
               variant="primary"
               type="submit"
               className="min-w-[140px]"
             />
           </div>
         </form>
-      </Modal>
+      </Dialog>
 
-      <Drawer
-        isOpen={taskDrawer.open}
-        title={taskDrawer.task?.title ? "Task comments" : "Task"}
-        onClose={() => setTaskDrawer({ open: false, task: null })}
+      <Sheet
+        isOpen={taskSheet.open}
+        title={taskSheet.task?.title ? "Task comments" : "Task"}
+        onClose={() => setTaskSheet({ open: false, task: null })}
         width="28rem"
       >
-        {taskDrawer.task ? (
+        {taskSheet.task ? (
           <div className="space-y-4">
             <p className="text-sm text-[color:var(--color-text-muted)]">
               Leave feedback on the task activity below.
@@ -757,7 +760,7 @@ export default function ActivityDashboard({
               </p>
               <CommentThread
                 entityType="TASK"
-                entityId={taskDrawer.task.id}
+                entityId={taskSheet.task.id}
                 currentUser={currentUser}
                 autoFocus
                 users={users}
@@ -765,7 +768,7 @@ export default function ActivityDashboard({
             </div>
           </div>
         ) : null}
-      </Drawer>
+      </Sheet>
     </div>
   );
 }

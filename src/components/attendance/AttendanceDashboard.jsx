@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import PageHeader from "@/components/layout/PageHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import useOutsideClick from "@/hooks/useOutsideClick";
 import { getCutoffTime } from "@/lib/dutyHours";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Table } from "@/components/ui/table";
 
 const badgeOptions = [
   { id: "all", label: "All" },
@@ -241,7 +245,7 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <Button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -262,13 +266,13 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
         disabled={disabled}
       >
         <span className="text-lg leading-none">⋮</span>
-      </button>
+      </Button>
       {isOpen ? (
         <div
           className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <button
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -278,7 +282,7 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
           >
             Edit
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>
@@ -293,7 +297,7 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <Button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -314,13 +318,13 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
         disabled={disabled}
       >
         <span className="text-lg leading-none">⋮</span>
-      </button>
+      </Button>
       {isOpen ? (
         <div
           className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <button
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -330,8 +334,8 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
           >
             Edit
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -341,7 +345,7 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-rose-300 hover:bg-rose-500/10"
           >
             Delete
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>
@@ -373,7 +377,7 @@ export default function AttendanceDashboard({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
 
-  const [modalState, setModalState] = useState({ open: false, mode: "create" });
+  const [modalState, setDialogState] = useState({ open: false, mode: "create" });
   const [activeRecord, setActiveRecord] = useState(null);
   const [form, setForm] = useState({
     date: formatDateForInput(new Date()),
@@ -385,7 +389,7 @@ export default function AttendanceDashboard({
   const [wfhIntervals, setWfhIntervals] = useState([]);
   const [wfhForm, setWfhForm] = useState({ startTime: "", endTime: "" });
   const [wfhSubmitting, setWfhSubmitting] = useState(false);
-  const [breakModal, setBreakModal] = useState({
+  const [breakDialog, setBreakDialog] = useState({
     open: false,
     mode: "create",
     breakItem: null,
@@ -532,7 +536,7 @@ export default function AttendanceDashboard({
     setActivePreset(null);
   };
 
-  const openCreateModal = () => {
+  const openCreateDialog = () => {
     const defaultUser = selectedUser ?? currentUser;
     setForm({
       date: range.from || formatDateForInput(new Date()),
@@ -545,10 +549,10 @@ export default function AttendanceDashboard({
     setWfhForm({ startTime: "", endTime: "" });
     setFormUserQuery(defaultUser?.name ?? "");
     setActiveRecord(null);
-    setModalState({ open: true, mode: "create" });
+    setDialogState({ open: true, mode: "create" });
   };
 
-  const openEditModal = (record) => {
+  const openEditDialog = (record) => {
     setActiveRecord(record);
     setForm({
       date: formatDateForInput(record.date),
@@ -560,11 +564,11 @@ export default function AttendanceDashboard({
     setWfhIntervals(record.wfhIntervals ?? []);
     setWfhForm({ startTime: "", endTime: "" });
     setFormUserQuery(record.user?.name ?? "");
-    setModalState({ open: true, mode: "edit" });
+    setDialogState({ open: true, mode: "edit" });
   };
 
-  const closeModal = () => {
-    setModalState({ open: false, mode: "create" });
+  const closeDialog = () => {
+    setDialogState({ open: false, mode: "create" });
   };
 
   const handleFormChange = (event) => {
@@ -659,7 +663,7 @@ export default function AttendanceDashboard({
     }
   };
 
-  const openBreakModalForm = ({ mode, breakItem = null, attendanceId = null } = {}) => {
+  const openBreakDialogForm = ({ mode, breakItem = null, attendanceId = null } = {}) => {
     const startTimeValue = breakItem?.startAt
       ? formatTimeInput(breakItem.startAt)
       : formatTimeInput(new Date());
@@ -669,11 +673,11 @@ export default function AttendanceDashboard({
       durationMinutes: breakItem?.durationMinutes?.toString() ?? "",
       notes: breakItem?.notes ?? "",
     });
-    setBreakModal({ open: true, mode, breakItem, attendanceId });
+    setBreakDialog({ open: true, mode, breakItem, attendanceId });
   };
 
-  const closeBreakModal = () => {
-    setBreakModal({ open: false, mode: "create", breakItem: null, attendanceId: null });
+  const closeBreakDialog = () => {
+    setBreakDialog({ open: false, mode: "create", breakItem: null, attendanceId: null });
   };
 
   const handleBreakFormChange = (event) => {
@@ -684,9 +688,9 @@ export default function AttendanceDashboard({
   const handleBreakSubmit = async (event) => {
     event.preventDefault();
     const targetAttendanceId =
-      breakModal.mode === "create"
-        ? breakModal.attendanceId ?? activeBreakRecord?.id
-        : breakModal.breakItem?.attendanceId;
+      breakDialog.mode === "create"
+        ? breakDialog.attendanceId ?? activeBreakRecord?.id
+        : breakDialog.breakItem?.attendanceId;
     if (!targetAttendanceId) {
       return;
     }
@@ -707,11 +711,11 @@ export default function AttendanceDashboard({
         notes: breakForm.notes,
       };
       const endpoint =
-        breakModal.mode === "edit" && breakModal.breakItem
-          ? `/api/attendance/breaks/${breakModal.breakItem.id}`
+        breakDialog.mode === "edit" && breakDialog.breakItem
+          ? `/api/attendance/breaks/${breakDialog.breakItem.id}`
           : `/api/attendance/${targetAttendanceId}/breaks`;
       const response = await fetch(endpoint, {
-        method: breakModal.mode === "edit" ? "PATCH" : "POST",
+        method: breakDialog.mode === "edit" ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -720,11 +724,11 @@ export default function AttendanceDashboard({
         throw new Error(data?.message ?? "Unable to save break.");
       }
       addToast({
-        title: breakModal.mode === "edit" ? "Break updated" : "Break added",
+        title: breakDialog.mode === "edit" ? "Break updated" : "Break added",
         message: data?.message ?? "Break saved.",
         variant: "success",
       });
-      closeBreakModal();
+      closeBreakDialog();
       if (data?.attendance) {
         if (activeRecord?.id === data.attendance.id) {
           setActiveRecord(data.attendance);
@@ -833,7 +837,7 @@ export default function AttendanceDashboard({
         message: data?.message ?? "Attendance saved.",
         variant: "success",
       });
-      closeModal();
+      closeDialog();
       if (data?.presenceNow) {
         setPresenceNow(data.presenceNow);
       }
@@ -858,13 +862,13 @@ export default function AttendanceDashboard({
         eyebrow="People Ops"
         title="Attendance"
         subtitle="Track check-ins and check-outs across the team."
-        actions={<ActionButton label="Add Attendance" onClick={openCreateModal} />}
+        actions={<Button label="Add Attendance" onClick={openCreateDialog} />}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-4">
         <div className="flex flex-wrap items-center gap-2">
           {badgeOptions.map((badge) => (
-            <button
+            <Button
               key={badge.id}
               type="button"
               onClick={() => setActiveBadge(badge.id)}
@@ -878,11 +882,11 @@ export default function AttendanceDashboard({
               <span className="rounded-full bg-[color:var(--color-muted-bg)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--color-text-muted)]">
                 {badgeCounts[badge.id] ?? 0}
               </span>
-            </button>
+            </Button>
           ))}
           <div className="flex flex-wrap items-center gap-2">
             {presetOptions.map((preset) => (
-              <button
+              <Button
                 key={preset.id}
                 type="button"
                 onClick={() => handlePresetClick(preset.id)}
@@ -893,13 +897,13 @@ export default function AttendanceDashboard({
                 }`}
               >
                 {preset.label}
-              </button>
+              </Button>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs text-[color:var(--color-text-subtle)]">
               From
-              <input
+              <Input
                 type="date"
                 value={range.from}
                 onChange={(event) => handleRangeChange("from", event.target.value)}
@@ -908,7 +912,7 @@ export default function AttendanceDashboard({
             </label>
             <label className="flex items-center gap-2 text-xs text-[color:var(--color-text-subtle)]">
               To
-              <input
+              <Input
                 type="date"
                 value={range.to}
                 onChange={(event) => handleRangeChange("to", event.target.value)}
@@ -926,7 +930,7 @@ export default function AttendanceDashboard({
 
         {isLeader ? (
           <div className="relative w-full max-w-xs" ref={userMenuRef}>
-            <input
+            <Input
               value={userQuery}
               onChange={(event) => {
                 setUserQuery(event.target.value);
@@ -940,7 +944,7 @@ export default function AttendanceDashboard({
               className="w-full rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-4 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
             />
             {selectedUser ? (
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setSelectedUser(null);
@@ -951,13 +955,13 @@ export default function AttendanceDashboard({
                 aria-label="Clear user filter"
               >
                 ×
-              </button>
+              </Button>
             ) : null}
             {isUserMenuOpen ? (
               <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
                 {filteredUsers.length ? (
                   filteredUsers.map((user) => (
-                    <button
+                    <Button
                       key={user.id}
                       type="button"
                       onClick={() => {
@@ -971,7 +975,7 @@ export default function AttendanceDashboard({
                       <span className="text-[11px] text-[color:var(--color-text-subtle)]">
                         {user.role}
                       </span>
-                    </button>
+                    </Button>
                   ))
                 ) : (
                   <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
@@ -995,11 +999,11 @@ export default function AttendanceDashboard({
                 {formatDisplayDate(activeBreakRecord.date)}
               </p>
             </div>
-            <ActionButton
+            <Button
               label="Add Break"
               variant="secondary"
               onClick={() =>
-                openBreakModalForm({
+                openBreakDialogForm({
                   mode: "create",
                   attendanceId: activeBreakRecord.id,
                 })
@@ -1034,7 +1038,7 @@ export default function AttendanceDashboard({
                     ) : null}
                   </div>
                   <BreakMenu
-                    onEdit={() => openBreakModalForm({ mode: "edit", breakItem: item })}
+                    onEdit={() => openBreakDialogForm({ mode: "edit", breakItem: item })}
                     onDelete={() => handleBreakDelete(item)}
                     disabled={!canManageBreaks}
                     tooltip="Breaks can only be edited while duty is running."
@@ -1065,7 +1069,7 @@ export default function AttendanceDashboard({
         </div>
       ) : filteredAttendance.length ? (
         <div className="overflow-x-auto rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)]">
-          <table className="w-full text-left text-sm">
+          <Table className="w-full text-left text-sm">
             <thead className="border-b border-[color:var(--color-border)] text-xs uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
               <tr>
                 {isLeader ? <th className="px-4 py-3">User</th> : null}
@@ -1131,7 +1135,7 @@ export default function AttendanceDashboard({
                   </td>
                   <td className="px-4 py-4 text-right">
                     <AttendanceMenu
-                      onEdit={() => openEditModal(record)}
+                      onEdit={() => openEditDialog(record)}
                       disabled={!isLeader && !isEditableAttendanceDate(record.date)}
                       tooltip="You can only edit attendance for today and the last 2 days."
                     />
@@ -1142,7 +1146,7 @@ export default function AttendanceDashboard({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
       ) : (
         <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">
@@ -1150,11 +1154,11 @@ export default function AttendanceDashboard({
         </div>
       )}
 
-      <Modal
+      <Dialog
         isOpen={modalState.open}
         title={modalState.mode === "edit" ? "Edit attendance" : "Add attendance"}
         description="Record check-in and check-out times for any date."
-        onClose={closeModal}
+        onClose={closeDialog}
       >
         <form onSubmit={handleSubmit} className="flex h-full flex-col">
           <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1 hide-scrollbar">
@@ -1162,7 +1166,7 @@ export default function AttendanceDashboard({
               <div className="relative" ref={formUserMenuRef}>
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   User
-                  <input
+                  <Input
                     value={formUserQuery}
                     onChange={(event) => {
                       setFormUserQuery(event.target.value);
@@ -1177,7 +1181,7 @@ export default function AttendanceDashboard({
                   />
                 </label>
                 {form.userId ? (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => {
                       setForm((prev) => ({ ...prev, userId: "" }));
@@ -1188,13 +1192,13 @@ export default function AttendanceDashboard({
                     aria-label="Clear user selection"
                   >
                     ×
-                  </button>
+                  </Button>
                 ) : null}
                 {isFormUserMenuOpen ? (
                   <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
                     {filteredFormUsers.length ? (
                       filteredFormUsers.map((user) => (
-                        <button
+                        <Button
                           key={user.id}
                           type="button"
                           onClick={() => {
@@ -1208,7 +1212,7 @@ export default function AttendanceDashboard({
                           <span className="text-[11px] text-[color:var(--color-text-subtle)]">
                             {user.role}
                           </span>
-                        </button>
+                        </Button>
                       ))
                     ) : (
                       <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
@@ -1222,7 +1226,7 @@ export default function AttendanceDashboard({
             <div className="grid gap-3 lg:grid-cols-3">
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Date
-                <input
+                <Input
                   type="date"
                   name="date"
                   value={form.date}
@@ -1233,7 +1237,7 @@ export default function AttendanceDashboard({
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 In time
-                <input
+                <Input
                   type="time"
                   name="inTime"
                   value={form.inTime}
@@ -1244,7 +1248,7 @@ export default function AttendanceDashboard({
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Out time
-                  <input
+                  <Input
                     type="time"
                     name="outTime"
                     value={form.outTime}
@@ -1255,7 +1259,7 @@ export default function AttendanceDashboard({
             </div>
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               Note
-              <textarea
+              <Textarea
                 name="note"
                 value={form.note}
                 onChange={handleFormChange}
@@ -1293,7 +1297,7 @@ export default function AttendanceDashboard({
               <div className="mt-4 grid gap-3 lg:grid-cols-3">
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   Start time
-                  <input
+                  <Input
                     type="time"
                     name="startTime"
                     value={wfhForm.startTime}
@@ -1304,7 +1308,7 @@ export default function AttendanceDashboard({
                 </label>
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   End time
-                  <input
+                  <Input
                     type="time"
                     name="endTime"
                     value={wfhForm.endTime}
@@ -1314,7 +1318,7 @@ export default function AttendanceDashboard({
                   />
                 </label>
                 <div className="flex items-end">
-                  <ActionButton
+                  <Button
                     label={wfhSubmitting ? "Adding..." : "Add interval"}
                     variant="secondary"
                     type="button"
@@ -1332,12 +1336,12 @@ export default function AttendanceDashboard({
                     Breaks
                   </p>
                   {isLeader || isAttendanceRunning(activeRecord, new Date()) ? (
-                    <ActionButton
+                    <Button
                       label="Add break"
                       variant="secondary"
                       type="button"
                       onClick={() =>
-                        openBreakModalForm({
+                        openBreakDialogForm({
                           mode: "create",
                           attendanceId: activeRecord.id,
                         })
@@ -1368,7 +1372,7 @@ export default function AttendanceDashboard({
                         {isLeader || isAttendanceRunning(activeRecord, new Date()) ? (
                           <BreakMenu
                             onEdit={() =>
-                              openBreakModalForm({ mode: "edit", breakItem: item })
+                              openBreakDialogForm({ mode: "edit", breakItem: item })
                             }
                             onDelete={() => handleBreakDelete(item)}
                             disabled={false}
@@ -1391,7 +1395,7 @@ export default function AttendanceDashboard({
             ) : null}
           </div>
           <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
-            <ActionButton
+            <Button
               label={modalState.mode === "edit" ? "Save changes" : "Save attendance"}
               variant="primary"
               type="submit"
@@ -1399,19 +1403,19 @@ export default function AttendanceDashboard({
             />
           </div>
         </form>
-      </Modal>
+      </Dialog>
 
-      <Modal
-        isOpen={breakModal.open}
-        title={breakModal.mode === "edit" ? "Edit break" : "Add break"}
+      <Dialog
+        isOpen={breakDialog.open}
+        title={breakDialog.mode === "edit" ? "Edit break" : "Add break"}
         description="Log a break taken during duty."
-        onClose={closeBreakModal}
+        onClose={closeBreakDialog}
       >
         <form onSubmit={handleBreakSubmit} className="flex h-full flex-col">
           <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1 hide-scrollbar">
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               Break type
-              <select
+              <Select
                 name="type"
                 value={breakForm.type}
                 onChange={handleBreakFormChange}
@@ -1422,12 +1426,12 @@ export default function AttendanceDashboard({
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <div className="grid gap-3 lg:grid-cols-2">
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Start time
-                <input
+                <Input
                   type="time"
                   name="startTime"
                   value={breakForm.startTime}
@@ -1438,7 +1442,7 @@ export default function AttendanceDashboard({
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Duration (minutes)
-                <input
+                <Input
                   type="number"
                   name="durationMinutes"
                   value={breakForm.durationMinutes}
@@ -1451,7 +1455,7 @@ export default function AttendanceDashboard({
             </div>
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               Notes (optional)
-              <textarea
+              <Textarea
                 name="notes"
                 value={breakForm.notes}
                 onChange={handleBreakFormChange}
@@ -1461,7 +1465,7 @@ export default function AttendanceDashboard({
             </label>
           </div>
           <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
-            <ActionButton
+            <Button
               label={breakSubmitting ? "Saving..." : "Save break"}
               variant="primary"
               type="submit"
@@ -1470,7 +1474,7 @@ export default function AttendanceDashboard({
             />
           </div>
         </form>
-      </Modal>
+      </Dialog>
     </div>
   );
 }

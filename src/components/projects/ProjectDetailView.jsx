@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Input } from "@/components/ui/input";
 import MilestoneCard from "@/components/milestones/MilestoneCard";
 import PageHeader from "@/components/layout/PageHeader";
 
@@ -25,7 +26,7 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
   const [project, setProject] = useState(null);
   const [milestones, setMilestones] = useState([]);
   const [status, setStatus] = useState({ loading: true, error: null });
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setDialogOpen] = useState(false);
   const [savingMilestone, setSavingMilestone] = useState(false);
   const [milestoneForm, setMilestoneForm] = useState({
     title: "",
@@ -114,7 +115,7 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
         variant: "success",
       });
       resetMilestoneForm();
-      setModalOpen(false);
+      setDialogOpen(false);
       loadProject();
     } catch (error) {
       const message =
@@ -153,10 +154,10 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
         backLabel="Back to projects"
         actions={
           canManageMilestones ? (
-            <ActionButton
+            <Button
               label="Create milestone"
               variant="success"
-              onClick={() => setModalOpen(true)}
+              onClick={() => setDialogOpen(true)}
             />
           ) : null
         }
@@ -170,7 +171,7 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
       {!status.loading && status.error && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
           <p>{status.error}</p>
-          <ActionButton label="Retry" variant="secondary" onClick={loadProject} />
+          <Button label="Retry" variant="secondary" onClick={loadProject} />
         </div>
       )}
 
@@ -213,16 +214,16 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
         </>
       ) : null}
 
-      <Modal
+      <Dialog
         isOpen={modalOpen}
         title="Create milestone"
         description="Set dates to anchor the milestone timeline."
-        onClose={savingMilestone ? undefined : () => setModalOpen(false)}
+        onClose={savingMilestone ? undefined : () => setDialogOpen(false)}
       >
         <form onSubmit={handleMilestoneSubmit} className="space-y-4">
           <label className="text-xs text-[color:var(--color-text-muted)]">
             Milestone title
-            <input
+            <Input
               className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
               value={milestoneForm.title}
               onChange={(event) =>
@@ -236,7 +237,7 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-xs text-[color:var(--color-text-muted)]">
               Start date
-              <input
+              <Input
                 type="date"
                 className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                 value={milestoneForm.startDate}
@@ -250,7 +251,7 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
             </label>
             <label className="text-xs text-[color:var(--color-text-muted)]">
               End date
-              <input
+              <Input
                 type="date"
                 className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                 value={milestoneForm.endDate}
@@ -264,13 +265,13 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
             </label>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <ActionButton
+            <Button
               label="Cancel"
               variant="secondary"
-              onClick={() => setModalOpen(false)}
+              onClick={() => setDialogOpen(false)}
               className={savingMilestone ? "pointer-events-none opacity-60" : ""}
             />
-            <ActionButton
+            <Button
               label={savingMilestone ? "Saving..." : "Create milestone"}
               variant="primary"
               type="submit"
@@ -278,7 +279,7 @@ export default function ProjectDetailView({ projectId, canManageMilestones }) {
             />
           </div>
         </form>
-      </Modal>
+      </Dialog>
     </div>
   );
 }

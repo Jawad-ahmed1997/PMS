@@ -1,100 +1,104 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import ActionButton from "@/components/ui/ActionButton";
-import { useToast } from "@/components/ui/ToastProvider";
+import { useActionState, useRef, useState } from "react";
+import { loginAction } from "@/app/login/actions";
+import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
-export default function SignInForm() {
-  const router = useRouter();
-  const { addToast } = useToast();
-  const [formState, setFormState] = useState({
-    email: "",
-    password: "",
-  });
-  const [status, setStatus] = useState({ loading: false, error: null });
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export default function SignInForm({ callbackUrl = "/dashboard" }) {
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const [formState, setFormState] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState({});
+  const [status, formAction, isPending] = useActionState(loginAction, { error: null, fields: {} });
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setFormState((prev) => ({ ...prev, [name]: value }));
+    setFormState((previous) => ({ ...previous, [name]: value }));
+    setErrors((previous) => ({ ...previous, [name]: null }));
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setStatus({ loading: true, error: null });
+  const validate = () => {
+    const nextErrors = {};
+    const email = formState.email.trim();
 
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formState),
-    });
-
-    if (!response.ok) {
-      const data = await response.json();
-      setStatus({ loading: false, error: data?.error ?? "Sign-in failed." });
-      addToast({
-        title: "Sign-in failed",
-        message: data?.error ?? "Please check your credentials.",
-        variant: "error",
-      });
-      return;
+    if (!email) {
+      nextErrors.email = "Enter your work email.";
+    } else if (!EMAIL_PATTERN.test(email)) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+    if (!formState.password) {
+      nextErrors.password = "Enter your password.";
     }
 
-    addToast({
-      title: "Signed in",
-      message: "Welcome back to PMS Cloud.",
-      variant: "success",
-    });
-    router.push("/dashboard");
-    router.refresh();
+    setErrors(nextErrors);
+    if (nextErrors.email) emailRef.current?.focus();
+    else if (nextErrors.password) passwordRef.current?.focus();
+    return nextErrors;
+  };
+
+  const handleSubmit = (event) => {
+    if (isPending || Object.keys(validate()).length > 0) event.preventDefault();
   };
 
   return (
-    <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
-      <label className="grid gap-2 text-sm text-[color:var(--color-text-muted)]">
-        Work email
-        <input
+    <form className="auth-form-enter grid gap-6" action={formAction} onSubmit={handleSubmit} noValidate>
+      <input type="hidden" name="callbackUrl" value={callbackUrl} />
+      <div className="grid gap-2">
+        <Label htmlFor="email" className="text-sm font-medium text-foreground">Work email</Label>
+        <Input
+          ref={emailRef}
+          id="email"
           type="email"
           name="email"
           value={formState.email}
+          placeholder="Enter Your Email"
           onChange={handleChange}
-          placeholder="name@company.com"
-          className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck="false"
+          aria-invalid={Boolean(errors.email)}
+          aria-describedby={errors.email ? "email-error" : undefined}
+          className="h-11 rounded-lg border-input bg-background text-foreground focus-visible:border-ring focus-visible:ring-ring"
         />
-      </label>
-      <label className="grid gap-2 text-sm text-[color:var(--color-text-muted)]">
-        Password
-        <input
-          type="password"
-          name="password"
-          value={formState.password}
-          onChange={handleChange}
-          placeholder="••••••••"
-          className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
-        />
-      </label>
-      {status.error && (
-        <p className="text-xs text-rose-300">{status.error}</p>
-      )}
-      <div className="flex flex-wrap gap-3">
-        <ActionButton
-          label={status.loading ? "Signing in..." : "Sign in"}
-          variant="primary"
-          type="submit"
-          className="min-w-[140px]"
-        />
-        <ActionButton
-          label="Reset password"
-          variant="secondary"
-          toast={{
-            title: "Password reset",
-            message: "Password reset flows are staged for integration.",
-            variant: "warning",
-          }}
-          type="button"
-        />
+        {errors.email ? <p id="email-error" className="text-xs text-rose-600">{errors.email}</p> : null}
       </div>
 
+      <div className="grid gap-2">
+        <Label htmlFor="password" className="text-sm font-medium text-foreground">Password</Label>
+        <div className="relative">
+          <PasswordInput
+            ref={passwordRef}
+            id="password"
+            name="password"
+            placeholder="Enter Your Password"
+            value={formState.password}
+            onChange={handleChange}
+            autoComplete="current-password"
+            aria-invalid={Boolean(errors.password)}
+            aria-describedby={errors.password ? "password-error" : undefined}
+            className="h-11 rounded-lg border-input bg-background text-foreground focus-visible:border-ring focus-visible:ring-ring"
+          />
+        </div>
+        {errors.password ? <p id="password-error" className="text-xs text-rose-600">{errors.password}</p> : null}
+      </div>
+
+      {status?.error ? (
+        <p className="text-sm text-destructive" role="alert" aria-live="polite">{status.error}</p>
+      ) : null}
+
+      <Button
+        type="submit"
+        disabled={isPending}
+        size="lg"
+        className="w-full bg-primary text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring"
+        label={isPending ? "Signing in..." : "Sign in"}
+      />
     </form>
   );
 }

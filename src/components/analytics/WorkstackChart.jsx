@@ -41,11 +41,11 @@ function CustomTooltip({ active, payload, label }) {
   }
   const entry = payload[0]?.payload;
   return (
-    <div className="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-3 text-xs text-[color:var(--color-text)] shadow-lg">
-      <p className="text-xs font-semibold text-[color:var(--color-text)]">
+    <div className="rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
+      <p className="text-xs font-semibold text-popover-foreground">
         {formatDayLabel(label)}
       </p>
-      <div className="mt-2 space-y-1 text-[color:var(--color-text-muted)]">
+      <div className="mt-2 space-y-1 text-muted-foreground">
         <p>Work: {formatDuration(entry.workSeconds)}</p>
         <p>Break: {formatDuration(entry.breakSeconds)}</p>
         <p>Idle: {formatDuration(entry.idleSeconds)}</p>
@@ -65,7 +65,7 @@ export default function WorkstackChart({ perDay, minWidth }) {
   }, [perDay]);
 
   return (
-    <div className="h-64 w-full overflow-x-auto">
+    <div className="h-64 w-full overflow-x-auto rounded-lg bg-muted/20 p-2">
       <div style={{ minWidth: minWidth ?? "100%", height: "100%" }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart

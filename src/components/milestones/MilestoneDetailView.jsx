@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/ToastProvider";
 import TaskBoard from "@/components/tasks/TaskBoard";
 import PageHeader from "@/components/layout/PageHeader";
 import { TASK_STATUSES } from "@/lib/kanban";
 import { TASK_TYPE_CHECKLISTS } from "@/lib/taskChecklists";
 import { roles } from "@/lib/roles";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const buildErrorMessage = (data) =>
   data?.error ?? data?.message ?? "Unable to load milestone.";
@@ -22,7 +25,7 @@ export default function MilestoneDetailView({
   const [milestone, setMilestone] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [status, setStatus] = useState({ loading: true, error: null });
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [users, setUsers] = useState([]);
@@ -186,7 +189,7 @@ export default function MilestoneDetailView({
         isCompleted: item.isCompleted,
       })),
     });
-    setIsModalOpen(true);
+    setIsDialogOpen(true);
   };
 
   const handleTaskSubmit = async (event) => {
@@ -253,7 +256,7 @@ export default function MilestoneDetailView({
         variant: "success",
       });
       resetTaskForm();
-      setIsModalOpen(false);
+      setIsDialogOpen(false);
       if (editingTaskId) {
         setTasks((prev) =>
           prev.map((task) => (task.id === data.task.id ? data.task : task))
@@ -290,12 +293,12 @@ export default function MilestoneDetailView({
         }
         backLabel="Back to milestones"
         actions={
-          <ActionButton
+          <Button
             label="Create task"
             variant="success"
             onClick={() => {
               resetTaskForm();
-              setIsModalOpen(true);
+              setIsDialogOpen(true);
             }}
           />
         }
@@ -310,7 +313,7 @@ export default function MilestoneDetailView({
       {!status.loading && status.error && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
           <p>{status.error}</p>
-          <ActionButton label="Retry" variant="secondary" onClick={loadMilestone} />
+          <Button label="Retry" variant="secondary" onClick={loadMilestone} />
         </div>
       )}
 
@@ -341,8 +344,8 @@ export default function MilestoneDetailView({
         </>
       )}
 
-      <Modal
-        isOpen={isModalOpen}
+      <Dialog
+        isOpen={isDialogOpen}
         title={editingTaskId ? "Edit task" : "Create task"}
         description={
           editingTaskId
@@ -353,7 +356,7 @@ export default function MilestoneDetailView({
           savingTask
             ? undefined
             : () => {
-                setIsModalOpen(false);
+                setIsDialogOpen(false);
                 resetTaskForm();
               }
         }
@@ -362,7 +365,7 @@ export default function MilestoneDetailView({
           <div className="space-y-4 overflow-y-auto pr-1">
             <label className="text-xs text-[color:var(--color-text-muted)]">
               Task title
-              <input
+              <Input
                 className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                 value={taskForm.title}
                 onChange={(event) =>
@@ -372,7 +375,7 @@ export default function MilestoneDetailView({
             </label>
             <label className="text-xs text-[color:var(--color-text-muted)]">
               Description
-              <textarea
+              <Textarea
                 className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                 rows={4}
                 value={taskForm.description}
@@ -388,7 +391,7 @@ export default function MilestoneDetailView({
               {!editingTaskId ? (
                 <label className="text-xs text-[color:var(--color-text-muted)]">
                   Status
-                  <select
+                  <Select
                     className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                     value={taskForm.status}
                     onChange={(event) =>
@@ -403,12 +406,12 @@ export default function MilestoneDetailView({
                         {statusOption.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               ) : null}
               <label className="text-xs text-[color:var(--color-text-muted)]">
                 Type
-                <select
+                <Select
                   className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                   value={taskForm.type}
                   onChange={(event) =>
@@ -423,12 +426,12 @@ export default function MilestoneDetailView({
                       {taskType}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
             <label className="text-xs text-[color:var(--color-text-muted)]">
               Assignee
-              <select
+              <Select
                 className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                 value={taskForm.ownerId}
                 onChange={(event) =>
@@ -447,11 +450,11 @@ export default function MilestoneDetailView({
                     {user.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className="text-xs text-[color:var(--color-text-muted)]">
               Estimated time
-              <input
+              <Input
                 className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                 placeholder="2 hours 30 minutes"
                 value={taskForm.estimatedTime}
@@ -475,7 +478,7 @@ export default function MilestoneDetailView({
                         key={item.id ?? `new-${index}`}
                         className="flex items-center gap-2"
                       >
-                        <input
+                        <Input
                           type="checkbox"
                           checked={item.isCompleted}
                           onChange={(event) =>
@@ -494,7 +497,7 @@ export default function MilestoneDetailView({
                           }
                           className="h-4 w-4 rounded border-[color:var(--color-border)] bg-transparent text-emerald-500"
                         />
-                        <input
+                        <Input
                           className="flex-1 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-xs text-[color:var(--color-text)]"
                           value={item.label}
                           onChange={(event) =>
@@ -512,7 +515,7 @@ export default function MilestoneDetailView({
                             }))
                           }
                         />
-                        <button
+                        <Button
                           type="button"
                           className="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-[10px] text-[color:var(--color-text-muted)] transition hover:border-rose-400 hover:text-rose-300"
                           onClick={() =>
@@ -525,7 +528,7 @@ export default function MilestoneDetailView({
                           }
                         >
                           Remove
-                        </button>
+                        </Button>
                       </div>
                     ))
                   ) : (
@@ -534,7 +537,7 @@ export default function MilestoneDetailView({
                     </p>
                   )}
                 </div>
-                <button
+                <Button
                   type="button"
                   className="w-fit rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
                   onClick={() =>
@@ -548,18 +551,18 @@ export default function MilestoneDetailView({
                   }
                 >
                   Add checklist item
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>
           <div className="sticky bottom-0 mt-4 flex flex-wrap justify-end gap-2 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
-            <ActionButton
+            <Button
               label="Cancel"
               variant="secondary"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => setIsDialogOpen(false)}
               className={savingTask ? "pointer-events-none opacity-60" : ""}
             />
-            <ActionButton
+            <Button
               label={
                 savingTask
                   ? "Saving..."
@@ -573,7 +576,7 @@ export default function MilestoneDetailView({
             />
           </div>
         </form>
-      </Modal>
+      </Dialog>
     </div>
   );
 }

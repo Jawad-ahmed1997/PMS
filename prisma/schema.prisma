@@ -89,7 +89,13 @@ model User {
   id               String        @id @default(auto()) @map("_id") @db.ObjectId
   name             String
   email            String        @unique
-  password         String
+  password         String?
+  passwordHash     String?
+  emailVerified    DateTime?
+  image            String?
+  status           UserStatus    @default(ACTIVE)
+  passwordChangedAt DateTime?
+  sessionVersion   Int           @default(0)
   role             UserRole
   isActive         Boolean       @default(true)
   createdAt        DateTime      @default(now())
@@ -109,6 +115,84 @@ model User {
   notificationRecipients NotificationRecipient[]
   attendances      Attendance[]
   attendanceBreaks AttendanceBreak[]
+  accounts         Account[]
+  sessions         Session[]
+  passwordResets   PasswordResetToken[]
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model Account {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String    @db.ObjectId
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model RateLimitBucket {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  count     Int      @default(0)
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model SecurityAuditEvent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  event     String
+  userId    String?  @db.ObjectId
+  emailHash String?
+  ipHash    String?
+  createdAt DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Project {

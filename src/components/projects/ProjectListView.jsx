@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import ActionButton from "@/components/ui/ActionButton";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/ToastProvider";
-import ProjectModal from "@/components/projects/ProjectModal";
+import ProjectDialog from "@/components/projects/ProjectModal";
 import PageHeader from "@/components/layout/PageHeader";
 import ViewToggle from "@/components/ui/ViewToggle";
+import { Table } from "@/components/ui/table";
 import useOutsideClick from "@/hooks/useOutsideClick";
 
 const VIEW_PREFERENCE_KEY = "pms.projects.view";
@@ -63,7 +64,7 @@ export default function ProjectListView({ canManageProjects }) {
   const [projects, setProjects] = useState([]);
   const [status, setStatus] = useState({ loading: true, error: null });
   const [viewMode, setViewMode] = useState("grid");
-  const [modalState, setModalState] = useState({
+  const [modalState, setDialogState] = useState({
     open: false,
     mode: "create",
     project: null,
@@ -114,16 +115,16 @@ export default function ProjectListView({ canManageProjects }) {
     window.localStorage.setItem(VIEW_PREFERENCE_KEY, viewMode);
   }, [viewMode]);
 
-  const openCreateModal = () => {
-    setModalState({ open: true, mode: "create", project: null });
+  const openCreateDialog = () => {
+    setDialogState({ open: true, mode: "create", project: null });
   };
 
-  const openEditModal = (project) => {
-    setModalState({ open: true, mode: "edit", project });
+  const openEditDialog = (project) => {
+    setDialogState({ open: true, mode: "edit", project });
   };
 
-  const closeModal = () => {
-    setModalState({ open: false, mode: "create", project: null });
+  const closeDialog = () => {
+    setDialogState({ open: false, mode: "create", project: null });
   };
 
   const ProjectActionMenu = ({ project }) => {
@@ -139,12 +140,12 @@ export default function ProjectListView({ canManageProjects }) {
 
     const handleEdit = () => {
       setIsOpen(false);
-      openEditModal(project);
+      openEditDialog(project);
     };
 
     return (
       <div className="relative" ref={menuRef}>
-        <button
+        <Button
           type="button"
           onClick={(event) => {
             event.stopPropagation();
@@ -157,13 +158,13 @@ export default function ProjectListView({ canManageProjects }) {
           aria-haspopup="menu"
         >
           <span className="text-lg leading-none">⋮</span>
-        </button>
+        </Button>
         {isOpen ? (
           <div
             className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <button
+            <Button
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
@@ -186,9 +187,9 @@ export default function ProjectListView({ canManageProjects }) {
                 <circle cx="12" cy="12" r="3" />
               </svg>
               <span>View</span>
-            </button>
+            </Button>
             {canManageProjects ? (
-              <button
+              <Button
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
@@ -215,7 +216,7 @@ export default function ProjectListView({ canManageProjects }) {
                   />
                 </svg>
                 <span>Edit</span>
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : null}
@@ -231,10 +232,10 @@ export default function ProjectListView({ canManageProjects }) {
         subtitle="Track active initiatives across the organization."
         actions={
           canManageProjects ? (
-            <ActionButton
+            <Button
               label="Create project"
               variant="success"
-              onClick={openCreateModal}
+              onClick={openCreateDialog}
             />
           ) : null
         }
@@ -251,7 +252,7 @@ export default function ProjectListView({ canManageProjects }) {
       {!status.loading && status.error && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
           <p>{status.error}</p>
-          <ActionButton label="Retry" variant="secondary" onClick={loadProjects} />
+          <Button label="Retry" variant="secondary" onClick={loadProjects} />
         </div>
       )}
       {!status.loading && !status.error && !projects.length && (
@@ -298,7 +299,7 @@ export default function ProjectListView({ canManageProjects }) {
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)]">
-            <table className="w-full text-left text-sm">
+            <Table className="w-full text-left text-sm">
               <thead className="bg-[color:var(--color-surface-muted)] text-xs uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
                 <tr>
                   <th className="px-4 py-3">Project</th>
@@ -342,16 +343,16 @@ export default function ProjectListView({ canManageProjects }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )
       ) : null}
 
-      <ProjectModal
+      <ProjectDialog
         isOpen={modalState.open}
         mode={modalState.mode}
         initialValues={modalState.project}
-        onClose={closeModal}
+        onClose={closeDialog}
         onSuccess={loadProjects}
       />
     </div>

@@ -1,6 +1,6 @@
-import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { hashPassword, isPasswordInput } from "@/lib/auth/password";
 import {
   ALL_ROLES,
   USER_CREATION_ROLES,
@@ -30,7 +30,7 @@ export async function POST(request) {
   const password = body?.password;
   const role = normalizeRole(body?.role);
 
-  if (!name || !email || !password || !role) {
+  if (!name || !email || !role || !isPasswordInput(password, { requirePolicy: true })) {
     return buildError("Name, email, password, and role are required.", 400);
   }
 
@@ -48,14 +48,16 @@ export async function POST(request) {
       return buildError("A user with this email already exists.", 409);
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await hashPassword(password);
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
+        password: null,
         role,
         isActive: true,
+        status: "ACTIVE",
       },
       select: {
         id: true,

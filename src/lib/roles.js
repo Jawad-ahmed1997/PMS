@@ -124,7 +124,7 @@ export function roleHasRouteAccess(roleId, pathname) {
   }
 
   const matchingRoute = Object.keys(routeAccess).find((route) =>
-    pathname.startsWith(route)
+    pathname === route || pathname.startsWith(`${route}/`)
   );
 
   if (!matchingRoute) {

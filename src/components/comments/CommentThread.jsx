@@ -1,7 +1,9 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Textarea } from "@/components/ui/textarea";
 import useOutsideClick from "@/hooks/useOutsideClick";
 
 const buildErrorMessage = (data, fallback) =>
@@ -218,13 +220,13 @@ export default function CommentThread({
       ) : (
         <div className="space-y-3">
           {collapsedCount > 0 ? (
-            <button
+            <Button
               type="button"
               onClick={() => setIsExpanded(true)}
               className="text-left text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
             >
               +{collapsedCount} more
-            </button>
+            </Button>
           ) : null}
           {visibleComments.map((comment) => {
             const isCurrentUser = comment.createdBy?.id === currentUser?.id;
@@ -251,7 +253,7 @@ export default function CommentThread({
 
       <form onSubmit={handleSubmit} className="space-y-2">
         <div className="relative" ref={mentionRef}>
-          <textarea
+          <Textarea
             ref={inputRef}
             rows={3}
             value={message}
@@ -262,7 +264,7 @@ export default function CommentThread({
           {mentionState.open && filteredUsers.length > 0 ? (
             <div className="absolute bottom-full left-0 z-10 mb-2 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-lg">
               {filteredUsers.map((user) => (
-                <button
+                <Button
                   key={user.id}
                   type="button"
                   onClick={() => handleMentionSelect(user)}
@@ -272,19 +274,19 @@ export default function CommentThread({
                   <span className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
                     {user.role}
                   </span>
-                </button>
+                </Button>
               ))}
             </div>
           ) : null}
         </div>
         <div className="flex justify-end">
-          <button
+          <Button
             type="submit"
             disabled={status.submitting}
             className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {status.submitting ? "Sending..." : "Send"}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

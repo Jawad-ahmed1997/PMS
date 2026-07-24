@@ -1,10 +1,12 @@
-import ActionButton from "@/components/ui/ActionButton";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageHeader from "@/components/layout/PageHeader";
 import PlaceholderUpload from "@/components/ui/PlaceholderUpload";
 import AnalyticsDashboardPanel from "@/components/analytics/AnalyticsDashboardPanel";
 import { getSession } from "@/lib/session";
 import { getRoleById, roles } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import { Activity, CheckCircle2, CircleAlert, Clock3, Gauge, ListChecks, TrendingDown, TrendingUp } from "lucide-react";
 
 const metricDefinitions = [
   {
@@ -120,6 +122,51 @@ const developerSnapshot = [
   },
 ];
 
+const metricIcons = {
+  "Tasks completed": CheckCircle2,
+  "Rework count": TrendingDown,
+  "Time vs estimate": Clock3,
+  "Checklist compliance": ListChecks,
+  "Blocked tasks": CircleAlert,
+  "Milestone health": Gauge,
+};
+
+function SectionHeading({ title, description, action }) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
+        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function MetricCard({ item, compact = false }) {
+  const Icon = metricIcons[item.label] ?? Activity;
+  const isPositive = item.trend?.startsWith("+") || item.trend === "Green" || item.trend === "Near target";
+  return (
+    <Card className="shadow-none transition-colors duration-150 hover:border-border hover:bg-card/80">
+      <CardContent className={compact ? "p-4" : "p-5"}>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs font-medium text-muted-foreground">{item.label ?? item.title}</p>
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <p className={`${compact ? "mt-3 text-xl" : "mt-5 text-2xl"} font-semibold tracking-tight text-foreground`}>{item.value}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className={isPositive ? "font-medium text-emerald-600 dark:text-emerald-400" : "font-medium text-muted-foreground"}>{item.trend}</span>
+          <span className="text-muted-foreground">{item.detail}</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InsightCard({ item }) {
+  return <MetricCard item={{ ...item, label: item.title }} compact />;
+}
+
 export default async function DashboardPage() {
   const session = await getSession();
   const role = getRoleById(session?.role);
@@ -163,13 +210,13 @@ export default async function DashboardPage() {
       };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-8">
       <PageHeader
         eyebrow="Dashboard"
         title={headline.title}
         subtitle={headline.description}
         actions={
-          <ActionButton
+          <Button
             label={isDeveloper ? "Share update" : "Share snapshot"}
             variant="primary"
             toast={{
@@ -182,118 +229,45 @@ export default async function DashboardPage() {
         }
       />
 
-      <div className="space-y-3">
-        <p className="text-sm font-semibold text-[color:var(--color-text)]">
-          Working time analytics
-        </p>
+      <section className="space-y-4" aria-labelledby="working-time-analytics">
+        <SectionHeading
+          title="Working time analytics"
+          description="Understand work, break, idle, and utilization patterns."
+        />
         <AnalyticsDashboardPanel
           users={users}
           currentUser={currentUser}
           isManager={isFullVisibility || isExecutiveSummary}
         />
-      </div>
+      </section>
 
       {isExecutiveSummary && (
-        <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-3">
-            {executiveHighlights.map((item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-                  {item.title}
-                </p>
-                <p className="mt-3 text-xl font-semibold text-[color:var(--color-text)]">
-                  {item.value}
-                </p>
-                <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">{item.detail}</p>
-              </div>
-            ))}
+        <section className="space-y-5" aria-labelledby="executive-highlights">
+          <SectionHeading title="Executive highlights" description="A concise view of delivery confidence and organizational focus." />
+          <div className="grid gap-6 lg:grid-cols-3">
+            {executiveHighlights.map((item) => <InsightCard key={item.title} item={item} />)}
           </div>
 
-          <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
-            <p className="text-sm font-semibold text-[color:var(--color-text)]">Key metrics</p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {metricDefinitions.map((metric) => (
-                <div
-                  key={metric.id}
-                  className="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] p-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-                      {metric.label}
-                    </p>
-                    <span className="text-xs text-emerald-300">
-                      {metric.trend}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-lg font-semibold text-[color:var(--color-text)]">
-                    {metric.value}
-                  </p>
-                  <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                    {metric.detail}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          <Card>
+            <CardHeader className="p-5 pb-0"><CardTitle className="text-base">Key metrics</CardTitle><CardDescription>Core delivery indicators for the current operating view.</CardDescription></CardHeader>
+            <CardContent className="p-5"><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{metricDefinitions.map((metric) => <MetricCard key={metric.id} item={metric} />)}</div></CardContent>
+          </Card>
+        </section>
       )}
 
       {isFullVisibility && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
-            <p className="text-sm font-semibold text-[color:var(--color-text)]">
-              Metrics performance
-            </p>
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
-              {metricDefinitions.map((metric) => (
-                <div
-                  key={metric.id}
-                  className="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] p-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-                      {metric.label}
-                    </p>
-                    <span className="text-xs text-emerald-300">
-                      {metric.trend}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-lg font-semibold text-[color:var(--color-text)]">
-                    {metric.value}
-                  </p>
-                  <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                    {metric.detail}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
+        <section className="space-y-5" aria-labelledby="delivery-performance">
+          <SectionHeading title="Delivery performance" description="Metrics and readiness signals across active programs." />
+          <Card>
+            <CardHeader className="p-5 pb-0"><CardTitle className="text-base">Metrics performance</CardTitle><CardDescription>Track movement against delivery targets.</CardDescription></CardHeader>
+            <CardContent className="p-5"><div className="grid gap-4 lg:grid-cols-3">{metricDefinitions.map((metric) => <MetricCard key={metric.id} item={metric} />)}</div></CardContent>
+          </Card>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            {deliveryFocus.map((item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-                  {item.title}
-                </p>
-                <p className="mt-3 text-xl font-semibold text-[color:var(--color-text)]">
-                  {item.value}
-                </p>
-                <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">{item.detail}</p>
-              </div>
-            ))}
-          </div>
+          <div className="grid gap-6 lg:grid-cols-3">{deliveryFocus.map((item) => <InsightCard key={item.title} item={item} />)}</div>
 
-          <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
-            <p className="text-sm font-semibold text-[color:var(--color-text)]">
-              Milestone readiness
-            </p>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader className="p-5 pb-0"><CardTitle className="text-base">Milestone readiness</CardTitle><CardDescription>Signals that inform the next delivery decisions.</CardDescription></CardHeader>
+            <CardContent className="p-5"><div className="grid gap-4 md:grid-cols-2">
               {[
                 {
                   title: "Q3 launch readiness",
@@ -312,35 +286,26 @@ export default async function DashboardPage() {
                   detail: "Two blockers escalated and tracked",
                 },
               ].map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] p-4"
-                >
-                  <p className="text-sm font-semibold text-[color:var(--color-text)]">
-                    {item.title}
-                  </p>
-                  <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                    {item.detail}
-                  </p>
-                </div>
+                <Card key={item.title} className="bg-muted/40 shadow-none"><CardContent className="p-4"><p className="text-sm font-semibold text-foreground">{item.title}</p><p className="mt-2 text-xs text-muted-foreground">{item.detail}</p></CardContent></Card>
               ))}
-            </div>
-          </div>
-        </div>
+            </div></CardContent>
+          </Card>
+        </section>
       )}
 
       {isDeveloper && (
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
+        <section className="space-y-5" aria-labelledby="individual-performance">
+        <Card>
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm font-semibold text-[color:var(--color-text)]">
+              <p className="text-sm font-semibold text-foreground">
                 Individual performance
               </p>
-              <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Your execution metrics across active tasks and milestones.
               </p>
             </div>
-            <ActionButton
+            <Button
               label="Email my status"
               size="sm"
               variant="secondary"
@@ -351,23 +316,9 @@ export default async function DashboardPage() {
               }}
             />
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {developerSnapshot.map((item) => (
-              <div
-                key={item.title}
-                className="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] p-4"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-                  {item.title}
-                </p>
-                <p className="mt-3 text-lg font-semibold text-[color:var(--color-text)]">
-                  {item.value}
-                </p>
-                <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{developerSnapshot.map((item) => <InsightCard key={item.title} item={item} />)}</div>
+        </Card>
+        </section>
       )}
 
       <PlaceholderUpload

@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const buildErrorMessage = (data) =>
   data?.error ?? data?.message ?? "Unable to save project.";
 
-export default function ProjectModal({
+export default function ProjectDialog({
   isOpen,
   mode,
   initialValues,
@@ -105,7 +107,7 @@ export default function ProjectModal({
   };
 
   return (
-    <Modal
+    <Dialog
       isOpen={isOpen}
       title={mode === "edit" ? "Edit project" : "Create project"}
       description="Capture initiative goals and project summaries."
@@ -114,7 +116,7 @@ export default function ProjectModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         <label className="text-xs text-[color:var(--color-text-muted)]">
           Project name
-          <input
+          <Input
             className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
             value={formValues.name}
             onChange={(event) =>
@@ -127,7 +129,7 @@ export default function ProjectModal({
         </label>
         <label className="text-xs text-[color:var(--color-text-muted)]">
           Description
-          <textarea
+          <Textarea
             rows={4}
             className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
             value={formValues.description}
@@ -150,7 +152,7 @@ export default function ProjectModal({
                     key={user.id}
                     className="flex items-center gap-2"
                   >
-                    <input
+                    <Input
                       type="checkbox"
                       className="h-4 w-4 rounded border-[color:var(--color-border)] bg-transparent text-[color:var(--color-accent)]"
                       checked={isSelected}
@@ -178,13 +180,13 @@ export default function ProjectModal({
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <ActionButton
+          <Button
             label="Cancel"
             variant="secondary"
             onClick={onClose}
             className={isSaving ? "pointer-events-none opacity-60" : ""}
           />
-          <ActionButton
+          <Button
             label={isSaving ? "Saving..." : "Save project"}
             variant="primary"
             type="submit"
@@ -192,6 +194,6 @@ export default function ProjectModal({
           />
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

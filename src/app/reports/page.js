@@ -1,4 +1,4 @@
-import ActionButton from "@/components/ui/ActionButton";
+import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/layout/PageHeader";
 import PlaceholderUpload from "@/components/ui/PlaceholderUpload";
 import { prisma } from "@/lib/prisma";
@@ -103,7 +103,7 @@ export default async function ReportsPage() {
         title="Stakeholder-ready reporting"
         subtitle="Daily and weekly reports are auto-generated and email-ready."
         actions={
-          <ActionButton
+          <Button
             label="Generate report"
             variant="success"
             toast={{
@@ -145,7 +145,7 @@ export default async function ReportsPage() {
                 ))}
               </div>
             </div>
-            <ActionButton
+            <Button
               label="Preview"
               size="sm"
               variant="secondary"

@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import ActionButton from "@/components/ui/ActionButton";
-import Drawer from "@/components/ui/Drawer";
+import { Button } from "@/components/ui/button";
+import { Sheet } from "@/components/ui/sheet";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
 import { TASK_STATUSES, getNextStatuses, getStatusLabel } from "@/lib/kanban";
 import { canMarkTaskDone, roles } from "@/lib/roles";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const formatDurationShort = (totalSeconds = 0) => {
   const seconds = Math.max(0, Number(totalSeconds) || 0);
@@ -671,14 +674,14 @@ export default function TaskBoard({
       if (canMarkTaskDone(role)) {
         return (
           <div className="flex flex-wrap gap-2">
-            <ActionButton
+            <Button
               label={isPending ? "Approving..." : "Approve"}
               size="sm"
               variant="success"
               className={buttonClass}
               onClick={() => handleStatusChange(task, "DONE")}
             />
-            <ActionButton
+            <Button
               label={isPending ? "Rejecting..." : "Reject"}
               size="sm"
               variant="danger"
@@ -710,7 +713,7 @@ export default function TaskBoard({
       }
 
       return (
-        <ActionButton
+        <Button
           label={isPending ? "Restarting..." : "Resume work"}
           size="sm"
           variant="warning"
@@ -739,7 +742,7 @@ export default function TaskBoard({
     }
 
     return (
-      <ActionButton
+      <Button
         label={isPending ? "Moving..." : "Move forward"}
         size="sm"
         variant="secondary"
@@ -785,7 +788,7 @@ export default function TaskBoard({
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button
+        <Button
           type="button"
           onClick={() => setIsFilterOpen(true)}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
@@ -805,7 +808,7 @@ export default function TaskBoard({
               strokeLinejoin="round"
             />
           </svg>
-        </button>
+        </Button>
       </div>
 
       <div className="flex gap-4 overflow-x-auto pb-2">
@@ -915,14 +918,14 @@ export default function TaskBoard({
         ))}
       </div>
 
-      <Drawer
+      <Sheet
         isOpen={isFilterOpen}
         title="Filters"
         onClose={() => setIsFilterOpen(false)}
       >
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               type="button"
               className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                 scope === "mine"
@@ -932,8 +935,8 @@ export default function TaskBoard({
               onClick={() => setScope("mine")}
             >
               My Tasks
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                 scope === "all"
@@ -943,11 +946,11 @@ export default function TaskBoard({
               onClick={() => setScope("all")}
             >
               All Tasks
-            </button>
+            </Button>
           </div>
           <label className="flex flex-col gap-2 text-xs text-[color:var(--color-text-muted)]">
             Status
-            <select
+            <Select
               className="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-xs text-[color:var(--color-text)]"
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
@@ -958,11 +961,11 @@ export default function TaskBoard({
                   {status.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex flex-col gap-2 text-xs text-[color:var(--color-text-muted)]">
             Owner
-            <select
+            <Select
               className="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-xs text-[color:var(--color-text)]"
               value={ownerFilter}
               onChange={(event) => setOwnerFilter(event.target.value)}
@@ -973,12 +976,12 @@ export default function TaskBoard({
                   {owner.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
-      </Drawer>
+      </Sheet>
 
-      <Drawer
+      <Sheet
         isOpen={Boolean(selectedTask)}
         title="Task details"
         onClose={() => setSelectedTaskId(null)}
@@ -992,7 +995,7 @@ export default function TaskBoard({
                 { id: "checklist", label: "Checklist" },
                 { id: "comments", label: "Comments" },
               ].map((tab) => (
-                <button
+                <Button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
@@ -1003,7 +1006,7 @@ export default function TaskBoard({
                   }`}
                 >
                   {tab.label}
-                </button>
+                </Button>
               ))}
             </div>
 
@@ -1023,7 +1026,7 @@ export default function TaskBoard({
                         {selectedTask.type}
                       </span>
                       {canEditTask(selectedTask) && onEditTask ? (
-                        <ActionButton
+                        <Button
                           label="Edit task"
                           size="sm"
                           variant="secondary"
@@ -1102,7 +1105,7 @@ export default function TaskBoard({
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     {canRequestMoreTime(selectedTask) ? (
-                      <ActionButton
+                      <Button
                         label="Request more time"
                         size="sm"
                         variant="secondary"
@@ -1121,7 +1124,7 @@ export default function TaskBoard({
                           ? "Breaks are only available when a task is in progress or in dev test."
                           : undefined;
                       return (
-                      <ActionButton
+                      <Button
                         label={selectedTask.activeBreak ? "Resume" : "Pause"}
                         size="sm"
                         variant={selectedTask.activeBreak ? "success" : "warning"}
@@ -1156,7 +1159,7 @@ export default function TaskBoard({
                     <div className="flex flex-wrap gap-3">
                       <label className="flex flex-1 flex-col gap-2 text-xs text-[color:var(--color-text-muted)]">
                         Hours
-                        <input
+                        <Input
                           type="number"
                           min="0"
                           value={timeRequestForm.hours}
@@ -1171,7 +1174,7 @@ export default function TaskBoard({
                       </label>
                       <label className="flex flex-1 flex-col gap-2 text-xs text-[color:var(--color-text-muted)]">
                         Minutes
-                        <input
+                        <Input
                           type="number"
                           min="0"
                           max="59"
@@ -1188,7 +1191,7 @@ export default function TaskBoard({
                     </div>
                     <label className="mt-3 flex flex-col gap-2 text-xs text-[color:var(--color-text-muted)]">
                       Reason
-                      <textarea
+                      <Textarea
                         value={timeRequestForm.reason}
                         onChange={(event) =>
                           setTimeRequestForm((prev) => ({
@@ -1201,13 +1204,13 @@ export default function TaskBoard({
                       />
                     </label>
                     <div className="mt-3 flex justify-end gap-2">
-                      <ActionButton
+                      <Button
                         label="Cancel"
                         size="sm"
                         variant="secondary"
                         onClick={() => setTimeRequestOpen(false)}
                       />
-                      <ActionButton
+                      <Button
                         label={requestSubmitting ? "Sending..." : "Submit"}
                         size="sm"
                         variant="primary"
@@ -1264,7 +1267,7 @@ export default function TaskBoard({
                               </div>
                               {isManager && isPending ? (
                                 <div className="mt-3 flex flex-wrap gap-2">
-                                  <ActionButton
+                                  <Button
                                     label="Approve"
                                     size="sm"
                                     variant="success"
@@ -1281,7 +1284,7 @@ export default function TaskBoard({
                                         : ""
                                     }
                                   />
-                                  <ActionButton
+                                  <Button
                                     label="Reject"
                                     size="sm"
                                     variant="danger"
@@ -1316,7 +1319,7 @@ export default function TaskBoard({
                   <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] p-4">
                     <label className="flex flex-col gap-2 text-xs text-[color:var(--color-text-muted)]">
                       Break reason
-                      <select
+                      <Select
                         value={breakForm.reason}
                         onChange={(event) =>
                           setBreakForm((prev) => ({
@@ -1330,12 +1333,12 @@ export default function TaskBoard({
                         <option value="MEAL">Meal</option>
                         <option value="REFRESHMENT">Refreshment</option>
                         <option value="OTHER">Other</option>
-                      </select>
+                      </Select>
                     </label>
                     {breakForm.reason === "OTHER" ? (
                       <label className="mt-3 flex flex-col gap-2 text-xs text-[color:var(--color-text-muted)]">
                         Note (optional)
-                        <textarea
+                        <Textarea
                           value={breakForm.note}
                           onChange={(event) =>
                             setBreakForm((prev) => ({
@@ -1349,13 +1352,13 @@ export default function TaskBoard({
                       </label>
                     ) : null}
                     <div className="mt-3 flex justify-end gap-2">
-                      <ActionButton
+                      <Button
                         label="Cancel"
                         size="sm"
                         variant="secondary"
                         onClick={() => setBreakPanelOpen(false)}
                       />
-                      <ActionButton
+                      <Button
                         label={breakSubmitting ? "Pausing..." : "Pause"}
                         size="sm"
                         variant="warning"
@@ -1423,7 +1426,7 @@ export default function TaskBoard({
                             isUpdating ? "opacity-60" : ""
                           }`}
                         >
-                          <input
+                          <Input
                             type="checkbox"
                             checked={item.isCompleted}
                             disabled={!isEditable || isUpdating}
@@ -1479,7 +1482,7 @@ export default function TaskBoard({
             <div>{renderActions(selectedTask)}</div>
           </div>
         ) : null}
-      </Drawer>
+      </Sheet>
     </div>
   );
 }

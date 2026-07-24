@@ -1,8 +1,9 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Drawer from "@/components/ui/Drawer";
+import { Sheet } from "@/components/ui/sheet";
 import { useNotificationCounts } from "@/components/notifications/NotificationCountsContext";
 
 const TABS = [
@@ -106,7 +107,7 @@ function formatTimeAgo(value) {
   return date.toLocaleDateString();
 }
 
-export default function NotificationDrawer({ isOpen, onClose }) {
+export default function NotificationSheet({ isOpen, onClose }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("all");
   const [notifications, setNotifications] = useState([]);
@@ -213,7 +214,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   };
 
   return (
-    <Drawer isOpen={isOpen} title="Notifications" onClose={onClose} width="28rem">
+    <Sheet isOpen={isOpen} title="Notifications" onClose={onClose} width="28rem">
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex flex-wrap gap-2">
@@ -228,9 +229,10 @@ export default function NotificationDrawer({ isOpen, onClose }) {
                       : counts.log;
               const isActive = activeTab === tab.id;
               return (
-                <button
+                <Button
                   key={tab.id}
                   type="button"
+                  variant="ghost"
                   onClick={() => setActiveTab(tab.id)}
                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                     isActive
@@ -244,28 +246,30 @@ export default function NotificationDrawer({ isOpen, onClose }) {
                       {count}
                     </span>
                   ) : null}
-                </button>
+                </Button>
               );
             })}
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={handleMarkAllRead}
             className="text-xs font-semibold text-[color:var(--color-text-subtle)] transition hover:text-[color:var(--color-text)]"
           >
             Mark all read
-          </button>
+          </Button>
         </div>
 
         <div className="flex items-center justify-between text-xs text-[color:var(--color-text-subtle)]">
           <span>{isLoading ? "Refreshing…" : "Updated just now"}</span>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={loadNotifications}
             className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--color-accent)]"
           >
             Refresh
-          </button>
+          </Button>
         </div>
 
         <div className="space-y-3">
@@ -275,9 +279,10 @@ export default function NotificationDrawer({ isOpen, onClose }) {
             </div>
           ) : (
             notifications.map((notification) => (
-              <button
+              <Button
                 key={notification.id}
                 type="button"
+                variant="ghost"
                 onClick={() => handleNotificationClick(notification)}
                 className={`flex w-full gap-3 rounded-2xl border p-4 text-left transition hover:border-[color:var(--color-accent)] ${
                   notification.readAt
@@ -303,11 +308,11 @@ export default function NotificationDrawer({ isOpen, onClose }) {
                     ) : null}
                   </div>
                 </div>
-              </button>
+              </Button>
             ))
           )}
         </div>
       </div>
-    </Drawer>
+    </Sheet>
   );
 }

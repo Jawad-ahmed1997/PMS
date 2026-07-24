@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import ActionButton from "@/components/ui/ActionButton";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/ToastProvider";
 import { roleOptions, roles } from "@/lib/roles";
+import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
 const buildErrorMessage = (data) =>
   data?.error ?? data?.message ?? "Unable to create user.";
@@ -81,56 +84,51 @@ export default function CreateUserForm() {
       <div className="grid gap-3 md:grid-cols-2">
         <label className="text-xs text-[color:var(--color-text-muted)]">
           Name
-          <input
+          <Input
             name="name"
             value={formState.name}
             onChange={handleChange}
-            className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
+            className="mt-1 rounded-xl py-2"
             required
           />
         </label>
         <label className="text-xs text-[color:var(--color-text-muted)]">
           Email
-          <input
+          <Input
             type="email"
             name="email"
             value={formState.email}
             onChange={handleChange}
-            className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
+            className="mt-1 rounded-xl py-2"
             required
           />
         </label>
         <label className="text-xs text-[color:var(--color-text-muted)]">
           Role
-          <select
+          <Select
             name="role"
             value={formState.role}
-            onChange={handleChange}
-            className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
+            onValueChange={(role) => setFormState((prev) => ({ ...prev, role }))}
             required
           >
-            {roleOptions.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="mt-1 rounded-xl" />
+            <SelectContent>{roleOptions.map((role) => <SelectItem key={role.id} value={role.id}>{role.label}</SelectItem>)}</SelectContent>
+          </Select>
         </label>
         <label className="text-xs text-[color:var(--color-text-muted)]">
           Password
-          <input
-            type="password"
+          <PasswordInput
             name="password"
             value={formState.password}
             onChange={handleChange}
-            className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
+            className="mt-1 rounded-xl py-2"
             required
           />
         </label>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <ActionButton
+        <Button
           label={status.loading ? "Creating..." : "Create user"}
           variant="primary"
           type="submit"

@@ -1,10 +1,12 @@
 "use client";
+import { Button } from "./button";
 
 export default function ViewToggle({ value, onChange }) {
   return (
     <div className="flex items-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] p-1 text-xs text-[color:var(--color-text-muted)]">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => onChange("grid")}
         title="Grid view"
         aria-label="Grid view"
@@ -27,9 +29,10 @@ export default function ViewToggle({ value, onChange }) {
             strokeLinejoin="round"
           />
         </svg>
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => onChange("list")}
         title="List view"
         aria-label="List view"
@@ -52,7 +55,7 @@ export default function ViewToggle({ value, onChange }) {
             strokeLinejoin="round"
           />
         </svg>
-      </button>
+      </Button>
     </div>
   );
 }
