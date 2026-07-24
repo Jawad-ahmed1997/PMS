@@ -99,7 +99,7 @@ function AppShellContent({ children, session }) {
       />
 
       <header
-        className={`fixed z-30 flex h-[var(--header-height)] items-center justify-between overflow-visible px-5 transition-[left,right,top,background-color,backdrop-filter,backdrop-saturate,border-color,box-shadow,opacity,border-radius] duration-[220ms] ease-out motion-reduce:transition-none sm:px-6 ${isNavbarScrolled ? "left-[calc(var(--sidebar-width)+1rem)] right-4 top-3 rounded-2xl border border-border/70 bg-background/75 shadow-lg backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/65" : "left-[var(--sidebar-width)] right-0 top-0 rounded-none border border-transparent bg-transparent shadow-none backdrop-blur-0 backdrop-saturate-100"}`}
+        className={`fixed left-[var(--sidebar-width)] right-0 top-0 z-30 flex h-[var(--header-height)] items-center justify-between overflow-visible rounded-none px-5 transition-[background-color,backdrop-filter,backdrop-saturate,border-color,box-shadow,opacity] duration-[200ms] ease-out motion-reduce:transition-none sm:px-6 ${isNavbarScrolled ? "border border-border/70 bg-background/75 opacity-95 shadow-lg backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/65" : "border border-transparent bg-transparent opacity-100 shadow-none backdrop-blur-0 backdrop-saturate-100"}`}
       >
         <Logo alt="PMS Cloud" priority className="h-auto w-[118px]" />
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">

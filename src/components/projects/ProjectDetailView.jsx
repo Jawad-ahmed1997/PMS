@@ -14,6 +14,7 @@ import { TASK_STATUSES } from "@/lib/kanban";
 import { TASK_TYPE_CHECKLISTS } from "@/lib/taskChecklists";
 import { canCreateTasks, normalizeRoleId, roles } from "@/lib/roles";
 import { getTodayInPSTDateString } from "@/lib/pstDate";
+import Modal from "../ui/Modal";
 
 const formatDateInput = (value) => {
   if (!value) return "";
@@ -38,7 +39,7 @@ export default function ProjectDetailView({
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [activeTab, setActiveTab] = useState("board");
-  
+
   // Loading statuses
   const [status, setStatus] = useState({ loading: true, error: null });
   const [tasksLoading, setTasksLoading] = useState(false);
@@ -97,16 +98,16 @@ export default function ProjectDetailView({
       }
 
       setProject(projectData.project);
-      
+
       const loadedMilestones = (milestoneData?.milestones ?? []).map((m) => ({
         id: m.id,
         title: m.title,
         startDate: formatDateInput(m.startDate),
         endDate: formatDateInput(m.endDate),
       }));
-      
+
       setMilestones(loadedMilestones);
-      
+
       // Default new task milestoneId to first milestone
       if (loadedMilestones.length > 0) {
         setTaskForm((prev) => ({
@@ -384,14 +385,14 @@ export default function ProjectDetailView({
           body: JSON.stringify(
             editingTaskId
               ? {
-                  ...payload,
-                  checklistItems: taskForm.checklistItems,
-                }
+                ...payload,
+                checklistItems: taskForm.checklistItems,
+              }
               : {
-                  ...payload,
-                  status: taskForm.status,
-                  milestoneId: taskForm.milestoneId,
-                }
+                ...payload,
+                status: taskForm.status,
+                milestoneId: taskForm.milestoneId,
+              }
           ),
         }
       );
@@ -408,7 +409,7 @@ export default function ProjectDetailView({
           : "Task added to project execution queue.",
         variant: "success",
       });
-      
+
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
       }
@@ -486,21 +487,19 @@ export default function ProjectDetailView({
       <div className="flex border-b border-[color:var(--color-border)]">
         <button
           onClick={() => setActiveTab("board")}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${
-            activeTab === "board"
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "board"
               ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
               : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
-          }`}
+            }`}
         >
           Task Board
         </button>
         <button
           onClick={() => setActiveTab("milestones")}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${
-            activeTab === "milestones"
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "milestones"
               ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
               : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
-          }`}
+            }`}
         >
           Milestones ({milestones.length})
         </button>
@@ -511,7 +510,7 @@ export default function ProjectDetailView({
           Loading project...
         </div>
       )}
-      
+
       {!status.loading && status.error && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
           <p>{status.error}</p>
@@ -563,8 +562,8 @@ export default function ProjectDetailView({
                 />
               ) : (
                 <div className="rounded-2xl border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-card)] p-8 text-center text-sm text-[color:var(--color-text-muted)]">
-                  {milestones.length === 0 
-                    ? "Create a milestone first to add tasks to this project." 
+                  {milestones.length === 0
+                    ? "Create a milestone first to add tasks to this project."
                     : "No tasks yet. Create a task to get started."}
                 </div>
               )}
@@ -654,9 +653,9 @@ export default function ProjectDetailView({
           savingTask
             ? undefined
             : () => {
-                setIsTaskModalOpen(false);
-                resetTaskForm();
-              }
+              setIsTaskModalOpen(false);
+              resetTaskForm();
+            }
         }
       >
         <form onSubmit={handleTaskSubmit} className="flex max-h-[60vh] flex-col">
@@ -685,7 +684,7 @@ export default function ProjectDetailView({
                 }
               />
             </label>
-            
+
             {!editingTaskId && (
               <label className="text-xs text-[color:var(--color-text-muted)]">
                 Milestone

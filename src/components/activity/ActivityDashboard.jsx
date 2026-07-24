@@ -5,9 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog } from "@/components/ui/dialog";
 import { Info } from "lucide-react";
-import ActionButton from "@/components/ui/ActionButton";
-import Drawer from "@/components/ui/Drawer";
-import Modal from "@/components/ui/Modal";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
 import PageHeader from "@/components/layout/PageHeader";
@@ -169,9 +166,8 @@ const ActivityMenu = ({ items }) => {
                 setIsOpen(false);
                 item.onClick?.();
               }}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)] ${
-                item.variant === "danger" ? "text-rose-400" : ""
-              }`}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)] ${item.variant === "danger" ? "text-rose-400" : ""
+                }`}
             >
               <span>{item.label}</span>
             </button>
@@ -562,11 +558,10 @@ export default function ActivityDashboard({
               key={badge.id}
               type="button"
               onClick={() => setActiveBadge(badge.id)}
-              className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                activeBadge === badge.id
-                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
-                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
-              }`}
+              className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition ${activeBadge === badge.id
+                ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
+                : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
+                }`}
             >
               <span>{badge.label}</span>
               <span className="rounded-full bg-[color:var(--color-muted-bg)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--color-text-muted)]">
@@ -695,8 +690,8 @@ export default function ActivityDashboard({
               const isManualLog = !log.taskId;
               const manualCategoryLabels = Array.isArray(log.categories)
                 ? log.categories
-                    .map((category) => manualCategoryLabelMap.get(category) ?? category)
-                    .filter(Boolean)
+                  .map((category) => manualCategoryLabelMap.get(category) ?? category)
+                  .filter(Boolean)
                 : [];
               const badgeLabel = isManualLog
                 ? manualCategoryLabels.join(", ") || "Manual"
@@ -764,29 +759,29 @@ export default function ActivityDashboard({
                         items={
                           isManualLog
                             ? [
-                                {
-                                  label: "Edit",
-                                  onClick: () => openEditLogModal(log),
-                                },
-                                {
-                                  label: "Delete",
-                                  onClick: () => handleDeleteLog(log),
-                                  variant: "danger",
-                                },
-                              ]
+                              {
+                                label: "Edit",
+                                onClick: () => openEditLogModal(log),
+                              },
+                              {
+                                label: "Delete",
+                                onClick: () => handleDeleteLog(log),
+                                variant: "danger",
+                              },
+                            ]
                             : [
-                                {
-                                  label: "Leave Comment",
-                                  onClick: () => {
-                                    if (log.taskId && log.task) {
-                                      setTaskDrawer({
-                                        open: true,
-                                        task: log.task,
-                                      });
-                                    }
-                                  },
+                              {
+                                label: "Leave Comment",
+                                onClick: () => {
+                                  if (log.taskId && log.task) {
+                                    setTaskDrawer({
+                                      open: true,
+                                      task: log.task,
+                                    });
+                                  }
                                 },
-                              ]
+                              },
+                            ]
                         }
                       />
                     </div>
@@ -902,11 +897,10 @@ export default function ActivityDashboard({
                                 key={category.id}
                                 type="button"
                                 onClick={() => toggleCategory(category.id)}
-                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs ${
-                                  isSelected
-                                    ? "bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
-                                    : "text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
-                                }`}
+                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs ${isSelected
+                                  ? "bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
+                                  : "text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
+                                  }`}
                                 role="option"
                                 aria-selected={isSelected}
                               >
@@ -952,11 +946,6 @@ export default function ActivityDashboard({
               </div>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Start time
-                <input
-                  type="time"
-                  name="startTime"
-                  value={logForm.startTime}
-                Hours
                 <Input
                   type="number"
                   name="hoursSpent"
