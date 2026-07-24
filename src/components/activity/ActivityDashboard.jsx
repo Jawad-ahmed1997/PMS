@@ -103,7 +103,7 @@ function getPeriodRange(period, baseDate = new Date()) {
   return { start, end };
 }
 
-const MANAGEMENT_ROLES = ["CEO", "PM", "CTO"];
+const MANAGEMENT_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD"];
 
 function normalizeRole(role) {
   if (!role) {

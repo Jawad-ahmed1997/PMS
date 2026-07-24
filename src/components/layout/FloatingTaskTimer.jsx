@@ -171,6 +171,12 @@ export default function FloatingTaskTimer({ session }) {
   }, [activeSession]);
 
   useEffect(() => {
+    if (activeSession?.active) {
+      setTick(Date.now());
+    }
+  }, [activeSession]);
+
+  useEffect(() => {
     const interval = window.setInterval(() => {
       syncFromServer();
     }, 30000);
@@ -184,8 +190,14 @@ export default function FloatingTaskTimer({ session }) {
   }, [syncFromServer]);
 
   useEffect(() => {
-    const handleTimerChange = () => {
-      syncFromServer();
+    const handleTimerChange = (event) => {
+      const payload = event?.detail?.activeSession;
+      if (payload !== undefined) {
+        setActiveSession(payload);
+        setTick(Date.now());
+      } else {
+        syncFromServer();
+      }
     };
     window.addEventListener("pms:timer-changed", handleTimerChange);
     return () => {
@@ -262,7 +274,7 @@ export default function FloatingTaskTimer({ session }) {
   const canControl =
     Boolean(activeSession?.active) &&
     session &&
-    !["PM", "CTO"].includes(String(session.role ?? "").toUpperCase());
+    !["PM", "CTO", "TEAM_LEAD"].includes(String(session.role ?? "").toUpperCase());
 
   const moveToTask = useCallback(async () => {
     if (!activeSession?.task?.id) {

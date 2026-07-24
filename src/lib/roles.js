@@ -2,6 +2,7 @@ export const roles = {
   CEO: "ceo",
   PM: "pm",
   CTO: "cto",
+  TEAM_LEAD: "team-lead",
   SENIOR_DEV: "senior-developer",
   DEV: "developer",
   INTERN: "intern",
@@ -23,6 +24,11 @@ export const roleOptions = [
     id: roles.CTO,
     label: "CTO",
     description: "Technical portfolio oversight",
+  },
+  {
+    id: roles.TEAM_LEAD,
+    label: "Team Lead",
+    description: "Technical leadership and team oversight",
   },
   {
     id: roles.SENIOR_DEV,
@@ -101,8 +107,8 @@ export const routeAccess = {
     roles.INTERN,
     roles.JUNIOR_INTERN,
   ],
-  "/reports": [roles.CEO, roles.PM, roles.CTO],
-  "/users": [roles.CEO, roles.PM, roles.CTO],
+  "/reports": [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD],
+  "/users": [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD],
 };
 
 export const taskPermissions = {
@@ -115,6 +121,10 @@ export const taskPermissions = {
     canMarkDone: true,
   },
   [roles.CTO]: {
+    canMoveTask: true,
+    canMarkDone: true,
+  },
+  [roles.TEAM_LEAD]: {
     canMoveTask: true,
     canMarkDone: true,
   },
@@ -154,6 +164,7 @@ export function normalizeRoleId(roleId) {
     CEO: roles.CEO,
     PM: roles.PM,
     CTO: roles.CTO,
+    TEAM_LEAD: roles.TEAM_LEAD,
     SENIOR_DEV: roles.SENIOR_DEV,
     SENIOR_DEVELOPER: roles.SENIOR_DEV,
     DEVELOPER: roles.DEV,
@@ -208,10 +219,10 @@ export function canMarkTaskDone(roleId) {
 
 export function canCreateMilestones(roleId) {
   const normalized = normalizeRoleId(roleId);
-  return [roles.PM, roles.CTO].includes(normalized);
+  return [roles.PM, roles.CTO, roles.TEAM_LEAD].includes(normalized);
 }
 
 export function canCreateTasks(roleId) {
   const normalized = normalizeRoleId(roleId);
-  return [roles.PM, roles.CTO].includes(normalized);
+  return [roles.PM, roles.CTO, roles.TEAM_LEAD].includes(normalized);
 }

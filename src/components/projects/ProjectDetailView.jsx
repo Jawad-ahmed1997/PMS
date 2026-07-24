@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionButton from "@/components/ui/ActionButton";
@@ -44,6 +44,9 @@ export default function ProjectDetailView({
   const [tasksLoading, setTasksLoading] = useState(false);
   const [savingMilestone, setSavingMilestone] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const refreshIntervalRef = useRef(null);
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   // Modals state
   const [modalOpen, setModalOpen] = useState(false); // Milestone modal
@@ -132,26 +135,54 @@ export default function ProjectDetailView({
     }
   }, [addToast, projectId]);
 
-  // Load project tasks
-  const loadTasks = useCallback(async () => {
-    setTasksLoading(true);
+  // Load project tasks with sessionStorage cache (stale-while-revalidate)
+  const loadTasks = useCallback(async (silent = false) => {
+    const cacheKey = `pms-tasks-${projectId}`;
+
+    // On non-silent load, try to serve from cache immediately for instant render
+    if (!silent && typeof window !== "undefined") {
+      try {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_TTL && Array.isArray(data) && data.length > 0) {
+            setTasks(data);
+            setLastUpdatedAt(new Date(timestamp));
+            // Continue to fetch fresh data in the background (don't show spinner)
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    }
+
+    if (!silent) setTasksLoading(true);
     try {
       const response = await fetch(`/api/tasks?projectId=${projectId}`);
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.message ?? "Failed to load tasks");
       }
-      setTasks(data?.tasks ?? []);
+      const freshTasks = data?.tasks ?? [];
+      setTasks(freshTasks);
+      const now = Date.now();
+      setLastUpdatedAt(new Date(now));
+      // Save to cache
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({ data: freshTasks, timestamp: now }));
+        } catch { /* quota errors */ }
+      }
     } catch (error) {
-      addToast({
-        title: "Tasks unavailable",
-        message: error instanceof Error ? error.message : "Failed to load tasks.",
-        variant: "error",
-      });
+      if (!silent) {
+        addToast({
+          title: "Tasks unavailable",
+          message: error instanceof Error ? error.message : "Failed to load tasks.",
+          variant: "error",
+        });
+      }
     } finally {
-      setTasksLoading(false);
+      if (!silent) setTasksLoading(false);
     }
-  }, [addToast, projectId]);
+  }, [addToast, projectId, CACHE_TTL]);
 
   useEffect(() => {
     loadProject();
@@ -162,6 +193,26 @@ export default function ProjectDetailView({
       loadTasks();
     }
   }, [activeTab, loadTasks, status.loading, status.error]);
+
+  // 5-minute background auto-refresh when the board tab is active
+  useEffect(() => {
+    if (activeTab !== "board") {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      return;
+    }
+    refreshIntervalRef.current = setInterval(() => {
+      loadTasks(true); // silent refresh
+    }, CACHE_TTL);
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
+  }, [activeTab, loadTasks, CACHE_TTL]);
 
   // Load project members for task assignee dropdown
   useEffect(() => {
@@ -685,6 +736,24 @@ export default function ProjectDetailView({
 
           {activeTab === "board" && (
             <div className="space-y-4">
+              {/* Last-updated badge + silent refresh indicator */}
+              {lastUpdatedAt && (
+                <div className="flex items-center justify-end gap-2">
+                  {tasksLoading && tasks.length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-[color:var(--color-text-muted)]">
+                      <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round"/>
+                      </svg>
+                      Refreshing…
+                    </span>
+                  )}
+                  <span className="text-[11px] text-[color:var(--color-text-muted)] bg-[color:var(--color-muted-bg)] px-2.5 py-1 rounded-full">
+                    🔄 Last updated: {Math.round((Date.now() - lastUpdatedAt.getTime()) / 60000) < 1
+                      ? "just now"
+                      : `${Math.round((Date.now() - lastUpdatedAt.getTime()) / 60000)}m ago`}
+                  </span>
+                </div>
+              )}
               {tasksLoading && tasks.length === 0 ? (
                 <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">
                   Loading tasks...

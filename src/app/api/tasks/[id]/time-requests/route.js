@@ -8,7 +8,7 @@ import {
 import { createNotification } from "@/lib/notifications";
 
 function isLeader(role) {
-  return ["PM", "CTO"].includes(role);
+  return ["PM", "CTO", "TEAM_LEAD"].includes(role);
 }
 
 async function getTask(taskId) {
@@ -150,7 +150,7 @@ export async function POST(request, { params }) {
   });
 
   const leaders = await prisma.user.findMany({
-    where: { role: { in: ["PM", "CTO"] }, isActive: true },
+    where: { role: { in: ["PM", "CTO", "TEAM_LEAD"] }, isActive: true },
     select: { id: true },
   });
   const leaderIds = leaders.map((leader) => leader.id);

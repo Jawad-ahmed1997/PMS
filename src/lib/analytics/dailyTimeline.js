@@ -7,7 +7,7 @@ const TIME_ZONE = "Asia/Karachi";
 const TICK_HOURS = 2;
 const WORKING_STATUSES = new Set(["IN_PROGRESS"]);
 const DEV_ROLES = new Set(["DEVELOPER", "SENIOR_DEVELOPER", "INTERN", "JUNIOR_INTERN"]);
-const MANAGEMENT_ROLES = new Set(["CEO", "PM", "CTO"]);
+const MANAGEMENT_ROLES = new Set(["CEO", "PM", "CTO", "TEAM_LEAD"]);
 
 function normalizeDate(value) {
   if (!value) {

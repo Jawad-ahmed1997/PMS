@@ -14,7 +14,7 @@ import {
 } from "@/lib/analytics/timeline";
 import { getShiftWindow } from "@/lib/dutyHours";
 
-const MANAGEMENT_ROLES = ["CEO", "PM", "CTO"];
+const MANAGEMENT_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD"];
 
 function parseDateParam(value) {
   if (!value) {

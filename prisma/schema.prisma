@@ -11,6 +11,7 @@ enum UserRole {
   CEO
   PM
   CTO
+  TEAM_LEAD
   SENIOR_DEVELOPER
   DEVELOPER
   INTERN

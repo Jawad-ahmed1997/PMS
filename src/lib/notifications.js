@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-const LEADERSHIP_ROLES = ["CEO", "PM", "CTO"];
+const LEADERSHIP_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD"];
 
 export function isLeadershipRole(role) {
   return LEADERSHIP_ROLES.includes(role);
