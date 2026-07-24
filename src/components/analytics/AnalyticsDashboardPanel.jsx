@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import useOutsideClick from "@/hooks/useOutsideClick";
 import {
@@ -16,6 +16,9 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarDays, ChevronDown } from "lucide-react";
+import DailyTimelineChart from "@/components/analytics/DailyTimelineChart";
+import DashboardStatsCards from "@/components/analytics/DashboardStatsCards";
+import { getTodayInPSTDateString } from "@/lib/pstDate";
 
 const periodOptions = [
   { id: "daily", label: "Daily" },
@@ -57,7 +60,12 @@ function formatDateLabel(value) {
     : "Select date";
 }
 
-export default function AnalyticsDashboardPanel({ users, currentUser, isManager }) {
+export default function AnalyticsDashboardPanel({
+  users,
+  currentUser,
+  isManager,
+  todayPST = "",
+}) {
   const [period, setPeriod] = useState("daily");
   const [selectedDate, setSelectedDate] = useState("");
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -68,9 +76,6 @@ export default function AnalyticsDashboardPanel({ users, currentUser, isManager 
 
   useOutsideClick(userMenuRef, () => setIsUserMenuOpen(false), isUserMenuOpen);
 
-  useEffect(() => {
-    setSelectedDate(formatDateOnly(new Date()));
-  }, []);
 
   const filteredUsers = useMemo(() => {
     const query = userQuery.toLowerCase();
@@ -144,7 +149,7 @@ export default function AnalyticsDashboardPanel({ users, currentUser, isManager 
                 }
               }}
               onFocus={() => setIsUserMenuOpen(true)}
-              placeholder="Search user"
+              placeholder="All users"
                 className="w-full rounded-lg border-border bg-background px-4 py-2 text-sm text-foreground"
             />
             {selectedUser ? (
@@ -196,7 +201,18 @@ export default function AnalyticsDashboardPanel({ users, currentUser, isManager 
         </CardContent>
       </Card>
 
+      <DashboardStatsCards period={period} userId={activeUserId} />
+
       <AnalyticsResults period={period} date={selectedDate} userId={activeUserId} />
+
+      {period === "daily" ? (
+        <DailyTimelineChart
+          date={selectedDate}
+          userId={activeUserId}
+          showNames={isManager}
+          title="Daily working timeline"
+        />
+      ) : null}
     </div>
   );
 }

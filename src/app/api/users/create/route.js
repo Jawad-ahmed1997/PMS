@@ -1,6 +1,8 @@
+import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, isPasswordInput } from "@/lib/auth/password";
+import { sendInviteEmail } from "@/lib/email";
 import {
   ALL_ROLES,
   USER_CREATION_ROLES,
@@ -11,6 +13,19 @@ import {
   getAuthContext,
   normalizeRole,
 } from "@/lib/api";
+
+function generateInviteToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function getInviteExpiry() {
+  return new Date(Date.now() + 48 * 60 * 60 * 1000);
+}
+
+function buildInviteUrl(token) {
+  const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  return `${base}/auth/set-password?token=${token}`;
+}
 
 export async function POST(request) {
   const context = await getAuthContext();
@@ -27,11 +42,10 @@ export async function POST(request) {
   const body = await request.json();
   const name = body?.name?.trim();
   const email = body?.email?.trim().toLowerCase();
-  const password = body?.password;
   const role = normalizeRole(body?.role);
 
-  if (!name || !email || !role || !isPasswordInput(password, { requirePolicy: true })) {
-    return buildError("Name, email, password, and role are required.", 400);
+  if (!name || !email || !role) {
+    return buildError("Name, email, and role are required.", 400);
   }
 
   if (!ALL_ROLES.includes(role)) {
@@ -41,36 +55,65 @@ export async function POST(request) {
   try {
     const existingUser = await prisma.user.findUnique({
       where: { email },
-      select: { id: true },
+      select: { id: true, isActive: true },
     });
 
-    if (existingUser) {
-      return buildError("A user with this email already exists.", 409);
+    if (existingUser && existingUser.isActive) {
+      return buildError("A user with this email already exists and is active.", 409);
     }
 
-    const hashedPassword = await hashPassword(password);
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash: hashedPassword,
-        password: null,
-        role,
-        isActive: true,
-        status: "ACTIVE",
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const inviteToken = generateInviteToken();
+    const inviteTokenExpiresAt = getInviteExpiry();
+    const inviteUrl = buildInviteUrl(inviteToken);
 
-    return buildSuccess("User created.", { user }, 201);
+    let user;
+
+    if (existingUser) {
+      // Re-invite: update the existing inactive user
+      user = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          name,
+          role,
+          inviteToken,
+          inviteTokenExpiresAt,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } else {
+      user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          password: null,
+          role,
+          isActive: false,
+          inviteToken,
+          inviteTokenExpiresAt,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    }
+
+    await sendInviteEmail({ to: email, name, inviteUrl });
+
+    return buildSuccess("Invitation sent.", { user }, 201);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
@@ -78,6 +121,7 @@ export async function POST(request) {
       }
     }
 
-    return buildError("Unable to create user.", 500);
+    console.error("Invite error:", error);
+    return buildError("Unable to send invitation.", 500);
   }
 }

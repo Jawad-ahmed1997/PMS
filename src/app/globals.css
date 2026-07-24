@@ -26,10 +26,12 @@
   --color-card: #ffffff;
   --color-input: #ffffff;
   --color-muted-bg: #f8fafc;
+  --sidebar-active-surface: #d6f1e8;
   --color-accent: #0F0F0F;
   --color-accent-muted: rgba(100, 204, 178, 0.18);
   --color-overlay: rgba(15, 23, 42, 0.45);
   --color-work: #16a34a;
+  --color-work-manual: #10b981;
   --color-idle: #dc2626;
   --color-break: #f59e0b;
   --color-off-duty: #94a3b8;
@@ -80,6 +82,7 @@
   --color-accent-muted: rgba(100, 204, 178, 0.18);
   --color-overlay: rgba(9, 14, 12, 0.8);
   --color-work: #22c55e;
+  --color-work-manual: #34d399;
   --color-idle: #f87171;
   --color-break: #fbbf24;
   --color-off-duty: rgba(226, 232, 240, 0.5);
@@ -121,6 +124,7 @@
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
+  --color-sidebar-active: var(--sidebar-active-surface);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-input: var(--input);

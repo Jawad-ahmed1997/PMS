@@ -8,15 +8,11 @@ import Sidebar from "./Sidebar";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { getRoleById } from "@/lib/roles";
 import AccessDeniedToast from "@/components/layout/AccessDeniedToast";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
 import NotificationSheet from "@/components/notifications/NotificationDrawer";
 import RouteProgress from "@/components/layout/RouteProgress";
 import { logoutAction } from "@/app/logout/actions";
+import FloatingTaskTimer from "@/components/layout/FloatingTaskTimer";
+import TodoReminderManager from "@/components/layout/TodoReminderManager";
 import {
   NotificationCountsProvider,
   useNotificationCounts,
@@ -43,8 +39,6 @@ function AppShellContent({ children, session }) {
   const mainRef = useRef(null);
   const { counts } = useNotificationCounts();
   const role = getRoleById(session?.role);
-  const roleLabel = role?.label ?? "Guest";
-  const userName = session?.name ?? "Guest";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -100,6 +94,7 @@ function AppShellContent({ children, session }) {
         activeRole={role}
         collapsed={isCollapsed}
         onToggle={() => setIsCollapsed((prev) => !prev)}
+        session={session}
         onLogout={session ? handleLogout : undefined}
       />
 
@@ -124,28 +119,6 @@ function AppShellContent({ children, session }) {
               </span>
             ) : null}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="flex items-center gap-2 rounded-full border-border/70 bg-background/70 px-1.5 py-1 text-left transition-colors duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring sm:gap-3 sm:px-2"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-sm font-semibold text-foreground shadow-sm">
-                  {userName.charAt(0).toUpperCase()}
-                </span>
-                <span className="hidden flex-col sm:flex">
-                  <span className="text-sm font-semibold text-foreground">{userName}</span>
-                  <span className="text-xs text-muted-foreground">{roleLabel}</span>
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onSelect={handleLogout}>
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </header>
       <RouteProgress />
@@ -158,6 +131,8 @@ function AppShellContent({ children, session }) {
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
       />
+      <FloatingTaskTimer session={session} />
+      <TodoReminderManager session={session} />
     </div>
   );
 }

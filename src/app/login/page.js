@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import SignInForm from "@/components/auth/SignInForm";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { getDefaultRouteForRole } from "@/lib/roles";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import Logo from "@/components/ui/Logo";

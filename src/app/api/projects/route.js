@@ -112,7 +112,7 @@ export async function POST(request) {
   await createNotification({
     type: "CREATION_ASSIGNMENT",
     actorId: context.user.id,
-    message: `${context.user?.name || context.user?.email || "A teammate"} created project ${project.name}.`,
+    message: `${context.user?.name || context.user?.email || "A teammate"} added you to project ${project.name}.`,
     projectId: project.id,
     recipientIds: uniqueMemberIds,
   });

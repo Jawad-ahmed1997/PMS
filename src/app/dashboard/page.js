@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import PageHeader from "@/components/layout/PageHeader";
 import PlaceholderUpload from "@/components/ui/PlaceholderUpload";
 import AnalyticsDashboardPanel from "@/components/analytics/AnalyticsDashboardPanel";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { getRoleById, roles } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { Activity, CheckCircle2, CircleAlert, Clock3, Gauge, ListChecks, TrendingDown, TrendingUp } from "lucide-react";
+import { getTodayInPSTDateString } from "@/lib/pstDate";
 
 const metricDefinitions = [
   {
@@ -192,7 +193,11 @@ export default async function DashboardPage() {
 
   const isExecutiveSummary = roleId === roles.CEO || !roleId;
   const isFullVisibility = roleId === roles.PM || roleId === roles.CTO;
-  const isDeveloper = roleId === roles.DEV || roleId === roles.SENIOR_DEV;
+  const isDeveloper =
+    roleId === roles.DEV ||
+    roleId === roles.SENIOR_DEV ||
+    roleId === roles.INTERN ||
+    roleId === roles.JUNIOR_INTERN;
 
   const headline = isFullVisibility
     ? {
@@ -238,6 +243,7 @@ export default async function DashboardPage() {
           users={users}
           currentUser={currentUser}
           isManager={isFullVisibility || isExecutiveSummary}
+          todayPST={getTodayInPSTDateString()}
         />
       </section>
 
@@ -293,9 +299,8 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {isDeveloper && (
-        <section className="space-y-5" aria-labelledby="individual-performance">
-        <Card>
+      {/* {isDeveloper && (
+        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">
@@ -319,16 +324,16 @@ export default async function DashboardPage() {
           <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{developerSnapshot.map((item) => <InsightCard key={item.title} item={item} />)}</div>
         </Card>
         </section>
-      )}
+      )} */}
 
-      <PlaceholderUpload
+      {/* <PlaceholderUpload
         label={isDeveloper ? "Personal highlights" : "Quarterly highlights"}
         helperText={
           isDeveloper
             ? "Upload demos and metrics to include in your status emails."
             : "Upload leadership-ready visuals and decks."
         }
-      />
+      /> */}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import ActivityDashboard from "@/components/activity/ActivityDashboard";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { normalizeRole } from "@/lib/api";
 
 export default async function ActivityPage() {
@@ -20,7 +20,7 @@ export default async function ActivityPage() {
     });
 
     if (currentUser) {
-      const userFilter = canViewAll ? {} : { id: currentUser.id };
+      const userFilter = canViewAll ? { isActive: true } : { id: currentUser.id, isActive: true };
       users = await prisma.user.findMany({
         where: userFilter,
         orderBy: { name: "asc" },
@@ -28,7 +28,7 @@ export default async function ActivityPage() {
       });
 
       activityLogs = await prisma.activityLog.findMany({
-        where: canViewAll ? {} : { userId: currentUser.id },
+        where: canViewAll ? { user: { isActive: true } } : { userId: currentUser.id, user: { isActive: true } },
         orderBy: { date: "desc" },
         include: {
           user: {

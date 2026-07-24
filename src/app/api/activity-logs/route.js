@@ -8,6 +8,14 @@ import {
   getAuthContext,
 } from "@/lib/api";
 import { createNotification, getTaskMemberIds } from "@/lib/notifications";
+import {
+  buildManualLogTimes,
+  buildManualLogDate,
+  isManualLogInFuture,
+  isManualLogDateAllowed,
+  MANUAL_LOG_CATEGORIES,
+  normalizeManualCategories,
+} from "@/lib/manualLogs";
 
 export async function GET(request) {
   const context = await getAuthContext();
@@ -36,7 +44,12 @@ export async function GET(request) {
   }
 
   if (category) {
-    where.category = category;
+    const normalized = category.toString().trim().toUpperCase();
+    if (normalized === "TASK") {
+      where.taskId = { not: null };
+    } else {
+      where.categories = { has: normalized };
+    }
   }
 
   if (taskId) {
@@ -93,34 +106,45 @@ export async function POST(request) {
   const body = await request.json();
   const description = body?.description?.trim();
   const taskId = body?.taskId ?? null;
-  const type = body?.type?.toString().trim().toUpperCase() || "MANUAL";
-  const category = body?.category?.toString().trim().toUpperCase();
-  const date = body?.date ? new Date(body.date) : new Date();
+  const rawCategories = body?.categories;
+  const dateInput = body?.date ?? new Date();
+  const startTime = body?.startTime;
+  const endTime = body?.endTime;
 
   if (!description) {
     return buildError("Description is required.", 400);
   }
 
-  if (Number.isNaN(date.getTime())) {
+  const date = buildManualLogDate(dateInput);
+  if (!date) {
     return buildError("Date must be valid.", 400);
   }
 
-  if (!["MANUAL"].includes(type)) {
-    return buildError("Log type must be manual.", 400);
+  if (isManualLogInFuture({ date: dateInput, startTime, endTime })) {
+    return buildError("Manual logs cannot be in the future.", 400);
   }
 
-  const hoursSpent = Number(body?.hoursSpent ?? 0);
-  const durationSeconds = 0;
-  let resolvedCategory = category;
-
-  if (!Number.isFinite(hoursSpent) || hoursSpent < 0) {
-    return buildError("Hours spent must be a valid number.", 400);
-  }
-  if (!resolvedCategory || !["LEARNING", "RESEARCH", "IDLE"].includes(resolvedCategory)) {
+  if (!isManualLogDateAllowed(dateInput)) {
     return buildError(
-      "Category must be one of: learning, research, idle.",
+      "Manual logs can only be added/edited for today or last 2 days.",
+      403
+    );
+  }
+
+  const categories = normalizeManualCategories(rawCategories);
+  if (!categories) {
+    return buildError(
+      `Categories must include at least one of: ${MANUAL_LOG_CATEGORIES.join(
+        ", "
+      ).toLowerCase()}.`,
       400
     );
+  }
+
+  const { startAt, endAt, durationSeconds, error: timeError } =
+    buildManualLogTimes({ date: dateInput, startTime, endTime });
+  if (timeError) {
+    return buildError(timeError, 400);
   }
 
   if (taskId) {
@@ -151,13 +175,12 @@ export async function POST(request) {
       data: {
         description,
         date,
-        hoursSpent,
+        categories,
         userId: context.user.id,
-        category: resolvedCategory,
         taskId,
-        type,
-        startTime: null,
-        endTime: null,
+        type: "MANUAL",
+        startAt,
+        endAt,
         durationSeconds,
       },
       include: {

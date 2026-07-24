@@ -13,16 +13,33 @@ enum UserRole {
   CTO
   SENIOR_DEVELOPER
   DEVELOPER
+  INTERN
+  JUNIOR_INTERN
 }
 
 enum TaskStatus {
   BACKLOG
   READY
   IN_PROGRESS
+  ON_HOLD
   DEV_TEST
   TESTING
   DONE
   REJECTED
+  BLOCKED
+}
+
+enum TaskBlockedType {
+  CLIENT
+  TEAM
+  OTHER
+}
+
+enum TaskHoldReason {
+  SWITCH_TASK
+  BREAK
+  WAITING
+  OTHER
 }
 
 enum TaskType {
@@ -33,17 +50,15 @@ enum TaskType {
   CHART
 }
 
-enum ActivityCategory {
-  LEARNING
-  RESEARCH
-  IDLE
-  TASK
-  WFH
-}
-
 enum ActivityLogType {
   MANUAL
   WFH
+}
+
+enum ManualLogCategory {
+  LEARNING
+  RESEARCH
+  OTHER
 }
 
 enum NotificationType {
@@ -67,7 +82,8 @@ enum TaskTimeRequestStatus {
 
 enum TaskBreakReason {
   NAMAZ
-  MEAL
+  LUNCH
+  DINNER
   REFRESHMENT
   OTHER
 }
@@ -97,7 +113,9 @@ model User {
   passwordChangedAt DateTime?
   sessionVersion   Int           @default(0)
   role             UserRole
-  isActive         Boolean       @default(true)
+  isActive         Boolean       @default(false)
+  inviteToken          String?
+  inviteTokenExpiresAt DateTime?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   createdProjects  Project[]     @relation("ProjectCreator")
@@ -118,6 +136,8 @@ model User {
   accounts         Account[]
   sessions         Session[]
   passwordResets   PasswordResetToken[]
+  personalTodos    PersonalTodo[]
+  personalNotes    PersonalNote[]
 }
 
 enum UserStatus {
@@ -246,6 +266,10 @@ model Task {
   reworkCount    Int            @default(0)
   totalTimeSpent Int            @default(0)
   lastStartedAt  DateTime?
+  blockedReason  String?
+  blockedType    TaskBlockedType?
+  holdReason     TaskHoldReason?
+  holdNote       String?
   checklistItems ChecklistItem[]
   statusHistory  TaskStatusHistory[]
   timeLogs       TaskTimeLog[]
@@ -254,6 +278,8 @@ model Task {
   workSessions   TaskWorkSession[]
   activityLogs   ActivityLog[]
   notifications  Notification[]
+  personalTodos  PersonalTodo[]
+  personalNotes  PersonalNote[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime?      @updatedAt
 }
@@ -289,11 +315,13 @@ model TaskBreak {
   task            Task            @relation(fields: [taskId], references: [id])
   userId          String          @db.ObjectId
   user            User            @relation(fields: [userId], references: [id])
-  reason          TaskBreakReason
+  reason          TaskBreakReason?
+  reasons         TaskBreakReason[]   @default([])
   note            String?
   startedAt       DateTime
   endedAt         DateTime?
   durationSeconds Int             @default(0)
+  endedBy         String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 }
@@ -325,11 +353,10 @@ model ActivityLog {
   task        Task?            @relation(fields: [taskId], references: [id])
   date        DateTime         @default(now())
   description String
-  hoursSpent  Float
-  category    ActivityCategory @default(TASK)
+  categories  ManualLogCategory[] @default([])
   type        ActivityLogType  @default(MANUAL)
-  startTime   DateTime?
-  endTime     DateTime?
+  startAt     DateTime?
+  endAt       DateTime?
   durationSeconds Int          @default(0)
   workSession TaskWorkSession?
 }
@@ -342,6 +369,8 @@ model Attendance {
   inTime    DateTime?
   outTime   DateTime?
   note      String?
+  autoOff   Boolean   @default(false)
+  autoOffReason String?
   wfhIntervals AttendanceWFHInterval[]
   breaks    AttendanceBreak[]
   createdAt DateTime @default(now())
@@ -356,11 +385,13 @@ model AttendanceBreak {
   id              String              @id @default(auto()) @map("_id") @db.ObjectId
   attendanceId    String              @db.ObjectId
   attendance      Attendance          @relation(fields: [attendanceId], references: [id])
-  type            AttendanceBreakType
+  type            AttendanceBreakType?
+  types           AttendanceBreakType[] @default([])
   startAt         DateTime
-  endAt           DateTime
+  endAt           DateTime?
   durationMinutes Int
   notes           String?
+  endedBy         String?
   createdByUserId String              @db.ObjectId
   createdByUser   User                @relation(fields: [createdByUserId], references: [id])
   createdAt       DateTime            @default(now())
@@ -392,6 +423,7 @@ model TaskWorkSession {
   startedAt   DateTime
   endedAt     DateTime?
   durationSeconds Int               @default(0)
+  endedBy     String?
   source      TaskWorkSessionSource @default(AUTO)
   createdAt   DateTime              @default(now())
 
@@ -449,4 +481,36 @@ model NotificationRecipient {
   createdAt      DateTime      @default(now())
 
   @@unique([notificationId, userId])
+}
+
+model PersonalTodo {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String    @db.ObjectId
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId       String?   @db.ObjectId
+  task         Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  content      String
+  isCompleted  Boolean   @default(false)
+  reminderAt   DateTime?
+  reminderSent Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([taskId])
+}
+
+model PersonalNote {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId    String?  @db.ObjectId
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([taskId])
 }

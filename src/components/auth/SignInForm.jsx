@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { Eye, EyeOff } from "lucide-react";
 
 export default function SignInForm({ callbackUrl = "/dashboard" }) {
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
+  const [viewPassword, setviewPassword] = useState(true)
   const [formState, setFormState] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [status, formAction, isPending] = useActionState(loginAction, { error: null, fields: {} });
