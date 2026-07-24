@@ -17,19 +17,57 @@ import SidebarProfile from "./SidebarProfile";
 import Logo from "../ui/Logo";
 
 const iconMap = {
-  Dashboard: <LayoutDashboard className="h-[18px] w-[18px]" />,
-  Projects: <FolderKanban className="h-[18px] w-[18px]" />,
+  Dashboard: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  Projects: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  "My Tasks": (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  "My Desk": (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 14h6M9 10h6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  Activity: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 12h4l2-5 4 10 2-5h4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  Attendance: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M8 4v3M16 4v3M4 9h16M6 7h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  Reports: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 19h16M6 16V8m6 8V5m6 11v-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  Members: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 20a8 8 0 0 1 16 0M19 8v4m2-2h-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   Milestones: <Milestone className="h-[18px] w-[18px]" />,
-  Activity: <Activity className="h-[18px] w-[18px]" />,
-  Attendance: <CalendarDays className="h-[18px] w-[18px]" />,
-  Reports: <BarChart3 className="h-[18px] w-[18px]" />,
   "Create user": <UserRoundPlus className="h-[18px] w-[18px]" />,
 };
 
+
 const navigationGroups = [
-  { label: "Overview", items: ["Dashboard", "Projects", "Milestones", "Activity"] },
+  { label: "Overview", items: ["Dashboard", "Projects", "My Tasks", "My Desk", "Activity"] },
   { label: "Operations", items: ["Attendance", "Reports"] },
-  { label: "Administration", items: ["Create user"] },
+  { label: "Administration", items: ["Members"] },
 ];
 
 export default function Sidebar({ activeRole, collapsed, onToggle, session, onLogout }) {

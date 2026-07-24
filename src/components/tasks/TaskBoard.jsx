@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BREAK_TYPES, formatBreakTypes } from "@/lib/breakTypes";
+import { useNotificationSound } from "@/lib/useNotificationSound";
 
 const COLLAPSED_WIDTH = 64;
 const DEFAULT_EXPANDED_WIDTH = 320;
@@ -118,282 +119,8 @@ export default function TaskBoard({
   hideFilterButton = false,
 }) {
   const { addToast } = useToast();
+  const playNotificationSound = useNotificationSound();
   const searchParams = useSearchParams();
-  const [taskItems, setTaskItems] = useState(tasks);
-  const [pendingTaskId, setPendingTaskId] = useState(null);
-  const [pendingChecklistId, setPendingChecklistId] = useState(null);
-  const [draggingTaskId, setDraggingTaskId] = useState(null);
-  const [dragOverStatus, setDragOverStatus] = useState(null);
-  // Default to all tasks so milestone boards don't appear empty for managers.
-  const [scope, setScope] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [ownerFilter, setOwnerFilter] = useState("ALL");
-  const [milestoneFilter, setMilestoneFilter] = useState("ALL");
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [timeRequestOpen, setTimeRequestOpen] = useState(false);
-  const [timeRequestForm, setTimeRequestForm] = useState({
-    hours: "",
-    minutes: "",
-    reason: "",
-  });
-  const [timeRequests, setTimeRequests] = useState([]);
-  const [timeRequestsLoading, setTimeRequestsLoading] = useState(false);
-  const [timeRequestActionId, setTimeRequestActionId] = useState(null);
-  const [requestSubmitting, setRequestSubmitting] = useState(false);
-  const [breakForm, setBreakForm] = useState({
-    reasons: ["NAMAZ"],
-    note: "",
-  });
-  const [breakPanelOpen, setBreakPanelOpen] = useState(false);
-  const [breakSubmitting, setBreakSubmitting] = useState(false);
-  const [columnPrefs, setColumnPrefs] = useState({});
-  const [resizeState, setResizeState] = useState(null);
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
-  const [hasSavedPrefs, setHasSavedPrefs] = useState(false);
-
-  const scrollContainerRef = useRef(null);
-
-  useEffect(() => {
-    if (!draggingTaskId) return;
-
-    let animationFrameId;
-    let scrollSpeed = 0;
-
-    const handleDragOver = (event) => {
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      const rect = container.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-
-      const threshold = 100;
-      const maxSpeed = 15;
-
-      if (x < threshold) {
-        const ratio = (threshold - x) / threshold;
-        scrollSpeed = -ratio * maxSpeed;
-      } else if (x > rect.width - threshold) {
-        const ratio = (x - (rect.width - threshold)) / threshold;
-        scrollSpeed = ratio * maxSpeed;
-      } else {
-        scrollSpeed = 0;
-      }
-    };
-
-    const scrollTick = () => {
-      const container = scrollContainerRef.current;
-      if (container && scrollSpeed !== 0) {
-        container.scrollLeft += scrollSpeed;
-      }
-      animationFrameId = requestAnimationFrame(scrollTick);
-    };
-
-    window.addEventListener("dragover", handleDragOver);
-    animationFrameId = requestAnimationFrame(scrollTick);
-
-    return () => {
-      window.removeEventListener("dragover", handleDragOver);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, [draggingTaskId]);
-
-  useEffect(() => {
-    setTaskItems(tasks);
-  }, [tasks]);
-
-  const milestoneId = tasks?.[0]?.milestoneId ?? "unknown";
-  const prefKey = `kanbanColumnPrefs:${currentUserId ?? "guest"}:${milestoneId}`;
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    setPrefsLoaded(false);
-    const raw = window.localStorage.getItem(prefKey);
-    setHasSavedPrefs(Boolean(raw));
-    if (!raw) {
-      setColumnPrefs({});
-      setPrefsLoaded(true);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      setColumnPrefs(parsed && typeof parsed === "object" ? parsed : {});
-    } catch {
-      setColumnPrefs({});
-    }
-    setPrefsLoaded(true);
-  }, [prefKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(prefKey, JSON.stringify(columnPrefs));
-  }, [prefKey, columnPrefs]);
-
-  useEffect(() => {
-    if (!resizeState) {
-      return;
-    }
-    const previousCursor = document.body.style.cursor;
-    const previousUserSelect = document.body.style.userSelect;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    // Pointer events keep resizing smooth/live across mouse, touch, and pen.
-    const onMove = (event) => {
-      const delta = event.clientX - resizeState.startX;
-      const width = clampExpandedWidth(resizeState.startWidth + delta);
-      setColumnPrefs((prev) => ({
-        ...prev,
-        [resizeState.statusId]: {
-          ...prev?.[resizeState.statusId],
-          width,
-          collapsed: false,
-          userTouched: true,
-        },
-      }));
-    };
-    const onUp = () => {
-      setColumnPrefs((prev) => {
-        const current = prev?.[resizeState.statusId] ?? {};
-        const committedWidth = clampExpandedWidth(
-          current.width ?? resizeState.startWidth ?? DEFAULT_EXPANDED_WIDTH
-        );
-
-        return {
-          ...prev,
-          [resizeState.statusId]: {
-            ...current,
-            collapsed: false,
-            width: committedWidth,
-            expandedWidth: committedWidth,
-            userTouched: true,
-          },
-        };
-      });
-      setResizeState(null);
-    };
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      document.body.style.cursor = previousCursor;
-      document.body.style.userSelect = previousUserSelect;
-    };
-  }, [resizeState]);
-
-  const taskCountsByStatus = useMemo(() => {
-    const counts = {};
-    TASK_STATUSES.forEach((status) => {
-      counts[status.id] = 0;
-    });
-    taskItems.forEach((task) => {
-      counts[task.status] = (counts[task.status] ?? 0) + 1;
-    });
-    return counts;
-  }, [taskItems]);
-
-  useEffect(() => {
-    if (!prefsLoaded) {
-      return;
-    }
-
-    setColumnPrefs((prev) => {
-      let changed = false;
-      const next = { ...prev };
-
-      TASK_STATUSES.forEach((status) => {
-        const count = taskCountsByStatus[status.id] ?? 0;
-        const existing = prev?.[status.id] ?? {};
-        const userTouched = Boolean(existing.userTouched);
-        const safeExpandedWidth = clampExpandedWidth(
-          existing.expandedWidth ?? existing.width ?? DEFAULT_EXPANDED_WIDTH
-        );
-
-        const shouldDefaultCollapse = !hasSavedPrefs && count === 0;
-        const collapsed =
-          typeof existing.collapsed === "boolean"
-            ? existing.collapsed
-            : shouldDefaultCollapse;
-        const width = collapsed ? COLLAPSED_WIDTH : safeExpandedWidth;
-
-        if (
-          existing.collapsed !== collapsed ||
-          existing.width !== width ||
-          existing.expandedWidth !== safeExpandedWidth ||
-          existing.userTouched !== userTouched
-        ) {
-          changed = true;
-          next[status.id] = {
-            collapsed,
-            width,
-            expandedWidth: safeExpandedWidth,
-            userTouched,
-          };
-        }
-      });
-
-      return changed ? next : prev;
-    });
-  }, [prefsLoaded, taskCountsByStatus, hasSavedPrefs]);
-
-  useEffect(() => {
-    const taskId = searchParams?.get("taskId");
-    if (!taskId) {
-      return;
-    }
-    setSelectedTaskId(taskId);
-  }, [searchParams]);
-
-  const ownerOptions = useMemo(() => {
-    const owners = new Map();
-    taskItems.forEach((task) => {
-      if (task.owner) {
-        owners.set(task.owner.id, task.owner.name);
-      }
-    });
-    return Array.from(owners.entries()).map(([id, name]) => ({ id, name }));
-  }, [taskItems]);
-
-  const mentionUsers = useMemo(() => {
-    const users = new Map();
-    taskItems.forEach((task) => {
-      if (task.owner) {
-        users.set(task.owner.id, task.owner);
-      }
-    });
-    return Array.from(users.values());
-  }, [taskItems]);
-
-  const selectedTask = useMemo(
-    () => taskItems.find((task) => task.id === selectedTaskId) ?? null,
-    [taskItems, selectedTaskId]
-  );
-  const selectedSpentSeconds = Number(selectedTask?.spentTimeSeconds ?? 0);
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const [dodLink, setDodLink] = useState("");
-  const [pushToProjectDocs, setPushToProjectDocs] = useState(true);
-  const [savingDod, setSavingDod] = useState(false);
-
-  useEffect(() => {
-    if (selectedTask) {
-      setDodLink(selectedTask.ktLink ?? "");
-    } else {
-      setDodLink("");
-    }
-    setPushToProjectDocs(true);
-  }, [selectedTask]);
 
   // Mock states for Trello Task Modal features
   const [taskCovers, setTaskCovers] = useState({}); // taskId -> base64
@@ -415,6 +142,7 @@ export default function TaskBoard({
         message: "Task cover photo updated successfully.",
         variant: "success",
       });
+      playNotificationSound();
     };
     reader.readAsDataURL(file);
   };
@@ -1437,8 +1165,8 @@ export default function TaskBoard({
                 type="button"
                 onClick={() => setIsFilterOpen((prev) => !prev)}
                 className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-sm ${isFilterOpen || ownerFilter !== "ALL" || statusFilter !== "ALL"
-                    ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)]"
-                    : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white"
+                  ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)]"
+                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white"
                   }`}
               >
                 <svg
@@ -1464,8 +1192,8 @@ export default function TaskBoard({
                 type="button"
                 onClick={() => setIsFilterOpen((prev) => !prev)}
                 className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition shadow-sm ${isFilterOpen || ownerFilter !== "ALL" || statusFilter !== "ALL"
-                    ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)]"
-                    : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white"
+                  ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)]"
+                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white"
                   }`}
               >
                 <svg
@@ -1565,8 +1293,8 @@ export default function TaskBoard({
                 transition: isResizing ? "none" : "width 180ms ease",
               }}
               className={`relative flex-none rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] p-4 ${dragOverStatus === status.id
-                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-card)]"
-                  : ""
+                ? "border-[color:var(--color-accent)] bg-[color:var(--color-card)]"
+                : ""
                 }`}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -1577,8 +1305,8 @@ export default function TaskBoard({
             >
               <div
                 className={`mb-3 overflow-hidden ${isCollapsed
-                    ? "flex min-h-[140px] flex-col items-center justify-start gap-2"
-                    : "flex h-8 items-center justify-between gap-2"
+                  ? "flex min-h-[140px] flex-col items-center justify-start gap-2"
+                  : "flex h-8 items-center justify-between gap-2"
                   }`}
               >
                 {isCollapsed ? (
@@ -1765,8 +1493,8 @@ export default function TaskBoard({
                   role="separator"
                   aria-label={`Resize ${status.label} column`}
                   className={`group absolute right-0 top-0 h-full w-2 cursor-col-resize rounded-r-2xl transition ${isResizing
-                      ? "bg-[color:var(--color-accent-muted)]"
-                      : "hover:bg-[color:var(--color-accent-muted)]"
+                    ? "bg-[color:var(--color-accent-muted)]"
+                    : "hover:bg-[color:var(--color-accent-muted)]"
                     }`}
                   onPointerDown={(event) => {
                     event.preventDefault();

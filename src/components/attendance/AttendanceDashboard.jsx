@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import ActionButton from "@/components/ui/ActionButton";
+import Modal from "@/components/ui/Modal";
 import PageHeader from "@/components/layout/PageHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import useOutsideClick from "@/hooks/useOutsideClick";
@@ -13,10 +13,6 @@ import {
   getTodayInPSTDateString,
   shiftDateStringByDays,
 } from "@/lib/pstDate";
-import { Select } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Table } from "@/components/ui/table";
 
 const badgeOptions = [
   { id: "all", label: "All" },
@@ -234,7 +230,7 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
 
   return (
     <div className="relative" ref={menuRef}>
-      <Button
+      <button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -243,11 +239,10 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
           }
           setIsOpen((prev) => !prev);
         }}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition ${
-          disabled
-            ? "cursor-not-allowed opacity-60"
-            : "hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
-        }`}
+        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition ${disabled
+          ? "cursor-not-allowed opacity-60"
+          : "hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
+          }`}
         aria-label="Attendance actions"
         title={disabled ? tooltip : "Attendance actions"}
         aria-expanded={isOpen}
@@ -255,13 +250,13 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
         disabled={disabled}
       >
         <span className="text-lg leading-none">⋮</span>
-      </Button>
+      </button>
       {isOpen ? (
         <div
           className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <Button
+          <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -271,7 +266,7 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
           >
             Edit
-          </Button>
+          </button>
         </div>
       ) : null}
     </div>
@@ -286,7 +281,7 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
 
   return (
     <div className="relative" ref={menuRef}>
-      <Button
+      <button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -295,11 +290,10 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
           }
           setIsOpen((prev) => !prev);
         }}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition ${
-          disabled
-            ? "cursor-not-allowed opacity-60"
-            : "hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
-        }`}
+        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition ${disabled
+          ? "cursor-not-allowed opacity-60"
+          : "hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
+          }`}
         aria-label="Break actions"
         title={disabled ? tooltip : "Break actions"}
         aria-expanded={isOpen}
@@ -307,13 +301,13 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
         disabled={disabled}
       >
         <span className="text-lg leading-none">⋮</span>
-      </Button>
+      </button>
       {isOpen ? (
         <div
           className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <Button
+          <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -323,8 +317,8 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
           >
             Edit
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -334,7 +328,7 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-rose-300 hover:bg-rose-500/10"
           >
             Delete
-          </Button>
+          </button>
         </div>
       ) : null}
     </div>
@@ -366,7 +360,7 @@ export default function AttendanceDashboard({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
 
-  const [modalState, setDialogState] = useState({ open: false, mode: "create" });
+  const [modalState, setModalState] = useState({ open: false, mode: "create" });
   const [activeRecord, setActiveRecord] = useState(null);
   const [form, setForm] = useState({
     date: "",
@@ -378,7 +372,7 @@ export default function AttendanceDashboard({
   const [wfhIntervals, setWfhIntervals] = useState([]);
   const [wfhForm, setWfhForm] = useState({ startTime: "", endTime: "" });
   const [wfhSubmitting, setWfhSubmitting] = useState(false);
-  const [breakDialog, setBreakDialog] = useState({
+  const [breakModal, setBreakModal] = useState({
     open: false,
     mode: "create",
     breakItem: null,
@@ -536,7 +530,7 @@ export default function AttendanceDashboard({
     setActivePreset(null);
   };
 
-  const openCreateDialog = () => {
+  const openCreateModal = () => {
     const defaultUser = selectedUser ?? currentUser;
     setForm({
       date: getTodayInPSTDateString(),
@@ -549,10 +543,10 @@ export default function AttendanceDashboard({
     setWfhForm({ startTime: "", endTime: "" });
     setFormUserQuery(defaultUser?.name ?? "");
     setActiveRecord(null);
-    setDialogState({ open: true, mode: "create" });
+    setModalState({ open: true, mode: "create" });
   };
 
-  const openEditDialog = (record) => {
+  const openEditModal = (record) => {
     setActiveRecord(record);
     setForm({
       date: formatDateForInput(record.date),
@@ -564,11 +558,11 @@ export default function AttendanceDashboard({
     setWfhIntervals(record.wfhIntervals ?? []);
     setWfhForm({ startTime: "", endTime: "" });
     setFormUserQuery(record.user?.name ?? "");
-    setDialogState({ open: true, mode: "edit" });
+    setModalState({ open: true, mode: "edit" });
   };
 
-  const closeDialog = () => {
-    setDialogState({ open: false, mode: "create" });
+  const closeModal = () => {
+    setModalState({ open: false, mode: "create" });
   };
 
   const handleFormChange = (event) => {
@@ -663,7 +657,7 @@ export default function AttendanceDashboard({
     }
   };
 
-  const openBreakDialogForm = ({ mode, breakItem = null, attendanceId = null } = {}) => {
+  const openBreakModalForm = ({ mode, breakItem = null, attendanceId = null } = {}) => {
     const startTimeValue = breakItem?.startAt
       ? formatTimeInput(breakItem.startAt)
       : formatTimeInput(new Date());
@@ -674,11 +668,11 @@ export default function AttendanceDashboard({
       durationMinutes: breakItem?.durationMinutes?.toString() ?? "",
       notes: breakItem?.notes ?? "",
     });
-    setBreakDialog({ open: true, mode, breakItem, attendanceId });
+    setBreakModal({ open: true, mode, breakItem, attendanceId });
   };
 
-  const closeBreakDialog = () => {
-    setBreakDialog({ open: false, mode: "create", breakItem: null, attendanceId: null });
+  const closeBreakModal = () => {
+    setBreakModal({ open: false, mode: "create", breakItem: null, attendanceId: null });
   };
 
   const handleBreakFormChange = (event) => {
@@ -699,9 +693,9 @@ export default function AttendanceDashboard({
   const handleBreakSubmit = async (event) => {
     event.preventDefault();
     const targetAttendanceId =
-      breakDialog.mode === "create"
-        ? breakDialog.attendanceId ?? activeBreakRecord?.id
-        : breakDialog.breakItem?.attendanceId;
+      breakModal.mode === "create"
+        ? breakModal.attendanceId ?? activeBreakRecord?.id
+        : breakModal.breakItem?.attendanceId;
     if (!targetAttendanceId) {
       return;
     }
@@ -730,11 +724,11 @@ export default function AttendanceDashboard({
         notes: breakForm.notes,
       };
       const endpoint =
-        breakDialog.mode === "edit" && breakDialog.breakItem
-          ? `/api/attendance/breaks/${breakDialog.breakItem.id}`
+        breakModal.mode === "edit" && breakModal.breakItem
+          ? `/api/attendance/breaks/${breakModal.breakItem.id}`
           : `/api/attendance/${targetAttendanceId}/breaks`;
       const response = await fetch(endpoint, {
-        method: breakDialog.mode === "edit" ? "PATCH" : "POST",
+        method: breakModal.mode === "edit" ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -743,11 +737,11 @@ export default function AttendanceDashboard({
         throw new Error(data?.message ?? "Unable to save break.");
       }
       addToast({
-        title: breakDialog.mode === "edit" ? "Break updated" : "Break added",
+        title: breakModal.mode === "edit" ? "Break updated" : "Break added",
         message: data?.message ?? "Break saved.",
         variant: "success",
       });
-      closeBreakDialog();
+      closeBreakModal();
       if (data?.attendance) {
         if (activeRecord?.id === data.attendance.id) {
           setActiveRecord(data.attendance);
@@ -856,7 +850,7 @@ export default function AttendanceDashboard({
         message: data?.message ?? "Attendance saved.",
         variant: "success",
       });
-      closeDialog();
+      closeModal();
       if (data?.presenceNow) {
         setPresenceNow(data.presenceNow);
       }
@@ -881,48 +875,46 @@ export default function AttendanceDashboard({
         eyebrow="People Ops"
         title="Attendance"
         subtitle="Track check-ins and check-outs across the team."
-        actions={<Button label="Add Attendance" onClick={openCreateDialog} />}
+        actions={<ActionButton label="Add Attendance" onClick={openCreateModal} />}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-4">
         <div className="flex flex-wrap items-center gap-2">
           {badgeOptions.map((badge) => (
-            <Button
+            <button
               key={badge.id}
               type="button"
               onClick={() => setActiveBadge(badge.id)}
-              className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                activeBadge === badge.id
-                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
-                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
-              }`}
+              className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition ${activeBadge === badge.id
+                ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
+                : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
+                }`}
             >
               <span>{badge.label}</span>
               <span className="rounded-full bg-[color:var(--color-muted-bg)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--color-text-muted)]">
                 {badgeCounts[badge.id] ?? 0}
               </span>
-            </Button>
+            </button>
           ))}
           <div className="flex flex-wrap items-center gap-2">
             {presetOptions.map((preset) => (
-              <Button
+              <button
                 key={preset.id}
                 type="button"
                 onClick={() => handlePresetClick(preset.id)}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                  activePreset === preset.id
-                    ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
-                    : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
-                }`}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${activePreset === preset.id
+                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
+                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
+                  }`}
               >
                 {preset.label}
-              </Button>
+              </button>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs text-[color:var(--color-text-subtle)]">
               From
-              <Input
+              <input
                 type="date"
                 value={range.from}
                 onChange={(event) => handleRangeChange("from", event.target.value)}
@@ -931,7 +923,7 @@ export default function AttendanceDashboard({
             </label>
             <label className="flex items-center gap-2 text-xs text-[color:var(--color-text-subtle)]">
               To
-              <Input
+              <input
                 type="date"
                 value={range.to}
                 onChange={(event) => handleRangeChange("to", event.target.value)}
@@ -949,7 +941,7 @@ export default function AttendanceDashboard({
 
         {isLeader ? (
           <div className="relative w-full max-w-xs" ref={userMenuRef}>
-            <Input
+            <input
               value={userQuery}
               onChange={(event) => {
                 setUserQuery(event.target.value);
@@ -963,7 +955,7 @@ export default function AttendanceDashboard({
               className="w-full rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-4 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
             />
             {selectedUser ? (
-              <Button
+              <button
                 type="button"
                 onClick={() => {
                   setSelectedUser(null);
@@ -974,13 +966,13 @@ export default function AttendanceDashboard({
                 aria-label="Clear user filter"
               >
                 ×
-              </Button>
+              </button>
             ) : null}
             {isUserMenuOpen ? (
               <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
                 {filteredUsers.length ? (
                   filteredUsers.map((user) => (
-                    <Button
+                    <button
                       key={user.id}
                       type="button"
                       onClick={() => {
@@ -994,7 +986,7 @@ export default function AttendanceDashboard({
                       <span className="text-[11px] text-[color:var(--color-text-subtle)]">
                         {user.role}
                       </span>
-                    </Button>
+                    </button>
                   ))
                 ) : (
                   <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
@@ -1008,7 +1000,7 @@ export default function AttendanceDashboard({
       </div>
 
       {activeBreakRecord &&
-      (isLeader || isAttendanceRunning(activeBreakRecord, new Date())) ? (
+        (isLeader || isAttendanceRunning(activeBreakRecord, new Date())) ? (
         <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -1018,11 +1010,11 @@ export default function AttendanceDashboard({
                 {formatDisplayDate(activeBreakRecord.date)}
               </p>
             </div>
-            <Button
+            <ActionButton
               label="Add Break"
               variant="secondary"
               onClick={() =>
-                openBreakDialogForm({
+                openBreakModalForm({
                   mode: "create",
                   attendanceId: activeBreakRecord.id,
                 })
@@ -1057,7 +1049,7 @@ export default function AttendanceDashboard({
                     ) : null}
                   </div>
                   <BreakMenu
-                    onEdit={() => openBreakDialogForm({ mode: "edit", breakItem: item })}
+                    onEdit={() => openBreakModalForm({ mode: "edit", breakItem: item })}
                     onDelete={() => handleBreakDelete(item)}
                     disabled={!canManageBreaks}
                     tooltip="Breaks can only be edited while duty is running."
@@ -1088,7 +1080,7 @@ export default function AttendanceDashboard({
         </div>
       ) : filteredAttendance.length ? (
         <div className="overflow-x-auto rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)]">
-          <Table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-[color:var(--color-border)] text-xs uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
               <tr>
                 {isLeader ? <th className="px-4 py-3">User</th> : null}
@@ -1112,70 +1104,70 @@ export default function AttendanceDashboard({
                     const durations = getRecordDurations(record);
                     return (
                       <>
-                  {isLeader ? (
-                    <td className="px-4 py-4">
-                      <div className="text-sm font-semibold text-[color:var(--color-text)]">
-                        {record.user?.name ?? "Unknown"}
-                      </div>
-                      <div className="text-xs text-[color:var(--color-text-subtle)]">
-                        {record.user?.role ?? ""}
-                      </div>
-                    </td>
-                  ) : null}
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {formatDisplayDate(record.date)}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {record.inTime ? formatDisplayTime(record.inTime) : "-"}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {record.outTime ? (
-                      <div className="space-y-1">
-                        <p>{formatDisplayTime(record.outTime)}</p>
-                        {record.autoOff ? (
-                          <span
-                            className="inline-flex rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200"
-                            title="Auto closed after 10 hours (missing out time)"
-                          >
-                            Auto Off
-                          </span>
+                        {isLeader ? (
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-semibold text-[color:var(--color-text)]">
+                              {record.user?.name ?? "Unknown"}
+                            </div>
+                            <div className="text-xs text-[color:var(--color-text-subtle)]">
+                              {record.user?.role ?? ""}
+                            </div>
+                          </td>
                         ) : null}
-                      </div>
-                    ) : record.inTime ? (
-                      <div className="space-y-1 text-[color:var(--color-text-subtle)]">
-                        <p>Out time not added yet</p>
-                        <p className="text-[11px]">In recorded, waiting for out time</p>
-                      </div>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {durations.office}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {durations.wfh}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {durations.total}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text-muted)]">
-                    {record.note || "-"}
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <AttendanceMenu
-                      onEdit={() => openEditDialog(record)}
-                      disabled={!isLeader && !isEditableAttendanceDate(record.date)}
-                      tooltip="You can only edit attendance for today and the last 2 days."
-                    />
-                  </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {formatDisplayDate(record.date)}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {record.inTime ? formatDisplayTime(record.inTime) : "-"}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {record.outTime ? (
+                            <div className="space-y-1">
+                              <p>{formatDisplayTime(record.outTime)}</p>
+                              {record.autoOff ? (
+                                <span
+                                  className="inline-flex rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200"
+                                  title="Auto closed after 10 hours (missing out time)"
+                                >
+                                  Auto Off
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : record.inTime ? (
+                            <div className="space-y-1 text-[color:var(--color-text-subtle)]">
+                              <p>Out time not added yet</p>
+                              <p className="text-[11px]">In recorded, waiting for out time</p>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {durations.office}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {durations.wfh}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {durations.total}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text-muted)]">
+                          {record.note || "-"}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <AttendanceMenu
+                            onEdit={() => openEditModal(record)}
+                            disabled={!isLeader && !isEditableAttendanceDate(record.date)}
+                            tooltip="You can only edit attendance for today and the last 2 days."
+                          />
+                        </td>
                       </>
                     );
                   })()}
                 </tr>
               ))}
             </tbody>
-          </Table>
+          </table>
         </div>
       ) : (
         <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">
@@ -1183,11 +1175,11 @@ export default function AttendanceDashboard({
         </div>
       )}
 
-      <Dialog
+      <Modal
         isOpen={modalState.open}
         title={modalState.mode === "edit" ? "Edit attendance" : "Add attendance"}
         description="Record check-in and check-out times for any date."
-        onClose={closeDialog}
+        onClose={closeModal}
       >
         <form onSubmit={handleSubmit} className="flex h-full flex-col">
           <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1 hide-scrollbar">
@@ -1195,7 +1187,7 @@ export default function AttendanceDashboard({
               <div className="relative" ref={formUserMenuRef}>
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   User
-                  <Input
+                  <input
                     value={formUserQuery}
                     onChange={(event) => {
                       setFormUserQuery(event.target.value);
@@ -1210,7 +1202,7 @@ export default function AttendanceDashboard({
                   />
                 </label>
                 {form.userId ? (
-                  <Button
+                  <button
                     type="button"
                     onClick={() => {
                       setForm((prev) => ({ ...prev, userId: "" }));
@@ -1221,13 +1213,13 @@ export default function AttendanceDashboard({
                     aria-label="Clear user selection"
                   >
                     ×
-                  </Button>
+                  </button>
                 ) : null}
                 {isFormUserMenuOpen ? (
                   <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
                     {filteredFormUsers.length ? (
                       filteredFormUsers.map((user) => (
-                        <Button
+                        <button
                           key={user.id}
                           type="button"
                           onClick={() => {
@@ -1241,7 +1233,7 @@ export default function AttendanceDashboard({
                           <span className="text-[11px] text-[color:var(--color-text-subtle)]">
                             {user.role}
                           </span>
-                        </Button>
+                        </button>
                       ))
                     ) : (
                       <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
@@ -1255,7 +1247,7 @@ export default function AttendanceDashboard({
             <div className="grid gap-3 lg:grid-cols-3">
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Date
-                <Input
+                <input
                   type="date"
                   name="date"
                   value={form.date}
@@ -1266,7 +1258,7 @@ export default function AttendanceDashboard({
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 In time
-                <Input
+                <input
                   type="time"
                   name="inTime"
                   value={form.inTime}
@@ -1277,18 +1269,18 @@ export default function AttendanceDashboard({
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Out time
-                  <Input
-                    type="time"
-                    name="outTime"
-                    value={form.outTime}
-                    onChange={handleFormChange}
-                    className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
-                  />
-                </label>
+                <input
+                  type="time"
+                  name="outTime"
+                  value={form.outTime}
+                  onChange={handleFormChange}
+                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+                />
+              </label>
             </div>
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               Note
-              <Textarea
+              <textarea
                 name="note"
                 value={form.note}
                 onChange={handleFormChange}
@@ -1326,7 +1318,7 @@ export default function AttendanceDashboard({
               <div className="mt-4 grid gap-3 lg:grid-cols-3">
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   Start time
-                  <Input
+                  <input
                     type="time"
                     name="startTime"
                     value={wfhForm.startTime}
@@ -1337,7 +1329,7 @@ export default function AttendanceDashboard({
                 </label>
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   End time
-                  <Input
+                  <input
                     type="time"
                     name="endTime"
                     value={wfhForm.endTime}
@@ -1347,7 +1339,7 @@ export default function AttendanceDashboard({
                   />
                 </label>
                 <div className="flex items-end">
-                  <Button
+                  <ActionButton
                     label={wfhSubmitting ? "Adding..." : "Add interval"}
                     variant="secondary"
                     type="button"
@@ -1365,12 +1357,12 @@ export default function AttendanceDashboard({
                     Breaks
                   </p>
                   {isLeader || isAttendanceRunning(activeRecord, new Date()) ? (
-                    <Button
+                    <ActionButton
                       label="Add break"
                       variant="secondary"
                       type="button"
                       onClick={() =>
-                        openBreakDialogForm({
+                        openBreakModalForm({
                           mode: "create",
                           attendanceId: activeRecord.id,
                         })
@@ -1388,7 +1380,7 @@ export default function AttendanceDashboard({
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-full border border-[color:var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
-                          {formatBreakType(item.types, item.type)}
+                              {formatBreakType(item.types, item.type)}
                             </span>
                             <span>{formatDurationFromMinutes(item.durationMinutes)}</span>
                             <span>
@@ -1401,7 +1393,7 @@ export default function AttendanceDashboard({
                         {isLeader || isAttendanceRunning(activeRecord, new Date()) ? (
                           <BreakMenu
                             onEdit={() =>
-                              openBreakDialogForm({ mode: "edit", breakItem: item })
+                              openBreakModalForm({ mode: "edit", breakItem: item })
                             }
                             onDelete={() => handleBreakDelete(item)}
                             disabled={false}
@@ -1423,8 +1415,8 @@ export default function AttendanceDashboard({
               </div>
             ) : null}
           </div>
-          <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
-            <Button
+          <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] py-4">
+            <ActionButton
               label={modalState.mode === "edit" ? "Save changes" : "Save attendance"}
               variant="primary"
               type="submit"
@@ -1432,24 +1424,19 @@ export default function AttendanceDashboard({
             />
           </div>
         </form>
-      </Dialog>
+      </Modal>
 
-      <Dialog
-        isOpen={breakDialog.open}
-        title={breakDialog.mode === "edit" ? "Edit break" : "Add break"}
+      <Modal
+        isOpen={breakModal.open}
+        title={breakModal.mode === "edit" ? "Edit break" : "Add break"}
         description="Log a break taken during duty."
-        onClose={closeBreakDialog}
+        onClose={closeBreakModal}
       >
         <form onSubmit={handleBreakSubmit} className="flex h-full flex-col">
           <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1 hide-scrollbar">
-            <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
-              Break type
-              <Select
-                name="type"
-                value={breakForm.type}
-                onChange={handleBreakFormChange}
-                className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
-              >
+            <div className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
+              <p>Break type</p>
+              <div className="grid gap-2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] p-3">
                 {breakTypeOptions.map((option) => (
                   <label key={option.id} className="flex items-center gap-2 text-sm text-[color:var(--color-text)]">
                     <input
@@ -1458,10 +1445,6 @@ export default function AttendanceDashboard({
                       onChange={() => handleBreakTypeToggle(option.id)}
                     />
                     {option.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
                   </label>
                 ))}
               </div>
@@ -1469,7 +1452,7 @@ export default function AttendanceDashboard({
             <div className="grid gap-3 lg:grid-cols-2">
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Start time
-                <Input
+                <input
                   type="time"
                   name="startTime"
                   value={breakForm.startTime}
@@ -1480,7 +1463,7 @@ export default function AttendanceDashboard({
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Duration (minutes)
-                <Input
+                <input
                   type="number"
                   name="durationMinutes"
                   value={breakForm.durationMinutes}
@@ -1493,18 +1476,18 @@ export default function AttendanceDashboard({
             </div>
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               Notes
-              <Textarea
+              <textarea
                 name="notes"
                 value={breakForm.notes}
                 onChange={handleBreakFormChange}
                 rows={3}
-                
+
                 className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
               />
             </label>
           </div>
           <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
-            <Button
+            <ActionButton
               label={breakSubmitting ? "Saving..." : "Save break"}
               variant="primary"
               type="submit"
@@ -1513,7 +1496,7 @@ export default function AttendanceDashboard({
             />
           </div>
         </form>
-      </Dialog>
+      </Modal>
     </div>
   );
 }

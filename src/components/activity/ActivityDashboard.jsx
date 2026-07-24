@@ -546,7 +546,7 @@ export default function ActivityDashboard({
           <Button
             label="Manual Log Activity"
             variant="success"
-            onClick={openCreateLogDialog}
+            onClick={openCreateLogModal}
           />
         }
       />
@@ -761,7 +761,7 @@ export default function ActivityDashboard({
                             ? [
                               {
                                 label: "Edit",
-                                onClick: () => openEditLogModal(log),
+                                onClick: () => openEditLogDialog(log),
                               },
                               {
                                 label: "Delete",
@@ -938,7 +938,7 @@ export default function ActivityDashboard({
                   name="date"
                   value={logForm.date}
                   onChange={handleLogChange}
-                  disabled={logModal.mode === "edit"}
+                  disabled={logDialog.mode === "edit"}
                   min={dateBounds.min ?? undefined}
                   max={dateBounds.max ?? undefined}
                   className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
@@ -953,7 +953,7 @@ export default function ActivityDashboard({
                   step="0.25"
                   value={logForm.hoursSpent}
                   onChange={handleLogChange}
-                  disabled={logModal.mode === "edit"}
+                  disabled={logDialog.mode === "edit"}
                   max={
                     logForm.date === getManualTodayDateKey()
                       ? formatTimeOnly(new Date())

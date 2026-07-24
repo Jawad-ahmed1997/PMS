@@ -11,8 +11,8 @@ export default async function CreateUserPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="User management"
-        title="Users directory"
+        eyebrow="Member management"
+        title="Members directory"
         subtitle="View existing accounts and provision new team access."
       />
 

@@ -6,10 +6,10 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { roleOptions, roles, normalizeRoleId } from "@/lib/roles";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const buildErrorMessage = (data) =>
-  data?.error ?? data?.message ?? "Unable to create user.";
+  data?.error ?? data?.message ?? "Unable to create member.";
 
 export default function CreateUserForm({ onSuccess, onCancel, user }) {
   const { addToast } = useToast();
@@ -36,16 +36,16 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
       const method = user ? "PATCH" : "POST";
       const body = user
         ? {
-            name: formState.name,
-            email: formState.email,
-            role: formState.role,
-            isActive: formState.isActive,
-          }
+          name: formState.name,
+          email: formState.email,
+          role: formState.role,
+          isActive: formState.isActive,
+        }
         : {
-            name: formState.name,
-            email: formState.email,
-            role: formState.role,
-          };
+          name: formState.name,
+          email: formState.email,
+          role: formState.role,
+        };
 
       const response = await fetch(url, {
         method,
@@ -77,9 +77,9 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
       onSuccess?.();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : `Unable to ${user ? "update" : "invite"} user.`;
+        error instanceof Error ? error.message : `Unable to ${user ? "update" : "invite"} member.`;
       addToast({
-        title: user ? "User update failed" : "Invitation failed",
+        title: user ? "Member update failed" : "Invitation failed",
         message,
         variant: "error",
       });
@@ -96,7 +96,7 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
       {!onCancel && (
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-            {user ? "Edit user" : "Create user"}
+            {user ? "Edit member" : "Create member"}
           </p>
           <p className="mt-2 text-sm text-[color:var(--color-text-muted)]">
             {user ? "Modify role or profile details." : "Assign a role and set a secure password for the new account."}
@@ -134,7 +134,9 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
             onValueChange={(role) => setFormState((prev) => ({ ...prev, role }))}
             required
           >
-            <SelectTrigger className="mt-1 rounded-xl" />
+            <SelectTrigger className="mt-1 rounded-xl">
+              <SelectValue placeholder="Select a role" />
+            </SelectTrigger>
             <SelectContent>{roleOptions.map((role) => <SelectItem key={role.id} value={role.id}>{role.label}</SelectItem>)}</SelectContent>
           </Select>
         </label>
@@ -142,45 +144,37 @@ export default function CreateUserForm({ onSuccess, onCancel, user }) {
         {user ? (
           <label className="text-xs text-[color:var(--color-text-muted)]">
             Status
-            <select
+            <Select
               name="isActive"
               value={formState.isActive ? "true" : "false"}
-              onChange={(e) => setFormState(prev => ({ ...prev, isActive: e.target.value === "true" }))}
-              className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
+              onValueChange={(value) => setFormState(prev => ({ ...prev, isActive: value === "true" }))}
               required
             >
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
+              <SelectTrigger className="mt-1 rounded-xl">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Active</SelectItem>
+                <SelectItem value="false">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
         ) : null}
 
-        {user && (
-          <label className="text-xs text-[color:var(--color-text-muted)] opacity-60">
-            Password (Read-only)
-            <input
-              type="password"
-              value="••••••••"
-              readOnly
-              disabled
-              className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)]/50 px-3 py-2 text-sm text-[color:var(--color-text-subtle)] cursor-not-allowed select-none"
-            />
-          </label>
-        )}
       </div>
 
-      <div className="flex flex-wrap gap-2 justify-end">
+      <div className="flex flex-wrap gap-2 justify-end mt-5">
         {onCancel && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            label="Cancel"
             onClick={onCancel}
-            className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-sm font-medium text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-border)] transition"
-          >
-            Cancel
-          </button>
+            className="rounded-xl"
+          />
         )}
         <Button
-          label={status.loading ? (user ? "Updating..." : "Sending invite...") : (user ? "Update user" : "Send Invitation")}
+          label={status.loading ? (user ? "Updating..." : "Sending invite...") : (user ? "Update member" : "Send Invitation")}
           variant="primary"
           type="submit"
           className={status.loading ? "pointer-events-none opacity-60" : ""}
