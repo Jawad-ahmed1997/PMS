@@ -89,7 +89,9 @@ export async function PATCH(request, { params }) {
 
   if (body?.label) {
     if (!isManagementRole(context.role)) {
-      return buildError("Only PM/CTO can edit checklist items.", 403);
+      if (!item.isCustom || item.task.ownerId !== context.user.id) {
+        return buildError("Only PM/CTO can edit predefined checklist items.", 403);
+      }
     }
     updates.label = body.label.trim();
   }
@@ -126,18 +128,13 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const context = await getAuthContext();
-   const {id:itemId}= await params;
+  const { id: itemId } = await params;
   const authError = ensureAuthenticated(context);
   
   if (authError) {
     return authError;
   }
 
-  if (!isManagementRole(context.role)) {
-    return buildError("Only PM/CTO can edit checklist items.", 403);
-  }
-
- 
   if (!itemId) {
     return buildError("Checklist item id is required.", 400);
   }
@@ -152,6 +149,18 @@ export async function DELETE(request, { params }) {
       "You do not have permission to delete this checklist item.",
       403
     );
+  }
+
+  // Predefined checklists (isCustom: false) require management role.
+  // Custom subtasks (isCustom: true) can be deleted by task owner or manager.
+  if (!item.isCustom) {
+    if (!isManagementRole(context.role)) {
+      return buildError("Only PM/CTO can delete predefined checklist items.", 403);
+    }
+  } else {
+    if (!isManagementRole(context.role) && item.task.ownerId !== context.user.id) {
+      return buildError("You do not have permission to delete this custom subtask.", 403);
+    }
   }
 
   try {

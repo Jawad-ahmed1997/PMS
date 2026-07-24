@@ -21,6 +21,7 @@ async function getTask(taskId, userId) {
     milestoneId: true,
     estimatedHours: true,
     blockedReason: true,
+    ktLink: true,
     blockedType: true,
     holdReason: true,
     holdNote: true,
@@ -203,6 +204,10 @@ export async function PATCH(request, { params }) {
     updates.ownerId = body.ownerId;
   }
 
+  if (body?.ktLink !== undefined) {
+    updates.ktLink = body.ktLink ? body.ktLink.trim() : null;
+  }
+
   if (body?.status) {
     return buildError("Task status changes must use the status endpoint.", 400);
   }
@@ -274,6 +279,7 @@ export async function PATCH(request, { params }) {
         milestoneId: true,
         estimatedHours: true,
         blockedReason: true,
+        ktLink: true,
         blockedType: true,
         holdReason: true,
         holdNote: true,
