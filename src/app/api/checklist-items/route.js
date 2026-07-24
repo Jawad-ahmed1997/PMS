@@ -45,14 +45,11 @@ export async function POST(request) {
     return authError;
   }
 
-  if (!isManagementRole(context.role)) {
-    return buildError("Only PM/CTO can edit checklist items.", 403);
-  }
-
   const body = await request.json();
   const label = body?.label?.trim();
   const taskId = body?.taskId;
   const isCompleted = Boolean(body?.isCompleted ?? false);
+  const isCustom = Boolean(body?.isCustom ?? false);
 
   if (!label || !taskId) {
     return buildError("Label and task are required.", 400);
@@ -67,8 +64,16 @@ export async function POST(request) {
     return buildError("Task not found.", 404);
   }
 
-  if (!isAdminRole(context.role) && task.ownerId !== context.user.id) {
-    return buildError("You do not have permission to add checklist items.", 403);
+  // Predefined checklists (isCustom: false) require management role.
+  // Custom subtasks (isCustom: true) can be added by task owner or manager.
+  if (!isCustom) {
+    if (!isManagementRole(context.role)) {
+      return buildError("Only PM/CTO can edit predefined checklist items.", 403);
+    }
+  } else {
+    if (!isManagementRole(context.role) && task.ownerId !== context.user.id) {
+      return buildError("You do not have permission to add custom subtasks to this task.", 403);
+    }
   }
 
   const checklistItem = await prisma.checklistItem.create({
@@ -76,6 +81,7 @@ export async function POST(request) {
       label,
       taskId,
       isCompleted,
+      isCustom,
     },
     include: {
       task: { select: { id: true, title: true, ownerId: true } },

@@ -112,6 +112,7 @@ export async function GET(request) {
       milestoneId: true,
       estimatedHours: true,
       blockedReason: true,
+      ktLink: true,
       blockedType: true,
       holdReason: true,
       holdNote: true,
