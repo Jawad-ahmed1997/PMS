@@ -47,7 +47,7 @@ export default function Sidebar({ activeRole, collapsed, onToggle, session, onLo
 
   return (
     <aside
-      className="fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border/70 bg-[#ffffff] transition-[width] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
+      className="fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border/70 bg-[color:var(--color-sidebar)] transition-[width] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
       style={{ width: "var(--sidebar-width)" }}
       aria-label="Primary navigation"
     >

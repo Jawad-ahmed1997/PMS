@@ -67,6 +67,7 @@
   --color-surface: #121a17;
   --color-surface-muted: #17221e;
   --color-surface-strong: #1e2c27;
+  --sidebar-active-surface: rgba(100, 204, 178, 0.15);
   --color-border: rgba(100, 204, 178, 0.15);
   --color-border-subtle: rgba(100, 204, 178, 0.08);
   --color-text: #f8fafc;
