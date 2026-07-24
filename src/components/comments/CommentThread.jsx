@@ -174,7 +174,7 @@ export default function CommentThread({
   };
 
   const handleSubmit = async (event) => {
-    event.preventDefault();
+    event?.preventDefault();
     const trimmed = message.trim();
     if (!trimmed) {
       return;
@@ -197,6 +197,9 @@ export default function CommentThread({
       }
       setComments((prev) => [...prev, data.comment]);
       onCommentAdded?.(data.comment);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
+      }
       setMessage("");
     } catch (error) {
       const message =
@@ -251,7 +254,7 @@ export default function CommentThread({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-2">
+      <div className="space-y-2">
         <div className="relative" ref={mentionRef}>
           <Textarea
             ref={inputRef}
@@ -281,14 +284,15 @@ export default function CommentThread({
         </div>
         <div className="flex justify-end">
           <Button
-            type="submit"
+            type="button"
+            onClick={handleSubmit}
             disabled={status.submitting}
             className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {status.submitting ? "Sending..." : "Send"}
           </Button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

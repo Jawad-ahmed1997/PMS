@@ -5,17 +5,22 @@ export const navigationItems = [
   {
     label: "Projects",
     href: "/projects",
-    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV],
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
   },
   {
-    label: "Milestones",
-    href: "/milestones",
-    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV],
+    label: "My Tasks",
+    href: "/my-tasks",
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
+  },
+  {
+    label: "My Desk",
+    href: "/my-desk",
+    roles: allRoles,
   },
   {
     label: "Activity",
     href: "/activity",
-    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV],
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
   },
   { label: "Attendance", href: "/attendance", roles: allRoles },
   {
@@ -24,7 +29,7 @@ export const navigationItems = [
     roles: [roles.CEO, roles.PM, roles.CTO],
   },
   {
-    label: "Create user",
+    label: "Members",
     href: "/users/create",
     roles: [roles.CEO, roles.PM, roles.CTO],
   },

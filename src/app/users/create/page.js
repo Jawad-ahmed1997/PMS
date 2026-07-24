@@ -1,6 +1,6 @@
-import CreateUserForm from "@/components/users/CreateUserForm";
+import UserManagementView from "@/components/users/UserManagementView";
 import PageHeader from "@/components/layout/PageHeader";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { normalizeRoleId, roles } from "@/lib/roles";
 
 export default async function CreateUserPage() {
@@ -12,15 +12,15 @@ export default async function CreateUserPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="User management"
-        title="Create user accounts"
-        subtitle="Only executive and product leadership can provision new access."
+        title="Users directory"
+        subtitle="View existing accounts and provision new team access."
       />
 
       {canCreate ? (
-        <CreateUserForm />
+        <UserManagementView />
       ) : (
         <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
-          You do not have permission to create users.
+          You do not have permission to access user directory.
         </div>
       )}
     </div>

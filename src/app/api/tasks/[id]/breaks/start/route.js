@@ -6,9 +6,9 @@ import {
   getAuthContext,
   isManagementRole,
 } from "@/lib/api";
+import { normalizeBreakTypes } from "@/lib/breakTypes";
 
 const ALLOWED_STATUSES = ["IN_PROGRESS", "DEV_TEST"];
-const BREAK_REASONS = ["NAMAZ", "MEAL", "REFRESHMENT", "OTHER"];
 
 async function getTask(taskId) {
   return prisma.task.findUnique({
@@ -17,6 +17,11 @@ async function getTask(taskId) {
       id: true,
       status: true,
       ownerId: true,
+      totalTimeSpent: true,
+      lastStartedAt: true,
+      estimatedHours: true,
+      milestoneId: true,
+      milestone: { select: { projectId: true } },
     },
   });
 }
@@ -58,12 +63,12 @@ export async function POST(request, { params }) {
   }
 
   const body = await request.json();
-  const reason = body?.reason;
-  const note = body?.note?.trim();
-
-  if (!BREAK_REASONS.includes(reason)) {
-    return buildError("Break reason is required.", 400);
+  const reasons = normalizeBreakTypes(body?.reasons, body?.reason);
+  if (!reasons.length) {
+    return buildError("At least one break type is required.", 400);
   }
+
+  const note = body?.note?.trim() || null;
 
   const existingBreak = await prisma.taskBreak.findFirst({
     where: { taskId, userId: context.user.id, endedAt: null },
@@ -74,16 +79,89 @@ export async function POST(request, { params }) {
     return buildError("A break is already in progress for this task.", 409);
   }
 
-  const createdBreak = await prisma.taskBreak.create({
-    data: {
-      taskId,
-      userId: context.user.id,
-      reason,
-      note: note || null,
-      startedAt: new Date(),
-      endedAt: null
-    },
+  const activeSession = await prisma.taskWorkSession.findFirst({
+    where: { taskId, userId: context.user.id, endedAt: null },
+    orderBy: { startedAt: "desc" },
   });
 
-  return buildSuccess("Break started.", { break: createdBreak }, 201);
+  if (!activeSession) {
+    return buildError("No active work session found for this task.", 409);
+  }
+
+  const now = new Date();
+  const candidateStart = task.lastStartedAt
+    ? new Date(task.lastStartedAt)
+    : new Date(activeSession.startedAt);
+  const startedAt = Number.isNaN(candidateStart.getTime())
+    ? new Date(activeSession.startedAt)
+    : candidateStart;
+  const deltaSeconds = Math.max(
+    0,
+    Math.floor((now.getTime() - startedAt.getTime()) / 1000)
+  );
+
+  const { updatedTask, createdBreak } = await prisma.$transaction(async (tx) => {
+    const updatedTask = await tx.task.update({
+      where: { id: taskId },
+      data: {
+        totalTimeSpent: { increment: deltaSeconds },
+        lastStartedAt: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        estimatedHours: true,
+        status: true,
+        milestoneId: true,
+        milestone: { select: { projectId: true } },
+        totalTimeSpent: true,
+      },
+    });
+
+    const createdBreak = await tx.taskBreak.create({
+      data: {
+        taskId,
+        userId: context.user.id,
+        reasons,
+        reason: reasons[0],
+        note,
+        startedAt: now,
+        endedAt: null,
+      },
+    });
+
+    return { updatedTask, createdBreak };
+  });
+
+  return buildSuccess(
+    "Break started.",
+    {
+      break: createdBreak,
+      session: {
+        active: true,
+        task: {
+          id: updatedTask.id,
+          title: updatedTask.title,
+          estimatedSeconds: Math.max(
+            0,
+            Math.round(Number(updatedTask.estimatedHours ?? 0) * 3600)
+          ),
+          status: updatedTask.status,
+          milestoneId: updatedTask.milestoneId,
+          projectId: updatedTask.milestone?.projectId ?? null,
+        },
+        accumulatedSeconds: Math.max(0, Number(updatedTask.totalTimeSpent ?? 0)),
+        runningStartedAt: null,
+        isPaused: true,
+        activeBreak: {
+          id: createdBreak.id,
+          reasons: createdBreak.reasons,
+          reason: createdBreak.reason,
+          startedAt: createdBreak.startedAt,
+        },
+        serverNow: now.toISOString(),
+      },
+    },
+    201
+  );
 }

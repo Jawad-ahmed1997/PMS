@@ -22,7 +22,9 @@ export function NotificationCountsProvider({ children }) {
   const [counts, setCounts] = useState(DEFAULT_COUNTS);
 
   const refreshCounts = useCallback(async () => {
-    const response = await fetch("/api/notifications/unread-counts");
+    const response = await fetch("/api/notifications/unread-counts", {
+      cache: "no-store",
+    });
     if (!response.ok) {
       return;
     }
@@ -39,8 +41,22 @@ export function NotificationCountsProvider({ children }) {
 
   useEffect(() => {
     refreshCounts();
-    const interval = setInterval(refreshCounts, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(refreshCounts, 10000);
+
+    const handleRefresh = () => {
+      refreshCounts();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("pms:refresh-notifications", handleRefresh);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pms:refresh-notifications", handleRefresh);
+      }
+    };
   }, [refreshCounts]);
 
   const value = useMemo(

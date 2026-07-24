@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import authConfig from "./auth.config";
 import { prisma } from "@/lib/prisma";
 import { DUMMY_PASSWORD_HASH, verifyPassword } from "@/lib/auth/password";
 import { loginSchema } from "@/lib/auth/validation";
@@ -10,16 +11,9 @@ import { assertAuthConfiguration } from "@/lib/auth/env";
 
 assertAuthConfiguration();
 
-export const authConfig = {
+export const nodeAuthConfig = {
+  ...authConfig,
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "jwt", maxAge: 60 * 60 * 8 },
-  cookies: {
-    sessionToken: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}authjs.session-token`,
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" },
-    },
-  },
-  pages: { signIn: "/login" },
   providers: [Credentials({
     credentials: { email: {}, password: {} },
     async authorize(credentials, request) {
@@ -69,4 +63,4 @@ export const authConfig = {
   events: { async signOut(message) { await recordSecurityEvent("logout", { userId: message.token?.sub }); } },
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+export const { handlers, auth, signIn, signOut } = NextAuth(nodeAuthConfig);

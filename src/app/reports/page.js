@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/layout/PageHeader";
 import PlaceholderUpload from "@/components/ui/PlaceholderUpload";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { isAdminRole, normalizeRole } from "@/lib/api";
 
 const reports = [
@@ -80,19 +80,21 @@ export default async function ReportsPage() {
     const rangeStart = new Date();
     rangeStart.setDate(rangeStart.getDate() - 7);
 
-    const [activityCount, commentCount, hoursTotal] = await Promise.all([
+    const [activityCount, commentCount, durationTotal] = await Promise.all([
       prisma.activityLog.count({ where: { date: { gte: rangeStart } } }),
       prisma.comment.count({ where: { createdAt: { gte: rangeStart } } }),
       prisma.activityLog.aggregate({
         where: { date: { gte: rangeStart } },
-        _sum: { hoursSpent: true },
+        _sum: { durationSeconds: true },
       }),
     ]);
 
     activitySummary = {
       activityCount,
       commentCount,
-      hoursTotal: Number(hoursTotal?._sum?.hoursSpent ?? 0),
+      hoursTotal: Number(
+        ((durationTotal?._sum?.durationSeconds ?? 0) / 3600).toFixed(2)
+      ),
     };
   }
 
