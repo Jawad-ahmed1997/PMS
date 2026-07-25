@@ -22,7 +22,7 @@ export async function GET(request) {
   const taskId = searchParams.get("taskId");
 
   const where = {};
-  const canViewAll = ["CEO", "PM", "CTO"].includes(context.role);
+  const canViewAll = ["CEO", "PM", "CTO", "TEAM_LEAD"].includes(context.role);
 
   if (canViewAll && scope === "all") {
     if (userId) {

@@ -6,7 +6,7 @@ import { shiftDateKey } from "@/lib/dateKeys";
 import { zonedTimeToUtc } from "@/lib/attendanceTimes";
 
 const RANGE_OPTIONS = new Set(["daily", "weekly", "monthly"]);
-const LEADERSHIP_ROLES = new Set(["CEO", "PM", "CTO"]);
+const LEADERSHIP_ROLES = new Set(["CEO", "PM", "CTO", "TEAM_LEAD"]);
 
 function getRangeWindow(range) {
   const todayKey = getTodayInPSTDateString();

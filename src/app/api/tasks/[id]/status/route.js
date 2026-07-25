@@ -6,7 +6,7 @@ import {
   getAuthContext,
   isManagementRole,
 } from "@/lib/api";
-import { canTransition, getStatusLabel } from "@/lib/kanban";
+import { canTransition, getStatusLabel, isDeveloperOnlyTransition } from "@/lib/kanban";
 import { computeTaskSpentTime } from "@/lib/taskTimeCalculator";
 import {
   createNotification,
@@ -19,7 +19,22 @@ import {
   endWorkSession,
 } from "@/lib/taskWorkSessions";
 
+function dateKeyToUtcDate(dateKey) {
+  if (typeof dateKey !== "string") {
+    return null;
+  }
+  const match = dateKey.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  return new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  );
+}
+
 const ACTIVE_WORK_STATUSES = new Set(["IN_PROGRESS"]);
+// Statuses where the timer should be explicitly stopped
+const TIMER_STOP_STATUSES = new Set(["DEV_TEST", "TESTING", "ON_HOLD", "BLOCKED", "DONE", "REJECTED"]);
 const BLOCKED_TYPES = new Set(["CLIENT", "TEAM", "OTHER"]);
 const HOLD_REASONS = new Set(["SWITCH_TASK", "BREAK", "WAITING", "OTHER"]);
 
@@ -70,54 +85,50 @@ function canAccessTask(context, task) {
     return true;
   }
 
-  if (
-    !task.milestone?.project?.members?.some(
-      (member) => member.userId === context.user.id
-    )
-  ) {
-    return false;
+  // Task owners always have access to their own tasks,
+  // regardless of whether they are in the project members list.
+  if (task.ownerId === context.user.id) {
+    return true;
   }
 
-  return task.ownerId === context.user.id;
+  // Other project members (e.g. viewing/managing) must be listed explicitly.
+  return (
+    task.milestone?.project?.members?.some(
+      (member) => member.userId === context.user.id
+    ) ?? false
+  );
 }
 
-function canMoveTask(context, task) {
+function canMoveTask(context, task, toStatus = null) {
   if (!task) {
     return false;
   }
 
-  if (["PM", "CTO"].includes(context.role)) {
+  const isManagerRole = ["PM", "CTO", "TEAM_LEAD"].includes(context.role);
+  const isOwner = task.ownerId === context.user.id;
+
+  // Developer-only transitions: only the task owner can make these moves.
+  // PM/CTO are intentionally blocked so developers own their own workflow.
+  if (toStatus && isManagerRole && isDeveloperOnlyTransition(task.status, toStatus)) {
+    return isOwner;
+  }
+
+  if (isManagerRole) {
     return true;
   }
 
-  if (
-    !task.milestone?.project?.members?.some(
-      (member) => member.userId === context.user.id
-    )
-  ) {
-    return false;
+  // Task owners can always move their own tasks.
+  // Project membership is not required — ownership is the primary right.
+  if (isOwner) {
+    return true;
   }
 
-  return task.ownerId === context.user.id;
+  // Non-owners who are project members cannot move tasks.
+  return false;
 }
 
 function getActiveTimeLog(task) {
   return task?.timeLogs?.find((log) => !log.endedAt) ?? null;
-}
-
-function getDutyDateBounds(dutyDate) {
-  if (!dutyDate) {
-    return null;
-  }
-  const parsed = new Date(dutyDate);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  const start = new Date(parsed);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(parsed);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
 }
 
 export async function PATCH(request, { params }) {
@@ -142,10 +153,6 @@ export async function PATCH(request, { params }) {
     return buildError("You do not have permission to update this task.", 403);
   }
 
-  if (!canMoveTask(context, task)) {
-    return buildError("You do not have permission to move this task.", 403);
-  }
-
   const body = await request.json();
   const nextStatus = body?.toStatus ?? body?.status;
   const blockedReason = body?.blockedReason?.trim?.() || "";
@@ -155,6 +162,15 @@ export async function PATCH(request, { params }) {
 
   if (!nextStatus) {
     return buildError("Task status is required.", 400);
+  }
+
+  if (!canMoveTask(context, task, nextStatus)) {
+    return buildError(
+      isDeveloperOnlyTransition(task.status, nextStatus)
+        ? "Only the assigned developer can move their task through this stage."
+        : "You do not have permission to move this task.",
+      403
+    );
   }
 
   if (nextStatus === task.status) {
@@ -198,7 +214,7 @@ export async function PATCH(request, { params }) {
   }
 
   const updates = {
-    status: nextStatus,
+    status: nextStatus === "REJECTED" ? "READY" : nextStatus,
     blockedReason: null,
     blockedType: null,
     holdReason: null,
@@ -219,19 +235,23 @@ export async function PATCH(request, { params }) {
     updates.reworkCount = task.reworkCount + 1;
   }
 
-  const now = getTimeZoneNow();
+  const now = new Date();
   const shouldTrackWork = ACTIVE_WORK_STATUSES.has(nextStatus);
   const wasTrackingWork = ACTIVE_WORK_STATUSES.has(task.status);
+  // When moving back to IN_PROGRESS from DEV_TEST (or any non-active status),
+  // we want to restart the timer — shouldTrackWork already handles this.
+  const isReturningToProgress = nextStatus === "IN_PROGRESS" && !wasTrackingWork;
+  const isMovingToDevTest = nextStatus === "DEV_TEST";
   if (shouldTrackWork) {
     const dutyDate = getDutyDate(now);
-    const bounds = getDutyDateBounds(dutyDate);
-    if (!bounds) {
+    const targetDate = dateKeyToUtcDate(dutyDate);
+    if (!targetDate) {
       return buildError("Unable to determine duty date.", 400);
     }
     const attendance = await prisma.attendance.findFirst({
       where: {
         userId: task.ownerId,
-        date: { gte: bounds.start, lte: bounds.end },
+        date: targetDate,
       },
       select: { inTime: true, outTime: true },
     });
@@ -273,10 +293,7 @@ export async function PATCH(request, { params }) {
           },
         });
 
-        await tx.task.update({
-          where: { id: taskId },
-          data: updates,
-        });
+        const transactionUpdates = { ...updates };
 
         let autoHeldTask = null;
         if (nextStatus === "IN_PROGRESS") {
@@ -351,7 +368,7 @@ export async function PATCH(request, { params }) {
         });
 
         if (shouldTrackWork && !wasTrackingWork) {
-          await endActiveSessionsAtTime(tx, task.ownerId, now);
+          await endActiveSessionsAtTime(tx, task.ownerId, now, autoHeldTask?.id || null);
           await tx.taskWorkSession.create({
             data: {
               taskId,
@@ -362,22 +379,76 @@ export async function PATCH(request, { params }) {
               source: "AUTO",
             },
           });
-          await tx.task.update({
-            where: { id: taskId },
-            data: { lastStartedAt: now },
-          });
+          transactionUpdates.lastStartedAt = now;
         } else if (!shouldTrackWork && wasTrackingWork) {
           const activeSession = currentTask?.workSessions?.[0] ?? null;
           if (activeSession) {
-            await endWorkSession({
-              prismaClient: tx,
-              session: activeSession,
-              endedAt: now,
-              includeBreaks: true,
+            let durationSeconds = 0;
+            const endTime = new Date(now);
+            const startTime = new Date(activeSession.startedAt);
+            if (
+              Number.isFinite(endTime.getTime()) &&
+              Number.isFinite(startTime.getTime()) &&
+              endTime > startTime
+            ) {
+              const activeBreaks = await tx.taskBreak.findMany({
+                where: {
+                  taskId: activeSession.taskId,
+                  userId: activeSession.userId,
+                  endedAt: null,
+                },
+              });
+              await Promise.all(
+                activeBreaks.map((brk) => {
+                  const brkStart = new Date(brk.startedAt);
+                  if (Number.isNaN(brkStart.getTime()) || brkStart > endTime) {
+                    return brk;
+                  }
+                  return tx.taskBreak.update({
+                    where: { id: brk.id },
+                    data: {
+                      endedAt: endTime,
+                      durationSeconds: Math.max(
+                        0,
+                        Math.floor((endTime.getTime() - brkStart.getTime()) / 1000)
+                      ),
+                    },
+                  });
+                })
+              );
+
+              const endedBreaks = await tx.taskBreak.findMany({
+                where: {
+                  taskId: activeSession.taskId,
+                  userId: activeSession.userId,
+                  startedAt: { gte: startTime, lte: endTime },
+                  endedAt: { not: null },
+                },
+              });
+              const breakSeconds = (endedBreaks ?? []).reduce(
+                (acc, b) => acc + (b.durationSeconds ?? 0),
+                0
+              );
+              const sessionSeconds = Math.max(
+                0,
+                Math.floor((endTime.getTime() - startTime.getTime()) / 1000)
+              );
+              durationSeconds = Math.max(0, sessionSeconds - breakSeconds);
+            }
+
+            await tx.taskWorkSession.update({
+              where: { id: activeSession.id },
+              data: {
+                endedAt: endTime,
+                durationSeconds,
+              },
             });
+
+            transactionUpdates.totalTimeSpent = { increment: durationSeconds };
+            transactionUpdates.lastStartedAt = null;
           }
         } else if (shouldTrackWork && !currentTask?.workSessions?.length) {
-          await endActiveSessionsAtTime(tx, task.ownerId, now);
+          await endActiveSessionsAtTime(tx, task.ownerId, now, autoHeldTask?.id || null);
           await tx.taskWorkSession.create({
             data: {
               taskId,
@@ -388,24 +459,16 @@ export async function PATCH(request, { params }) {
               source: "AUTO",
             },
           });
-          await tx.task.update({
-            where: { id: taskId },
-            data: { lastStartedAt: now },
-          });
+          transactionUpdates.lastStartedAt = now;
         }
 
-        if (autoHeldTask) {
-          await tx.task.update({
-            where: { id: autoHeldTask.id },
-            data: {
-              status: "ON_HOLD",
-              holdReason: "SWITCH_TASK",
-              holdNote: "Auto moved to ON_HOLD because user started another task",
-              blockedReason: null,
-              blockedType: null,
-            },
-          });
+        // Single, combined update to the current task document to prevent WriteConflictError
+        await tx.task.update({
+          where: { id: taskId },
+          data: transactionUpdates,
+        });
 
+        if (autoHeldTask) {
           const autoHeldActiveLog = getActiveTimeLog(autoHeldTask);
           if (autoHeldActiveLog) {
             await tx.taskTimeLog.update({
@@ -414,15 +477,83 @@ export async function PATCH(request, { params }) {
             });
           }
 
+          let durationSeconds = 0;
           const autoHeldSession = autoHeldTask?.workSessions?.[0] ?? null;
           if (autoHeldSession) {
-            await endWorkSession({
-              prismaClient: tx,
-              session: autoHeldSession,
-              endedAt: now,
-              includeBreaks: true,
+            const endTime = new Date(now);
+            const startTime = new Date(autoHeldSession.startedAt);
+            if (
+              Number.isFinite(endTime.getTime()) &&
+              Number.isFinite(startTime.getTime()) &&
+              endTime > startTime
+            ) {
+              const activeBreaks = await tx.taskBreak.findMany({
+                where: {
+                  taskId: autoHeldSession.taskId,
+                  userId: autoHeldSession.userId,
+                  endedAt: null,
+                },
+              });
+              await Promise.all(
+                activeBreaks.map((brk) => {
+                  const brkStart = new Date(brk.startedAt);
+                  if (Number.isNaN(brkStart.getTime()) || brkStart > endTime) {
+                    return brk;
+                  }
+                  return tx.taskBreak.update({
+                    where: { id: brk.id },
+                    data: {
+                      endedAt: endTime,
+                      durationSeconds: Math.max(
+                        0,
+                        Math.floor((endTime.getTime() - brkStart.getTime()) / 1000)
+                      ),
+                    },
+                  });
+                })
+              );
+
+              const endedBreaks = await tx.taskBreak.findMany({
+                where: {
+                  taskId: autoHeldSession.taskId,
+                  userId: autoHeldSession.userId,
+                  startedAt: { gte: startTime, lte: endTime },
+                  endedAt: { not: null },
+                },
+              });
+              const breakSeconds = (endedBreaks ?? []).reduce(
+                (acc, b) => acc + (b.durationSeconds ?? 0),
+                0
+              );
+              const sessionSeconds = Math.max(
+                0,
+                Math.floor((endTime.getTime() - startTime.getTime()) / 1000)
+              );
+              durationSeconds = Math.max(0, sessionSeconds - breakSeconds);
+            }
+
+            await tx.taskWorkSession.update({
+              where: { id: autoHeldSession.id },
+              data: {
+                endedAt: endTime,
+                durationSeconds,
+              },
             });
           }
+
+          // Single, combined update to the task document to prevent WriteConflictError
+          await tx.task.update({
+            where: { id: autoHeldTask.id },
+            data: {
+              status: "ON_HOLD",
+              holdReason: "SWITCH_TASK",
+              holdNote: "Auto moved to ON_HOLD because user started another task",
+              blockedReason: null,
+              blockedType: null,
+              totalTimeSpent: { increment: durationSeconds },
+              lastStartedAt: null,
+            },
+          });
 
           await tx.activityLog.create({
             data: {

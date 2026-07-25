@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "../../auth";
 import { prisma } from "@/lib/prisma";
 
-export const ADMIN_ROLES = ["CEO", "PM", "CTO", "SENIOR_DEVELOPER"];
-export const PROJECT_MANAGEMENT_ROLES = ["CEO", "PM", "CTO"];
-export const WORK_ITEM_CREATION_ROLES = ["PM", "CTO"];
-export const USER_CREATION_ROLES = ["CEO", "PM", "CTO"];
+export const ADMIN_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD", "SENIOR_DEVELOPER"];
+export const PROJECT_MANAGEMENT_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD"];
+export const WORK_ITEM_CREATION_ROLES = ["PM", "CTO", "TEAM_LEAD"];
+export const USER_CREATION_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD"];
 export const ALL_ROLES = [...ADMIN_ROLES, "DEVELOPER", "INTERN", "JUNIOR_INTERN"];
 
 export function normalizeRole(role) {
@@ -26,6 +26,10 @@ export function normalizeRole(role) {
 
   if (cleaned === "DEV") {
     return "DEVELOPER";
+  }
+
+  if (cleaned === "TEAM_LEAD") {
+    return "TEAM_LEAD";
   }
 
   return cleaned;
@@ -110,5 +114,5 @@ export function isAdminRole(role) {
 }
 
 export function isManagementRole(role) {
-  return ["PM", "CTO"].includes(role);
+  return ["PM", "CTO", "TEAM_LEAD"].includes(role);
 }

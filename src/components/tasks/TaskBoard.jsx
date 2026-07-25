@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
-import { TASK_STATUSES, getNextStatuses, getStatusLabel } from "@/lib/kanban";
+import { TASK_STATUSES, getNextStatuses, getStatusLabel, isDeveloperOnlyTransition, isManagementOnlyTransition } from "@/lib/kanban";
 import { canMarkTaskDone, normalizeRoleId, roles } from "@/lib/roles";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -366,7 +366,7 @@ export default function TaskBoard({
   const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
 
   const isManager = useMemo(
-    () => [roles.PM, roles.CTO, roles.CEO].includes(normalizedRole),
+    () => [roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole),
     [normalizedRole]
   );
 
@@ -486,12 +486,13 @@ export default function TaskBoard({
       return;
     }
 
-    if (!canMoveTaskForTask(task)) {
-      addToast({
-        title: "Move blocked",
-        message: "You can only move tasks assigned to you.",
-        variant: "error",
-      });
+    if (!canMoveTaskForTask(task, nextStatus)) {
+      const message = isManagementOnlyTransition(task.status, nextStatus)
+        ? "Only PMs, CTOs, or Team Leads can move tasks from Backlog to Ready."
+        : isDeveloperOnlyTransition(task.status, nextStatus)
+        ? "Only the assigned developer can move their task through this stage."
+        : "You can only move tasks assigned to you.";
+      addToast({ title: "Move blocked", message, variant: "error" });
       return;
     }
 
@@ -593,6 +594,21 @@ export default function TaskBoard({
         });
       }
 
+      // Timer status toasts
+      if (nextStatus === "DEV_TEST") {
+        addToast({
+          title: "⏱ Timer stopped",
+          message: "Task moved to Dev Test — timer has been paused.",
+          variant: "info",
+        });
+      } else if (nextStatus === "IN_PROGRESS" && task.status === "DEV_TEST") {
+        addToast({
+          title: "⏱ Timer restarted",
+          message: "Task returned to In Progress — timer is running again.",
+          variant: "success",
+        });
+      }
+
       setColumnPrefs((prev) => {
         const current = prev?.[nextStatus] ?? {};
         const expandedWidth = clampExpandedWidth(
@@ -612,7 +628,32 @@ export default function TaskBoard({
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
-        window.dispatchEvent(new CustomEvent("pms:timer-changed"));
+        
+        let activeSessionPayload = null;
+        if (nextStatus === "IN_PROGRESS" && data?.task) {
+          activeSessionPayload = {
+            active: true,
+            task: {
+              id: data.task.id,
+              title: data.task.title,
+              estimatedSeconds: Math.round((data.task.estimatedHours ?? 0) * 3600),
+              status: data.task.status,
+              milestoneId: data.task.milestoneId,
+              projectId: data.task.milestone?.projectId ?? null,
+            },
+            accumulatedSeconds: data.task.spentTimeSeconds ?? 0,
+            runningStartedAt: data.task.lastStartedAt,
+            isPaused: false,
+            activeBreak: null,
+            serverNow: new Date().toISOString(),
+          };
+        }
+
+        window.dispatchEvent(
+          new CustomEvent("pms:timer-changed", {
+            detail: { activeSession: activeSessionPayload },
+          })
+        );
       }
     } catch (error) {
       setTaskItems(previousTaskItems);
@@ -929,16 +970,28 @@ export default function TaskBoard({
     return isManager || isTaskOwner(task);
   };
 
-  const canMoveTaskForTask = (task) => {
+  const canMoveTaskForTask = (task, toStatus = null) => {
     if (!currentUserId || !task) {
       return false;
     }
 
-    if ([roles.PM, roles.CTO, roles.CEO].includes(normalizedRole)) {
-      return true;
+    const isManagerRole = [roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole);
+    const isOwner = task.ownerId === currentUserId;
+
+    if (toStatus) {
+      // Management-only transitions (e.g. BACKLOG → READY)
+      // Assignees cannot self-promote tasks out of the backlog.
+      if (isManagementOnlyTransition(task.status, toStatus) && !isManagerRole) {
+        return false;
+      }
+      // Developer-only transitions — managers cannot drag tasks through these
+      // unless they are also the assignee.
+      if (isDeveloperOnlyTransition(task.status, toStatus) && isManagerRole && !isOwner) {
+        return false;
+      }
     }
 
-    return task.ownerId === currentUserId;
+    return isManagerRole || isOwner;
   };
 
   const canRequestMoreTime = (task) => {
@@ -950,9 +1003,11 @@ export default function TaskBoard({
   };
 
   const canControlBreaks = (task) =>
-    isTaskOwner(task) && ![roles.PM, roles.CTO, roles.CEO].includes(normalizedRole);
+    isTaskOwner(task) && ![roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole);
 
   const handleDragStart = (event, task) => {
+    // For developer-only transitions we need the target column, which we don't
+    // know yet at drag-start. We allow the drag to begin and block at drop.
     if (!canMoveTaskForTask(task)) {
       event.preventDefault();
       addToast({
@@ -982,12 +1037,13 @@ export default function TaskBoard({
       return;
     }
 
-    if (!canMoveTaskForTask(task)) {
-      addToast({
-        title: "Move blocked",
-        message: "You can only move tasks assigned to you.",
-        variant: "error",
-      });
+    if (!canMoveTaskForTask(task, statusId)) {
+      const message = isManagementOnlyTransition(task.status, statusId)
+        ? "Only PMs, CTOs, or Team Leads can move tasks from Backlog to Ready."
+        : isDeveloperOnlyTransition(task.status, statusId)
+        ? "Only the assigned developer can move their task through this stage."
+        : "You can only move tasks assigned to you.";
+      addToast({ title: "Move blocked", message, variant: "error" });
       return;
     }
 
@@ -1390,6 +1446,11 @@ export default function TaskBoard({
                         )}
                         {task.status === "ON_HOLD" && task.holdReason && (
                           <span className="rounded border border-amber-500/40 px-1.5 py-0.5 text-[10px] text-amber-300">⏸ {task.holdReason}</span>
+                        )}
+                        {Number(task.reworkCount ?? 0) > 0 && (
+                          <span className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400">
+                            ⚠️ Rework ({task.reworkCount})
+                          </span>
                         )}
                       </div>
                       {/* Custom Subtasks Mini List */}

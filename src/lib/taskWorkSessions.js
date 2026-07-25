@@ -113,7 +113,7 @@ export async function endWorkSession({
   return updatedSession;
 }
 
-export async function endActiveSessionsAtTime(prismaClient, userId, endedAt) {
+export async function endActiveSessionsAtTime(prismaClient, userId, endedAt, excludeTaskId = null) {
   if (!userId || !endedAt) {
     return [];
   }
@@ -122,13 +122,19 @@ export async function endActiveSessionsAtTime(prismaClient, userId, endedAt) {
     return [];
   }
 
+  const where = {
+    userId,
+    endedAt: null,
+    source: "AUTO",
+    startedAt: { lte: cutoffTime },
+  };
+
+  if (excludeTaskId) {
+    where.taskId = { not: excludeTaskId };
+  }
+
   const activeSessions = await prismaClient.taskWorkSession.findMany({
-    where: {
-      userId,
-      endedAt: null,
-      source: "AUTO",
-      startedAt: { lte: cutoffTime },
-    },
+    where,
   });
 
   const ended = [];
