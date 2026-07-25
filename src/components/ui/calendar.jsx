@@ -12,9 +12,9 @@ export function Calendar({ className, classNames, ...props }) {
       classNames={{
         months: "flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex items-center justify-between px-1",
+        caption: "relative flex min-h-16 flex-col items-center justify-end gap-2 px-1 pb-1",
         caption_label: "text-sm font-semibold",
-        nav: "flex items-center gap-1",
+        nav: "absolute left-1/2 top-2 flex -translate-x-1/2 ml-20 items-center justify-center gap-2",
         button_previous: "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         button_next: "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         month_grid: "w-full border-collapse",

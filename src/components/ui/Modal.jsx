@@ -29,12 +29,12 @@ export default function Modal({
     <DialogRoot open={isOpen} onOpenChange={(open) => !open && onClose?.()}>
       <DialogPortal>
         <DialogOverlay />
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[85vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </DialogHeader>
-          <div className="mt-6">{children}</div>
+          <div className="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">{children}</div>
         </DialogContent>
       </DialogPortal>
     </DialogRoot>

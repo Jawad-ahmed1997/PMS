@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog } from "@/components/ui/dialog";
-import { Info } from "lucide-react";
+import { Check, ChevronDown, Info, Search, X } from "lucide-react";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
 import PageHeader from "@/components/layout/PageHeader";
@@ -12,9 +12,32 @@ import useOutsideClick from "@/hooks/useOutsideClick";
 import AnalyticsResults from "@/components/analytics/AnalyticsResults";
 import DailyTimelineChart from "@/components/analytics/DailyTimelineChart";
 import ClientOnly from "@/components/ui/ClientOnly";
-import { Select } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 import {
   DEFAULT_TIME_ZONE,
   formatDateInTimeZone,
@@ -60,6 +83,80 @@ function formatDateOnly(value) {
 
 function formatTimeOnly(value) {
   return formatTimeInTimeZone(value, DEFAULT_TIME_ZONE) ?? "";
+}
+
+function formatDateInputValue(date) {
+  if (!date) return "";
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function TimePicker({ name, value, onChange, disabled }) {
+  const [hours = "", minutes = "", period = ""] = value?.match(/^(\d{2}):(\d{2})$/)?.slice(1) ?? [];
+  const hour24 = Number(hours);
+  const displayHour = hour24 ? ((hour24 + 11) % 12) + 1 : "";
+  const displayPeriod = hour24 ? (hour24 >= 12 ? "PM" : "AM") : "";
+  const emitChange = (nextHour, nextMinute, nextPeriod) => {
+    if (!nextHour || !nextMinute || !nextPeriod) return;
+    let hour = Number(nextHour) % 12;
+    if (nextPeriod === "PM") hour += 12;
+    onChange({ target: { name, value: `${String(hour).padStart(2, "0")}:${nextMinute}` } });
+  };
+
+  const updatePart = (part, nextValue) => {
+    const nextHour = part === "hour" ? nextValue : displayHour;
+    const nextMinute = part === "minute" ? nextValue : minutes;
+    const nextPeriod = part === "period" ? nextValue : displayPeriod;
+    emitChange(nextHour, nextMinute, nextPeriod);
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" disabled={disabled} className="w-full justify-between font-normal">
+          {value || "Select time"}
+          <span className="text-xs text-muted-foreground">Clock</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto min-w-[18rem] p-3">
+        <div className="grid grid-cols-[1fr_auto_1fr_auto] items-end gap-2">
+          <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+            Hour
+            <Select value={displayHour ? String(displayHour) : undefined} onValueChange={(next) => updatePart("hour", next)}>
+              <SelectTrigger><SelectValue placeholder="HH" /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
+                  <SelectItem key={hour} value={String(hour)}>{String(hour).padStart(2, "0")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <span className="pb-2 text-muted-foreground">:</span>
+          <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+            Minute
+            <Select value={minutes || undefined} onValueChange={(next) => updatePart("minute", next)}>
+              <SelectTrigger><SelectValue placeholder="MM" /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, "0")).map((minute) => (
+                  <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+            Period
+            <Select value={displayPeriod || undefined} onValueChange={(next) => updatePart("period", next)}>
+              <SelectTrigger><SelectValue placeholder="AM" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="AM">AM</SelectItem>
+                <SelectItem value="PM">PM</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function getManualStatus(log) {
@@ -139,12 +236,14 @@ const ActivityMenu = ({ items }) => {
   return (
     <div className="relative" ref={menuRef}>
       <Button
+        variant="outline"
+        size="icon"
         type="button"
         onClick={(event) => {
           event.stopPropagation();
           setIsOpen((prev) => !prev);
         }}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
+        className="h-8 w-8 rounded-full text-[color:var(--color-text-muted)]"
         aria-label="Activity actions"
         title="Activity actions"
         aria-expanded={isOpen}
@@ -158,7 +257,7 @@ const ActivityMenu = ({ items }) => {
           onClick={(event) => event.stopPropagation()}
         >
           {items.map((item) => (
-            <button
+            <Button
               key={item.label}
               type="button"
               onClick={(event) => {
@@ -166,15 +265,44 @@ const ActivityMenu = ({ items }) => {
                 setIsOpen(false);
                 item.onClick?.();
               }}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)] ${item.variant === "danger" ? "text-rose-400" : ""
+              variant={item.variant === "danger" ? "destructive" : "ghost"}
+              className={`h-auto w-full justify-start rounded-md px-2 py-2 text-left text-xs ${item.variant === "danger" ? "" : "text-[color:var(--color-text)]"
                 }`}
             >
               <span>{item.label}</span>
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
     </div>
+  );
+};
+
+const ActivityActionMenu = ({ items }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  if (!items?.length) return null;
+  return (
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" type="button" className="h-8 w-8 rounded-full text-[color:var(--color-text-muted)]" aria-label="Activity actions">
+          <span className="text-lg leading-none">⋮</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        {items.map((item) => (
+          <DropdownMenuItem
+            key={item.label}
+            onSelect={() => {
+              setIsOpen(false);
+              item.onClick?.();
+            }}
+            className={item.variant === "danger" ? "text-destructive focus:text-destructive" : ""}
+          >
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
@@ -198,7 +326,6 @@ export default function ActivityDashboard({
   const [logDialog, setLogDialog] = useState({ open: false, mode: "create" });
   const [activeLog, setActiveLog] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
-  const userMenuRef = useRef(null);
   const categoryMenuRef = useRef(null);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState("");
@@ -212,7 +339,6 @@ export default function ActivityDashboard({
     taskId: "",
   });
 
-  useOutsideClick(userMenuRef, () => setIsUserMenuOpen(false), isUserMenuOpen);
   useOutsideClick(
     categoryMenuRef,
     () => setIsCategoryMenuOpen(false),
@@ -545,7 +671,7 @@ export default function ActivityDashboard({
         actions={
           <Button
             label="Manual Log Activity"
-            variant="success"
+            variant="default"
             onClick={openCreateLogModal}
           />
         }
@@ -553,45 +679,53 @@ export default function ActivityDashboard({
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-4">
         <div className="flex flex-wrap items-center gap-2">
-          {badgeOptions.map((badge) => (
-            <Button
-              key={badge.id}
-              type="button"
-              onClick={() => setActiveBadge(badge.id)}
-              className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition ${activeBadge === badge.id
-                ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
-                : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
-                }`}
-            >
-              <span>{badge.label}</span>
-              <span className="rounded-full bg-[color:var(--color-muted-bg)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--color-text-muted)]">
-                {badgeCounts[badge.id] ?? 0}
-              </span>
-            </Button>
-          ))}
+          <ToggleGroup type="single" value={activeBadge} onValueChange={(value) => value && setActiveBadge(value)}>
+            {badgeOptions.map((badge) => (
+              <ToggleGroupItem key={badge.id} value={badge.id}>
+                <span>{badge.label}</span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                  {badgeCounts[badge.id] ?? 0}
+                </span>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
           <div className="ml-2">
-            <Select
-              value={period}
-              onChange={(event) => setPeriod(event.target.value)}
-              className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]"
-            >
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger className="h-9 w-[7.5rem] rounded-lg border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
               {periodOptions.map((option) => (
-                <option key={option.id} value={option.id}>
+                <SelectItem key={option.id} value={option.id}>
                   {option.label}
-                </option>
+                </SelectItem>
               ))}
+              </SelectContent>
             </Select>
           </div>
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(event) => setSelectedDate(event.target.value)}
-            className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-xs font-semibold text-[color:var(--color-text-muted)]"
-          />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9 rounded-lg px-3 text-xs font-semibold text-muted-foreground">
+                {selectedDate || "Select date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2">
+              <Calendar
+                mode="single"
+                selected={selectedDate ? new Date(`${selectedDate}T00:00:00`) : undefined}
+                onSelect={(date) => {
+                  if (date) setSelectedDate(formatDateInputValue(date));
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         {isManager ? (
-          <div className="relative w-full max-w-xs" ref={userMenuRef}>
+          <Popover open={isUserMenuOpen} onOpenChange={setIsUserMenuOpen}>
+            <PopoverAnchor asChild>
+            <div className="relative w-full max-w-xs">
             <Input
               value={userQuery}
               onChange={(event) => {
@@ -602,9 +736,11 @@ export default function ActivityDashboard({
                 }
               }}
               onFocus={() => setIsUserMenuOpen(true)}
+              onClick={() => setIsUserMenuOpen(true)}
               placeholder="Search user"
-              className="w-full rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-4 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+              className="w-full rounded-lg border-[color:var(--color-border)] pl-10 pr-10 text-sm text-[color:var(--color-text)]"
             />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             {selectedUser ? (
               <Button
                 type="button"
@@ -613,40 +749,40 @@ export default function ActivityDashboard({
                   setUserQuery("");
                   setIsUserMenuOpen(false);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--color-text-muted)]"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-[color:var(--color-text-muted)]"
                 aria-label="Clear user filter"
               >
                 ×
               </Button>
             ) : null}
-            {isUserMenuOpen ? (
-              <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
-                {filteredUsers.length ? (
-                  filteredUsers.map((user) => (
-                    <Button
+            </div>
+            </PopoverAnchor>
+            <PopoverContent align="end" className="w-[min(20rem,calc(100vw-2rem))] p-0">
+              <Command value={userQuery} onValueChange={setUserQuery}>
+                <CommandInput placeholder="Search users" autoFocus />
+                <CommandGroup className="max-h-56 overflow-y-auto">
+                  {filteredUsers.map((user) => (
+                    <CommandItem
                       key={user.id}
-                      type="button"
-                      onClick={() => {
+                      value={`${user.name} ${user.email}`}
+                      onSelect={() => {
                         setSelectedUser(user);
                         setUserQuery(user.name);
                         setIsUserMenuOpen(false);
                       }}
-                      className="flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
+                      className="flex flex-col items-start gap-1"
                     >
                       <span className="text-sm font-semibold">{user.name}</span>
-                      <span className="text-[11px] text-[color:var(--color-text-subtle)]">
-                        {user.role}
-                      </span>
-                    </Button>
-                  ))
-                ) : (
-                  <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
-                    No users found.
-                  </p>
-                )}
-              </div>
-            ) : null}
-          </div>
+                      <span className="text-[11px] text-muted-foreground">{user.role}</span>
+                    </CommandItem>
+                  ))}
+                  <CommandEmpty>No users found.</CommandEmpty>
+                </CommandGroup>
+              </Command>
+            </PopoverContent>
+          </Popover>
         ) : null}
       </div>
 
@@ -755,7 +891,7 @@ export default function ActivityDashboard({
                           Running
                         </span>
                       ) : null}
-                      <ActivityMenu
+                      <ActivityActionMenu
                         items={
                           isManualLog
                             ? [
@@ -849,12 +985,12 @@ export default function ActivityDashboard({
                 ref={categoryMenuRef}
               >
                 Categories
-                <div className="relative">
-                  <button
+                <Popover open={isCategoryMenuOpen} onOpenChange={setIsCategoryMenuOpen}>
+                  <PopoverTrigger asChild>
+                  <Button
                     type="button"
-                    onClick={() => setIsCategoryMenuOpen((prev) => !prev)}
-                    className="flex min-h-[42px] w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-left text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
-                    aria-expanded={isCategoryMenuOpen}
+                    variant="outline"
+                    className="min-h-[42px] w-full flex-wrap justify-between gap-2 rounded-xl bg-[color:var(--color-input)] px-3 py-2 text-left text-sm font-normal text-[color:var(--color-text)]"
                     aria-haspopup="listbox"
                   >
                     <div className="flex flex-wrap gap-2">
@@ -873,18 +1009,16 @@ export default function ActivityDashboard({
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-[color:var(--color-text-muted)]">
-                      ▾
-                    </span>
-                  </button>
-                  {isCategoryMenuOpen ? (
-                    <div className="absolute z-20 mt-2 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 shadow-xl">
-                      <input
+                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2">
+                      <Input
                         type="text"
                         value={categoryQuery}
                         onChange={(event) => setCategoryQuery(event.target.value)}
                         placeholder="Search categories"
-                        className="mb-2 w-full rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-xs text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+                        className="mb-2 h-9 text-xs"
                       />
                       <div className="max-h-40 space-y-1 overflow-y-auto pr-1 hide-scrollbar">
                         {filteredCategories.length ? (
@@ -893,11 +1027,12 @@ export default function ActivityDashboard({
                               category.id
                             );
                             return (
-                              <button
+                              <Button
                                 key={category.id}
                                 type="button"
                                 onClick={() => toggleCategory(category.id)}
-                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs ${isSelected
+                                variant="ghost"
+                                className={`flex h-auto w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs ${isSelected
                                   ? "bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
                                   : "text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
                                   }`}
@@ -906,11 +1041,9 @@ export default function ActivityDashboard({
                               >
                                 <span>{category.label}</span>
                                 {isSelected ? (
-                                  <span className="text-[10px] font-semibold">
-                                    Selected
-                                  </span>
+                                  <Check className="h-3.5 w-3.5" />
                                 ) : null}
-                              </button>
+                              </Button>
                             );
                           })
                         ) : (
@@ -919,9 +1052,8 @@ export default function ActivityDashboard({
                           </p>
                         )}
                       </div>
-                    </div>
-                  ) : null}
-                </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="flex items-center gap-1.5 text-xs text-[color:var(--color-text-muted)]">
@@ -933,33 +1065,42 @@ export default function ActivityDashboard({
                     </div>
                   </div>
                 </label>
-                <input
-                  type="date"
-                  name="date"
-                  value={logForm.date}
-                  onChange={handleLogChange}
-                  disabled={logDialog.mode === "edit"}
-                  min={dateBounds.min ?? undefined}
-                  max={dateBounds.max ?? undefined}
-                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={logDialog.mode === "edit"}
+                      className="w-full justify-start font-normal"
+                    >
+                      {logForm.date || "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2">
+                    <Calendar
+                      mode="single"
+                      selected={logForm.date ? new Date(`${logForm.date}T00:00:00`) : undefined}
+                      disabled={[
+                        ...(dateBounds.min ? [{ before: new Date(`${dateBounds.min}T00:00:00`) }] : []),
+                        ...(dateBounds.max ? [{ after: new Date(`${dateBounds.max}T00:00:00`) }] : []),
+                      ]}
+                      onSelect={(date) => {
+                        if (date) {
+                          handleLogChange({ target: { name: "date", value: formatDateInputValue(date) } });
+                        }
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Start time
-                <Input
-                  type="number"
-                  name="hoursSpent"
-                  min="0"
-                  step="0.25"
-                  value={logForm.hoursSpent}
+                <TimePicker
+                  name="startTime"
+                  value={logForm.startTime}
                   onChange={handleLogChange}
                   disabled={logDialog.mode === "edit"}
-                  max={
-                    logForm.date === getManualTodayDateKey()
-                      ? formatTimeOnly(new Date())
-                      : undefined
-                  }
-                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
                 />
               </label>
               <div className="flex flex-col gap-1">
@@ -972,17 +1113,10 @@ export default function ActivityDashboard({
                     </div>
                   </div>
                 </label>
-                <input
-                  type="time"
+                <TimePicker
                   name="endTime"
                   value={logForm.endTime}
                   onChange={handleLogChange}
-                  max={
-                    logForm.date === getManualTodayDateKey()
-                      ? formatTimeOnly(new Date())
-                      : undefined
-                  }
-                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
                 />
               </div>
             </div>

@@ -4,12 +4,18 @@ import { useMemo } from "react";
 import {
   Bar,
   BarChart,
-  Legend,
+  CartesianGrid,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 
 function formatDuration(seconds) {
   if (!seconds || seconds <= 0) {
@@ -35,24 +41,11 @@ function formatDayLabel(value) {
   return date.toLocaleDateString([], { weekday: "short", day: "numeric" });
 }
 
-function CustomTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) {
-    return null;
-  }
-  const entry = payload[0]?.payload;
-  return (
-    <div className="rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
-      <p className="text-xs font-semibold text-popover-foreground">
-        {formatDayLabel(label)}
-      </p>
-      <div className="mt-2 space-y-1 text-muted-foreground">
-        <p>Work: {formatDuration(entry.workSeconds)}</p>
-        <p>Break: {formatDuration(entry.breakSeconds)}</p>
-        <p>Idle: {formatDuration(entry.idleSeconds)}</p>
-      </div>
-    </div>
-  );
-}
+const chartConfig = {
+  workSeconds: { label: "Work", color: "var(--color-work)" },
+  breakSeconds: { label: "Break", color: "var(--color-break)" },
+  idleSeconds: { label: "Idle", color: "var(--color-idle)" },
+};
 
 export default function WorkstackChart({ perDay, minWidth }) {
   const data = useMemo(() => {
@@ -65,48 +58,67 @@ export default function WorkstackChart({ perDay, minWidth }) {
   }, [perDay]);
 
   return (
-    <div className="h-64 w-full overflow-x-auto rounded-lg bg-muted/20 p-2">
+    <div className="h-72 w-full overflow-x-auto rounded-xl border border-border/60 bg-muted/10 p-3">
       <div style={{ minWidth: minWidth ?? "100%", height: "100%" }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartContainer config={chartConfig} className="h-full min-h-0 aspect-auto">
+          <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
-            barSize={24}
-            margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+            barSize={28}
+            barGap={8}
+            margin={{ top: 12, right: 20, left: 4, bottom: 12 }}
           >
+            <CartesianGrid vertical={false} stroke="var(--color-border)" strokeOpacity={0.55} strokeDasharray="3 5" />
             <XAxis
               dataKey="date"
               tickFormatter={formatDayLabel}
-              tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+              tickMargin={10}
+              tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
             />
             <YAxis
               tickFormatter={(value) => formatDuration(value)}
-              tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+              tickMargin={8}
+              tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
             />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
+            <ChartTooltip
+              cursor={{ fill: "var(--color-muted-bg)" }}
+              content={<ChartTooltipContent labelFormatter={(label) => formatDayLabel(label)} formatter={(value) => formatDuration(value)} />}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
             <Bar
               dataKey="workSeconds"
               stackId="day"
               fill="var(--color-work)"
               name="Work"
-              radius={0}
+              radius={[5, 5, 0, 0]}
+              animationDuration={520}
+              animationEasing="ease-out"
             />
             <Bar
               dataKey="breakSeconds"
               stackId="day"
               fill="var(--color-break)"
               name="Break"
-              radius={0}
+              radius={[5, 5, 0, 0]}
+              animationDuration={520}
+              animationEasing="ease-out"
             />
             <Bar
               dataKey="idleSeconds"
               stackId="day"
               fill="var(--color-idle)"
               name="Idle"
-              radius={0}
+              radius={[5, 5, 0, 0]}
+              animationDuration={520}
+              animationEasing="ease-out"
             />
           </BarChart>
-        </ResponsiveContainer>
+          </ResponsiveContainer>
+        </ChartContainer>
       </div>
     </div>
   );
