@@ -9,6 +9,7 @@ import ProjectDialog from "@/components/projects/ProjectModal";
 import PageHeader from "@/components/layout/PageHeader";
 import ViewToggle from "@/components/ui/ViewToggle";
 import { Table } from "@/components/ui/table";
+import Avatar from "@/components/ui/Avatar";
 import useOutsideClick from "@/hooks/useOutsideClick";
 
 const VIEW_PREFERENCE_KEY = "pms.projects.view";
@@ -40,18 +41,17 @@ const ProjectMembers = ({ members }) => {
     <div className="flex items-center">
       <div className="flex -space-x-2">
         {visibleMembers.map((member) => (
-          <span
-            key={member.id}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] text-[11px] font-semibold text-[color:var(--color-text)]"
-            title={member.name}
-          >
-            {(member.name ?? "U").charAt(0).toUpperCase()}
-          </span>
+          <div key={member.id} className="relative rounded-full ring-2 ring-[color:var(--color-card)]" title={member.name}>
+            <Avatar 
+              name={member.name} 
+              size="sm"
+            />
+          </div>
         ))}
         {extraCount > 0 ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] text-[10px] font-semibold text-[color:var(--color-text-subtle)]">
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] ring-2 ring-[color:var(--color-card)] text-[10px] font-semibold text-[color:var(--color-text-subtle)]">
             +{extraCount}
-          </span>
+          </div>
         ) : null}
       </div>
     </div>
@@ -263,39 +263,61 @@ export default function ProjectListView({ canManageProjects }) {
 
       {!status.loading && !status.error && projects.length ? (
         viewMode === "grid" ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => (
-              <div
-                key={project.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => router.push(`/projects/${project.id}`)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    router.push(`/projects/${project.id}`);
-                  }
-                }}
-                className="cursor-pointer rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5 transition hover:border-[color:var(--color-accent)]"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-[color:var(--color-text)]">
-                      {project.name}
-                    </p>
-                    <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                      {project.description || "No description provided."}
-                    </p>
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project, index) => {
+              const isActive = project.status === "Active";
+              const isArchived = project.status === "Archived";
+              const borderClass = isActive
+                ? "group-hover:border-emerald-500/50 group-hover:shadow-[0_8px_30px_-12px_rgba(16,185,129,0.5)]"
+                : isArchived
+                  ? "group-hover:border-gray-500/50 group-hover:shadow-[0_8px_30px_-12px_rgba(107,114,128,0.5)]"
+                  : "group-hover:border-primary/50 group-hover:shadow-lg";
+
+              const badgeClass = isActive
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-transparent"
+                : isArchived
+                  ? "bg-gray-500/15 text-gray-500 border-transparent"
+                  : "bg-[color:var(--color-muted-bg)] text-[color:var(--color-text-muted)] border-[color:var(--color-border)]";
+
+              return (
+                <div
+                  key={project.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/projects/${project.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      router.push(`/projects/${project.id}`);
+                    }
+                  }}
+                  style={{ animationDelay: `${index * 50}ms` }}
+                  className={`group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-[color:var(--color-border)]/60 bg-[color:var(--color-card)] p-6 transition-all duration-300 hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-4 fill-mode-both ${borderClass}`}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                  
+                  <div className="relative z-10 flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-lg font-bold tracking-tight text-[color:var(--color-text)] transition-colors group-hover:text-[color:var(--color-accent)]">
+                        {project.name}
+                      </h3>
+                      <p className="mt-2 line-clamp-2 text-sm text-[color:var(--color-text-muted)] leading-relaxed">
+                        {project.description || "No description provided."}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                      {project.status}
+                    </span>
                   </div>
-                  <span className="rounded-full border border-[color:var(--color-border)] px-2 py-1 text-[11px] text-[color:var(--color-text-muted)]">
-                    {project.status}
-                  </span>
+                  
+                  <div className="relative z-10 mt-6 flex items-center justify-between border-t border-[color:var(--color-border)]/50 pt-4">
+                    <div className="flex items-center gap-3">
+                      <ProjectMembers members={project.members} />
+                    </div>
+                    <ProjectActionMenu project={project} />
+                  </div>
                 </div>
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <ProjectMembers members={project.members} />
-                  <ProjectActionMenu project={project} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)]">
@@ -310,38 +332,46 @@ export default function ProjectListView({ canManageProjects }) {
                 </tr>
               </thead>
               <tbody>
-                {projects.map((project) => (
-                  <tr
-                    key={project.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push(`/projects/${project.id}`)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        router.push(`/projects/${project.id}`);
-                      }
-                    }}
-                    className="border-t border-[color:var(--color-border)] text-sm transition hover:bg-[color:var(--color-muted-bg)]"
-                  >
-                    <td className="px-4 py-3 text-[color:var(--color-text)]">
-                      <p className="font-semibold">{project.name}</p>
-                    </td>
-                    <td className="px-4 py-3 text-[color:var(--color-text-muted)]">
-                      {project.description || "No description provided."}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)]">
-                        {project.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <ProjectMembers members={project.members} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <ProjectActionMenu project={project} />
-                    </td>
-                  </tr>
-                ))}
+                {projects.map((project, index) => {
+                  const isActive = project.status === "Active";
+                  const badgeClass = isActive
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-transparent"
+                    : "bg-[color:var(--color-muted-bg)] text-[color:var(--color-text-muted)] border-[color:var(--color-border)]";
+
+                  return (
+                    <tr
+                      key={project.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => router.push(`/projects/${project.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          router.push(`/projects/${project.id}`);
+                        }
+                      }}
+                      style={{ animationDelay: `${index * 30}ms` }}
+                      className="group animate-in fade-in slide-in-from-bottom-2 fill-mode-both border-t border-[color:var(--color-border)]/50 text-sm transition-all hover:bg-[color:var(--color-surface-muted)] cursor-pointer"
+                    >
+                      <td className="px-4 py-4 text-[color:var(--color-text)]">
+                        <p className="font-bold tracking-tight group-hover:text-[color:var(--color-accent)] transition-colors">{project.name}</p>
+                      </td>
+                      <td className="px-4 py-4 text-[color:var(--color-text-muted)] max-w-xs truncate">
+                        {project.description || "No description provided."}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                          {project.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <ProjectMembers members={project.members} />
+                      </td>
+                      <td className="px-4 py-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ProjectActionMenu project={project} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </Table>
           </div>

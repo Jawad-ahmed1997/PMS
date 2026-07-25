@@ -144,19 +144,37 @@ function SectionHeading({ title, description, action }) {
   );
 }
 
-function MetricCard({ item, compact = false }) {
+function MetricCard({ item, compact = false, index = 0 }) {
   const Icon = metricIcons[item.label] ?? Activity;
   const isPositive = item.trend?.startsWith("+") || item.trend === "Green" || item.trend === "Near target";
+  const isNegative = item.trend?.startsWith("-") || item.trend?.includes("risk");
+  
+  const borderClass = isPositive 
+    ? "group-hover:border-emerald-500/50 group-hover:shadow-[0_8px_30px_-12px_rgba(16,185,129,0.5)]" 
+    : isNegative 
+      ? "group-hover:border-rose-500/50 group-hover:shadow-[0_8px_30px_-12px_rgba(244,63,94,0.5)]" 
+      : "group-hover:border-primary/50 group-hover:shadow-lg";
+
   return (
-    <Card className="shadow-none transition-colors duration-150 hover:border-border hover:bg-card/80">
-      <CardContent className={compact ? "p-4" : "p-5"}>
+    <Card 
+      style={{ animationDelay: `${index * 50}ms` }}
+      className={`group relative overflow-hidden shadow-none transition-all duration-300 hover:-translate-y-1 bg-card animate-in fade-in slide-in-from-bottom-4 fill-mode-both border-border/60 ${borderClass}`}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <CardContent className={`relative z-10 ${compact ? "p-4" : "p-5"}`}>
         <div className="flex items-start justify-between gap-3">
-          <p className="text-xs font-medium text-muted-foreground">{item.label ?? item.title}</p>
-          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">{item.label ?? item.title}</p>
+          <div className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${isPositive ? "bg-emerald-500/10 text-emerald-500" : isNegative ? "bg-rose-500/10 text-rose-500" : "bg-primary/10 text-primary"}`}>
+            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          </div>
         </div>
-        <p className={`${compact ? "mt-3 text-xl" : "mt-5 text-2xl"} font-semibold tracking-tight text-foreground`}>{item.value}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <span className={isPositive ? "font-medium text-emerald-600 dark:text-emerald-400" : "font-medium text-muted-foreground"}>{item.trend}</span>
+        <p className={`${compact ? "mt-4 text-2xl" : "mt-6 text-3xl"} font-bold tracking-tight text-foreground`}>{item.value}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-medium">
+          {item.trend && (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${isPositive ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : isNegative ? "bg-rose-500/15 text-rose-600 dark:text-rose-400" : "bg-primary/15 text-primary"}`}>
+              {item.trend}
+            </span>
+          )}
           <span className="text-muted-foreground">{item.detail}</span>
         </div>
       </CardContent>
@@ -164,8 +182,8 @@ function MetricCard({ item, compact = false }) {
   );
 }
 
-function InsightCard({ item }) {
-  return <MetricCard item={{ ...item, label: item.title }} compact />;
+function InsightCard({ item, index }) {
+  return <MetricCard item={{ ...item, label: item.title }} compact index={index} />;
 }
 
 export default async function DashboardPage() {
@@ -251,12 +269,12 @@ export default async function DashboardPage() {
         <section className="space-y-5" aria-labelledby="executive-highlights">
           <SectionHeading title="Executive highlights" description="A concise view of delivery confidence and organizational focus." />
           <div className="grid gap-6 lg:grid-cols-3">
-            {executiveHighlights.map((item) => <InsightCard key={item.title} item={item} />)}
+            {executiveHighlights.map((item, index) => <InsightCard key={item.title} item={item} index={index} />)}
           </div>
 
           <Card>
             <CardHeader className="p-5 pb-0"><CardTitle className="text-base">Key metrics</CardTitle><CardDescription>Core delivery indicators for the current operating view.</CardDescription></CardHeader>
-            <CardContent className="p-5"><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{metricDefinitions.map((metric) => <MetricCard key={metric.id} item={metric} />)}</div></CardContent>
+            <CardContent className="p-5"><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{metricDefinitions.map((metric, index) => <MetricCard key={metric.id} item={metric} index={index} />)}</div></CardContent>
           </Card>
         </section>
       )}
@@ -266,10 +284,10 @@ export default async function DashboardPage() {
           <SectionHeading title="Delivery performance" description="Metrics and readiness signals across active programs." />
           <Card>
             <CardHeader className="p-5 pb-0"><CardTitle className="text-base">Metrics performance</CardTitle><CardDescription>Track movement against delivery targets.</CardDescription></CardHeader>
-            <CardContent className="p-5"><div className="grid gap-4 lg:grid-cols-3">{metricDefinitions.map((metric) => <MetricCard key={metric.id} item={metric} />)}</div></CardContent>
+            <CardContent className="p-5"><div className="grid gap-4 lg:grid-cols-3">{metricDefinitions.map((metric, index) => <MetricCard key={metric.id} item={metric} index={index} />)}</div></CardContent>
           </Card>
 
-          <div className="grid gap-6 lg:grid-cols-3">{deliveryFocus.map((item) => <InsightCard key={item.title} item={item} />)}</div>
+          <div className="grid gap-6 lg:grid-cols-3">{deliveryFocus.map((item, index) => <InsightCard key={item.title} item={item} index={index} />)}</div>
 
           <Card>
             <CardHeader className="p-5 pb-0"><CardTitle className="text-base">Milestone readiness</CardTitle><CardDescription>Signals that inform the next delivery decisions.</CardDescription></CardHeader>
@@ -321,8 +339,8 @@ export default async function DashboardPage() {
               }}
             />
           </div>
-          <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{developerSnapshot.map((item) => <InsightCard key={item.title} item={item} />)}</div>
-        </Card>
+          <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{developerSnapshot.map((item, index) => <InsightCard key={item.title} item={item} index={index} />)}</div>
+        </div>
         </section>
       )} */}
 

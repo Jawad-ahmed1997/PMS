@@ -16,6 +16,7 @@ import { TASK_TYPE_CHECKLISTS } from "@/lib/taskChecklists";
 import { canCreateTasks, normalizeRoleId, roles } from "@/lib/roles";
 import { getTodayInPSTDateString } from "@/lib/pstDate";
 import Modal from "../ui/Modal";
+import ActionButton from "../ui/ActionButton";
 
 const formatDateInput = (value) => {
   if (!value) return "";
@@ -568,8 +569,8 @@ export default function ProjectDetailView({
           <button
             onClick={() => setActiveTab("board")}
             className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "board"
-                ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
-                : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
+              ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
+              : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
               }`}
           >
             Task Board
@@ -577,8 +578,8 @@ export default function ProjectDetailView({
           <button
             onClick={() => setActiveTab("milestones")}
             className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "milestones"
-                ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
-                : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
+              ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
+              : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
               }`}
           >
             Milestones ({milestones.length})
@@ -586,8 +587,8 @@ export default function ProjectDetailView({
           <button
             onClick={() => setActiveTab("kt")}
             className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${activeTab === "kt"
-                ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
-                : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
+              ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
+              : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
               }`}
           >
             KT / Dev Hub

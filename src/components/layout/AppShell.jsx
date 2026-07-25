@@ -99,9 +99,13 @@ function AppShellContent({ children, session }) {
       />
 
       <header
-        className={`fixed left-[var(--sidebar-width)] right-0 top-0 z-30 flex h-[var(--header-height)] items-center justify-between overflow-visible rounded-none px-5 transition-[background-color,backdrop-filter,backdrop-saturate,border-color,box-shadow,opacity] duration-[200ms] ease-out motion-reduce:transition-none sm:px-6 ${isNavbarScrolled ? "border border-border/70 bg-background/75 opacity-95 shadow-lg backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/65" : "border border-transparent bg-transparent opacity-100 shadow-none backdrop-blur-0 backdrop-saturate-100"}`}
+        className={`fixed left-[var(--sidebar-width)] right-0 top-0 z-30 flex h-[var(--header-height)] items-center justify-end overflow-visible rounded-none px-5 transition-all duration-300 ease-out sm:px-8 ${
+          isNavbarScrolled 
+            ? "border-b border-border/30 bg-background/60 shadow-sm backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/40" 
+            : "border-b border-transparent bg-transparent"
+        }`}
       >
-        <Logo alt="PMS Cloud" priority className="h-auto w-[118px]" />
+        {/* <Logo alt="PMS Cloud" priority className="h-auto w-[118px]" /> */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <ThemeToggle className="h-9 min-w-0 rounded-lg px-2.5 sm:min-w-[7.5rem] sm:px-4" />
           <Button
@@ -114,7 +118,7 @@ function AppShellContent({ children, session }) {
           >
             <Bell className="h-4 w-4 " aria-hidden="true" />
             {counts.total > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+              <span className="absolute -right-1 -top-1 inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                 {counts.total}
               </span>
             ) : null}
