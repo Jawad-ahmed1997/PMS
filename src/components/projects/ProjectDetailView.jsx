@@ -311,7 +311,7 @@ export default function ProjectDetailView({
         variant: "success",
       });
       resetMilestoneForm();
-      setDialogOpen(false);
+      setModalOpen(false);
       loadProject();
     } catch (error) {
       const message =
@@ -763,7 +763,7 @@ export default function ProjectDetailView({
             <Button
               label="Cancel"
               variant="secondary"
-              onClick={() => setDialogOpen(false)}
+              onClick={() => setModalOpen(false)}
               className={savingMilestone ? "pointer-events-none opacity-60" : ""}
             />
             <Button
