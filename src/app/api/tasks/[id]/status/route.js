@@ -620,17 +620,21 @@ export async function PATCH(request, { params }) {
     throw error;
   }
 
-  const leaderIds = await getLeadershipUserIds(prisma);
-  await createNotification({
-    prismaClient: prisma,
-    type: "TASK_MOVEMENT",
-    actorId: context.user.id,
-    message: `${actorName} moved ${task.title} from ${task.status ?? "new"} to ${nextStatus}.`,
-    taskId,
-    projectId: task.milestone?.projectId ?? null,
-    milestoneId: task.milestone?.id ?? null,
-    recipientIds: [task.ownerId, ...leaderIds],
-  });
+  try {
+    const leaderIds = await getLeadershipUserIds(prisma);
+    await createNotification({
+      prismaClient: prisma,
+      type: "TASK_MOVEMENT",
+      actorId: context.user.id,
+      message: `${actorName} moved ${task.title} from ${task.status ?? "new"} to ${nextStatus}.`,
+      taskId,
+      projectId: task.milestone?.projectId ?? null,
+      milestoneId: task.milestone?.id ?? null,
+      recipientIds: [task.ownerId, ...leaderIds],
+    });
+  } catch (notificationError) {
+    console.error("Failed to create task movement notification:", notificationError);
+  }
 
   const computed = await computeTaskSpentTime(
     prisma,
