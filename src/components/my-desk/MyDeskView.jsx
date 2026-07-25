@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import PersonalTodoView from "@/components/projects/PersonalTodoView";
 import PersonalNotesView from "@/components/projects/PersonalNotesView";
 import { normalizeRoleId } from "@/lib/roles";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function MyDeskView({ role, currentUserId }) {
   const { addToast } = useToast();
@@ -47,46 +48,25 @@ export default function MyDeskView({ role, currentUserId }) {
         description="Your personal workspace to track private to-dos and document markdown notes."
       />
 
-      {/* Tabs Menu */}
-      <div className="flex border-b border-[color:var(--color-border)]">
-        <button
-          onClick={() => setActiveTab("todos")}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${
-            activeTab === "todos"
-              ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
-              : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
-          }`}
-        >
-          Personal To-Do
-        </button>
-        <button
-          onClick={() => setActiveTab("notes")}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 ${
-            activeTab === "notes"
-              ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]"
-              : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
-          }`}
-        >
-          Notes
-        </button>
-      </div>
-
-      <div className="py-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="gap-6">
+          <TabsTrigger value="todos">Personal To-Do</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
+        </TabsList>
         {tasksLoading ? (
-          <div className="flex items-center justify-center py-12 text-sm text-[color:var(--color-text-muted)]">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Initializing desk workspace...
+          <div className="space-y-4 py-8" aria-label="Loading desk workspace">
+            <Skeleton className="h-5 w-48" />
+            <div className="grid gap-4 md:grid-cols-3">
+              <Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" />
+            </div>
           </div>
         ) : (
           <>
-            {activeTab === "todos" && (
-              <PersonalTodoView tasks={tasks} />
-            )}
-            {activeTab === "notes" && (
-              <PersonalNotesView tasks={tasks} />
-            )}
+            <TabsContent value="todos"><PersonalTodoView tasks={tasks} /></TabsContent>
+            <TabsContent value="notes"><PersonalNotesView tasks={tasks} /></TabsContent>
           </>
         )}
-      </div>
+      </Tabs>
     </div>
   );
 }

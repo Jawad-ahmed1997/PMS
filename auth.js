@@ -29,7 +29,30 @@ export const nodeAuthConfig = {
         await recordSecurityEvent("rate_limit_login", { email, ip });
         return null;
       }
-      const user = await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true, isActive: true, status: true, passwordHash: true, password: true, image: true } });
+      let user;
+      try {
+        user = await prisma.user.findUnique({
+          where: { email },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            status: true,
+            passwordHash: true,
+            password: true,
+            image: true,
+          },
+        });
+      } catch (error) {
+        console.error("Credentials login database lookup failed", error);
+        throw new Error("Authentication service unavailable.");
+      }
+
+      // passwordHash is the current column; password is retained for rows
+      // created by the old login implementation. Both must contain bcrypt
+      // hashes, never plaintext passwords.
       const passwordHash = user?.passwordHash || user?.password || DUMMY_PASSWORD_HASH;
       const matches = await verifyPassword(passwordHash, password);
       if (!user || !user.isActive || user.status === "DISABLED" || !matches) {

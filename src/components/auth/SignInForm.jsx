@@ -45,6 +45,7 @@ export default function SignInForm({ callbackUrl = "/dashboard" }) {
 
   const handleSubmit = (event) => {
     if (isPending || Object.keys(validate()).length > 0) event.preventDefault();
+    
   };
 
   return (
