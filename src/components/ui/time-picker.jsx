@@ -14,14 +14,22 @@ export function TimePicker({ name, value, onChange, disabled, required, placehol
   const period = match ? (hour24 >= 12 ? "PM" : "AM") : "";
 
   const emit = (nextHour, nextMinute, nextPeriod) => {
-    if (!nextHour || !nextMinute || !nextPeriod) return;
-    let next = Number(nextHour) % 12;
-    if (nextPeriod === "PM") next += 12;
-    onChange({ target: { name, value: `${String(next).padStart(2, "0")}:${nextMinute}` } });
+    // If any component is not selected yet, use sensible defaults to allow initial state updates
+    const h = nextHour || "12";
+    const m = nextMinute || "00";
+    const p = nextPeriod || "AM";
+
+    let next = Number(h) % 12;
+    if (p === "PM") next += 12;
+    onChange({ target: { name, value: `${String(next).padStart(2, "0")}:${m}` } });
   };
 
   const update = (part, nextValue) => {
-    emit(part === "hour" ? nextValue : hour, part === "minute" ? nextValue : minute, part === "period" ? nextValue : period);
+    emit(
+      part === "hour" ? nextValue : hour,
+      part === "minute" ? nextValue : minute,
+      part === "period" ? nextValue : period
+    );
   };
 
   return (
@@ -48,6 +56,16 @@ export function TimePicker({ name, value, onChange, disabled, required, placehol
             <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
           </Select>
         </div>
+        {value && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full mt-2.5 h-8 text-xs font-semibold text-rose-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+            onClick={() => onChange({ target: { name, value: "" } })}
+          >
+            Clear Time
+          </Button>
+        )}
       </PopoverContent>
       {required ? <Input tabIndex={-1} aria-hidden="true" className="sr-only" name={name} value={value ?? ""} required readOnly /> : null}
     </Popover>

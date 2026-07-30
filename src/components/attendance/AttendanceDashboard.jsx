@@ -61,7 +61,10 @@ function formatDisplayDate(value) {
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
-  return date.toLocaleDateString();
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function formatDisplayTime(value) {
@@ -69,7 +72,13 @@ function formatDisplayTime(value) {
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const hoursStr = String(hours).padStart(2, "0");
+  return `${hoursStr}:${minutes} ${ampm}`;
 }
 
 function formatTimeInput(value) {
@@ -80,7 +89,9 @@ function formatTimeInput(value) {
   if (Number.isNaN(date.getTime())) {
     return "";
   }
-  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
 }
 
 function formatDurationFromSeconds(seconds) {
@@ -170,7 +181,14 @@ function isTodayDate(value) {
 }
 
 function isEditableAttendanceDate(value) {
-  const target = formatDateForInput(value);
+  let target;
+  if (value instanceof Date) {
+    target = value.toISOString().slice(0, 10);
+  } else if (typeof value === "string") {
+    target = value.slice(0, 10);
+  } else {
+    target = formatDateForInput(value);
+  }
   const today = getTodayInPSTDateString();
   if (!target || !today) {
     return false;
@@ -577,10 +595,11 @@ export default function AttendanceDashboard({
   };
 
   const openCreateModal = () => {
+    const now = new Date();
     setForm({
       date: getTodayInPSTDateString(),
-      inTime: "",
-      outTime: "",
+      inTime: formatTimeInput(now),
+      outTime: formatTimeInput(now),
       note: "",
       userId: "",
     });
@@ -593,10 +612,11 @@ export default function AttendanceDashboard({
 
   const openEditModal = (record) => {
     setActiveRecord(record);
+    const now = new Date();
     setForm({
-      date: formatDateForInput(record.date),
-      inTime: formatTimeInput(record.inTime),
-      outTime: formatTimeInput(record.outTime),
+      date: formatDateForInput(record.date) || getTodayInPSTDateString(),
+      inTime: formatTimeInput(record.inTime) || formatTimeInput(now),
+      outTime: formatTimeInput(record.outTime) || formatTimeInput(now),
       note: record.note ?? "",
       userId: record.userId ?? record.user?.id ?? "",
     });

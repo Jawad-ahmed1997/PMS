@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BREAK_TYPES, formatBreakTypes } from "@/lib/breakTypes";
 import { useNotificationSound } from "@/lib/useNotificationSound";
+import ActionButton from "../ui/ActionButton";
 
 const COLLAPSED_WIDTH = 64;
 const DEFAULT_EXPANDED_WIDTH = 320;
