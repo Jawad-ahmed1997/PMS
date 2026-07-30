@@ -1,10 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/ToastProvider";
-import { Loader2, Trash2, Bell, Link2, CheckCircle2, Circle, Edit2 } from "lucide-react";
+import { Trash2, Bell, Link2, CheckCircle2, Circle, Edit2, ClipboardList, Zap, Check } from "lucide-react";
 import SearchableTaskSelector from "@/components/ui/SearchableTaskSelector";
 
 export default function PersonalTodoView({ tasks = [] }) {
@@ -326,7 +331,9 @@ export default function PersonalTodoView({ tasks = [] }) {
       className="group flex flex-col justify-between gap-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-3.5 transition hover:border-[color:var(--color-accent)] shadow-sm"
     >
       <div className="flex items-start gap-2.5 min-w-0">
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           type="button"
           onClick={() => handleToggleComplete(todo)}
           className={`mt-0.5 transition shrink-0 ${
@@ -340,7 +347,7 @@ export default function PersonalTodoView({ tasks = [] }) {
           ) : (
             <Circle className="h-4.5 w-4.5" />
           )}
-        </button>
+        </Button>
         <div className="min-w-0 space-y-1.5 flex-1">
           <p className={`text-sm break-words leading-relaxed ${todo.status === "COMPLETED" ? "line-through text-[color:var(--color-text-subtle)] opacity-70" : "text-[color:var(--color-text)]"}`}>
             {todo.cleanContent}
@@ -368,34 +375,39 @@ export default function PersonalTodoView({ tasks = [] }) {
       {/* Controls Footer */}
       <div className="flex items-center justify-between gap-2 border-t border-[color:var(--color-border)]/40 pt-2.5">
         {/* Status Dropdown */}
-        <select
-          value={todo.status}
-          onChange={(e) => handleStatusChange(todo, e.target.value)}
-          className="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-[11px] text-[color:var(--color-text-muted)] focus:outline-none"
-        >
-          <option value="TODO">To Do</option>
-          <option value="IN_PROGRESS">In Progress</option>
-          <option value="COMPLETED">Completed</option>
-        </select>
+        <Select value={todo.status} onValueChange={(value) => handleStatusChange(todo, value)}>
+          <SelectTrigger className="h-9 w-auto min-w-[8rem] px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TODO">To Do</SelectItem>
+            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+            <SelectItem value="COMPLETED">Completed</SelectItem>
+          </SelectContent>
+        </Select>
 
         {/* Edit / Delete Buttons */}
         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition shrink-0">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             type="button"
             onClick={() => openEditModal(todo)}
             className="text-[color:var(--color-text-muted)] hover:text-[color:var(--color-accent)] transition"
             aria-label="Edit"
           >
             <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             type="button"
             onClick={() => handleDeleteTodo(todo.id)}
             className="text-[color:var(--color-text-muted)] hover:text-rose-500 transition"
             aria-label="Delete"
           >
             <Trash2 className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -408,17 +420,19 @@ export default function PersonalTodoView({ tasks = [] }) {
         <h3 className="text-base font-bold text-[color:var(--color-text)]">
           My Personal To-Dos
         </h3>
-        <button
+        <Button
+          type="button"
+          size="md"
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-500 shadow-sm"
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white transition  shadow-sm"
         >
           <span>+ Add To-Do</span>
-        </button>
+        </Button>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center p-12 text-sm text-[color:var(--color-text-muted)]">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading private to-dos...
+          <div className="space-y-3 py-8"><Skeleton className="h-5 w-48" /><Skeleton className="h-24 w-full" /></div>
         </div>
       ) : (
         <div className="flex md:grid gap-6 overflow-x-auto md:overflow-x-visible pb-4 md:pb-0 md:grid-cols-3 items-start hide-scrollbar">
@@ -485,24 +499,23 @@ export default function PersonalTodoView({ tasks = [] }) {
       )}
 
       {/* Add To-Do Modal */}
-      <Modal
-        isOpen={isAddModalOpen}
-        title="Add To-Do"
-        description="Create a new private to-do task."
-        onClose={submitting ? undefined : () => {
+      <DialogRoot open={isAddModalOpen} onOpenChange={(open) => {
+        if (!open && !submitting) {
           setIsAddModalOpen(false);
           setContent("");
           setSelectedTaskId("");
           setStatusOption("TODO");
           setReminderOption("none");
           setCustomReminder("");
-        }}
-      >
+        }
+      }}>
+        <DialogPortal><DialogOverlay /><DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Add To-Do</DialogTitle><DialogDescription>Create a new private to-do task.</DialogDescription></DialogHeader>
         <form onSubmit={handleCreateTodo} className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-[color:var(--color-text-muted)]">
+            <Label className="text-xs font-semibold text-[color:var(--color-text-muted)]">
               To-Do content
-              <input
+              <Input
                 type="text"
                 placeholder="What needs to be done?"
                 className="mt-1.5 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)]"
@@ -510,13 +523,13 @@ export default function PersonalTodoView({ tasks = [] }) {
                 onChange={(e) => setContent(e.target.value)}
                 required
               />
-            </label>
+            </Label>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-[color:var(--color-text-muted)] flex items-center gap-1 mb-1.5">
+            <Label className="flex items-center gap-1 mb-1.5 text-xs font-semibold text-[color:var(--color-text-muted)]">
               <Link2 className="h-3.5 w-3.5" /> Link to Task (Optional)
-            </label>
+            </Label>
             <SearchableTaskSelector
               tasks={tasks}
               value={selectedTaskId}
@@ -526,24 +539,25 @@ export default function PersonalTodoView({ tasks = [] }) {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-[color:var(--color-text-muted)] mb-1.5 block">
+            <Label className="mb-1.5 block text-xs font-semibold text-[color:var(--color-text-muted)]">
               Initial Status
-            </label>
-            <select
-              value={statusOption}
-              onChange={(e) => setStatusOption(e.target.value)}
-              className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] focus:outline-none"
-            >
-              <option value="TODO">To Do</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
-            </select>
+            </Label>
+            <Select value={statusOption} onValueChange={setStatusOption}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODO">To Do</SelectItem>
+                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-[color:var(--color-text-muted)] flex items-center gap-1 mb-1.5">
+            <Label className="flex items-center gap-1 mb-1.5 text-xs font-semibold text-[color:var(--color-text-muted)]">
               <Bell className="h-3.5 w-3.5" /> Set Reminder (Optional)
-            </label>
+            </Label>
             <div className="grid grid-cols-4 gap-1.5">
               {[
                 { id: "none", label: "None" },
@@ -551,23 +565,25 @@ export default function PersonalTodoView({ tasks = [] }) {
                 { id: "4h", label: "+4h" },
                 { id: "custom", label: "Custom" },
               ].map((opt) => (
-                <button
+                <Button
+                  variant={reminderOption === opt.id ? "secondary" : "outline"}
+                  size="sm"
                   key={opt.id}
                   type="button"
                   onClick={() => setReminderOption(opt.id)}
-                  className={`rounded-lg py-1 text-[11px] font-semibold border transition ${
+                  className={`text-[11px] ${
                     reminderOption === opt.id
                       ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
                       : "border-[color:var(--color-border)] bg-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
                   }`}
                 >
                   {opt.label}
-                </button>
+                </Button>
               ))}
             </div>
             
             {reminderOption === "custom" && (
-              <input
+              <Input
                 type="datetime-local"
                 className="mt-2.5 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-1.5 text-xs text-[color:var(--color-text)] focus:outline-none"
                 value={customReminder}
@@ -577,8 +593,10 @@ export default function PersonalTodoView({ tasks = [] }) {
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
               type="button"
               onClick={() => {
                 setIsAddModalOpen(false);
@@ -592,45 +610,44 @@ export default function PersonalTodoView({ tasks = [] }) {
               className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-muted-bg)] transition"
             >
               Cancel
-            </button>
-            <ActionButton
-              label={submitting ? "Adding..." : "Add To-Do"}
-              variant="success"
+            </Button>
+            <Button
+              variant="default"
               type="submit"
               disabled={submitting || !content.trim()}
-            />
-          </div>
+            >{submitting ? "Adding..." : "Add To-Do"}</Button>
+          </DialogFooter>
         </form>
-      </Modal>
+        </DialogContent></DialogPortal>
+      </DialogRoot>
 
       {/* Edit To-Do Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        title="Edit To-Do"
-        description="Update your private to-do task details."
-        onClose={updating ? undefined : () => {
+      <DialogRoot open={isEditModalOpen} onOpenChange={(open) => {
+        if (!open && !updating) {
           setIsEditModalOpen(false);
           setEditingTodo(null);
-        }}
-      >
+        }
+      }}>
+        <DialogPortal><DialogOverlay /><DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit To-Do</DialogTitle><DialogDescription>Update your private to-do task details.</DialogDescription></DialogHeader>
         <form onSubmit={handleUpdateTodo} className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-[color:var(--color-text-muted)]">
+            <Label className="text-xs font-semibold text-[color:var(--color-text-muted)]">
               To-Do content
-              <input
+              <Input
                 type="text"
                 className="mt-1.5 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)]"
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 required
               />
-            </label>
+            </Label>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-[color:var(--color-text-muted)] flex items-center gap-1 mb-1.5">
+            <Label className="flex items-center gap-1 mb-1.5 text-xs font-semibold text-[color:var(--color-text-muted)]">
               <Link2 className="h-3.5 w-3.5" /> Link to Task (Optional)
-            </label>
+            </Label>
             <SearchableTaskSelector
               tasks={tasks}
               value={editTaskId}
@@ -640,24 +657,25 @@ export default function PersonalTodoView({ tasks = [] }) {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-[color:var(--color-text-muted)] mb-1.5 block">
+            <Label className="mb-1.5 block text-xs font-semibold text-[color:var(--color-text-muted)]">
               Status
-            </label>
-            <select
-              value={editStatusOption}
-              onChange={(e) => setEditStatusOption(e.target.value)}
-              className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] focus:outline-none"
-            >
-              <option value="TODO">To Do</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
-            </select>
+            </Label>
+            <Select value={editStatusOption} onValueChange={setEditStatusOption}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODO">To Do</SelectItem>
+                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-[color:var(--color-text-muted)] flex items-center gap-1 mb-1.5">
+            <Label className="flex items-center gap-1 mb-1.5 text-xs font-semibold text-[color:var(--color-text-muted)]">
               <Bell className="h-3.5 w-3.5" /> Set Reminder (Optional)
-            </label>
+            </Label>
             <div className="grid grid-cols-4 gap-1.5">
               {[
                 { id: "none", label: "None" },
@@ -665,23 +683,25 @@ export default function PersonalTodoView({ tasks = [] }) {
                 { id: "4h", label: "+4h" },
                 { id: "custom", label: "Custom" },
               ].map((opt) => (
-                <button
+                <Button
+                  variant={editReminderOption === opt.id ? "secondary" : "outline"}
+                  size="sm"
                   key={opt.id}
                   type="button"
                   onClick={() => setEditReminderOption(opt.id)}
-                  className={`rounded-lg py-1 text-[11px] font-semibold border transition ${
+                  className={`text-[11px] ${
                     editReminderOption === opt.id
                       ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
                       : "border-[color:var(--color-border)] bg-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
                   }`}
                 >
                   {opt.label}
-                </button>
+                </Button>
               ))}
             </div>
             
             {editReminderOption === "custom" && (
-              <input
+              <Input
                 type="datetime-local"
                 className="mt-2.5 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-1.5 text-xs text-[color:var(--color-text)] focus:outline-none"
                 value={editCustomReminder}
@@ -691,8 +711,10 @@ export default function PersonalTodoView({ tasks = [] }) {
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
               type="button"
               onClick={() => {
                 setIsEditModalOpen(false);
@@ -702,16 +724,16 @@ export default function PersonalTodoView({ tasks = [] }) {
               className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-muted-bg)] transition"
             >
               Cancel
-            </button>
-            <ActionButton
-              label={updating ? "Saving..." : "Save Changes"}
-              variant="success"
+            </Button>
+            <Button
+              variant="default"
               type="submit"
               disabled={updating || !editContent.trim()}
-            />
-          </div>
+            >{updating ? "Saving..." : "Save Changes"}</Button>
+          </DialogFooter>
         </form>
-      </Modal>
+        </DialogContent></DialogPortal>
+      </DialogRoot>
     </div>
   );
 }

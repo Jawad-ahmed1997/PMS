@@ -12,5 +12,5 @@ export function Button({ className, variant, size, label, toast, onClick, disabl
     onClick?.(event);
     if (toast) addToast(toast);
   };
-  return <button className={cn(buttonVariants({ variant, size, className }))} disabled={disabled} onClick={handleClick} {...props}>{children ?? label}</button>;
+  return <button {...props} className={cn(buttonVariants({ variant, size, className }))} disabled={disabled} onClick={handleClick}>{children ?? label}</button>;
 }

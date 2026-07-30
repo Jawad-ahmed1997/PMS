@@ -14,7 +14,14 @@ export function hashPassword(password) {
 }
 
 export function verifyPassword(hash, password) {
-  return bcrypt.compare(password, hash);
+  // bcrypt.compare throws for null/invalid hashes. Treat those as a failed
+  // login so a bad legacy row cannot turn into a CredentialsSignin crash.
+  if (!isBcryptHash(hash) || typeof password !== "string") return Promise.resolve(false);
+  return bcrypt.compare(password, hash).catch(() => false);
+}
+
+export function isBcryptHash(value) {
+  return typeof value === "string" && /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
 }
 
 export const DUMMY_PASSWORD_HASH = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOq8N5b1g6l9YvX5hFf4wW2l5uKqz8jQe";

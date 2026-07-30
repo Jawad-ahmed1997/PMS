@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
+  CartesianGrid,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -13,6 +13,7 @@ import TimelineCard from "@/components/analytics/TimelineCard";
 import WorkstackChart from "@/components/analytics/WorkstackChart";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 function formatDuration(seconds) {
   if (!seconds || seconds <= 0) {
@@ -121,25 +122,11 @@ function UserTotals({ totals }) {
   );
 }
 
-function DailyUsersTooltip({ active, payload }) {
-  if (!active || !payload?.length) {
-    return null;
-  }
-  const entry = payload[0]?.payload;
-  return (
-    <div className="rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
-      <p className="text-xs font-semibold text-popover-foreground">
-        {entry?.name ?? "User"}
-      </p>
-      <div className="mt-2 space-y-1 text-muted-foreground">
-        <p>Work: {formatDuration(entry.workSeconds)}</p>
-        <p>Break: {formatDuration(entry.breakSeconds)}</p>
-        <p>Idle: {formatDuration(entry.idleSeconds)}</p>
-        <p>Utilization: {formatPercent(entry.utilization)}</p>
-      </div>
-    </div>
-  );
-}
+const dailyUsersChartConfig = {
+  workSeconds: { label: "Work", color: "var(--color-work)" },
+  breakSeconds: { label: "Break", color: "var(--color-break)" },
+  idleSeconds: { label: "Idle", color: "var(--color-idle)" },
+};
 
 function UsersSummaryTable({ users }) {
   if (!users?.length) {
@@ -196,51 +183,71 @@ function DailyUsersStackedChart({ users }) {
 
   if (!data.length) {
     return (
-      <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-        No daily activity yet.
+      <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-6 text-center">
+        <div>
+          <p className="text-sm font-medium text-foreground">No daily activity yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">Work, break, and idle time will appear here.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="h-full min-h-[220px] w-full" style={{ height }}>
+      <ChartContainer config={dailyUsersChartConfig} className="h-full min-h-[220px] aspect-auto">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} layout="vertical" margin={{ top: 10, right: 20, left: 40 }}>
+        <BarChart data={data} layout="vertical" barCategoryGap={10} margin={{ top: 12, right: 20, left: 40, bottom: 8 }}>
+          <CartesianGrid horizontal={false} stroke="var(--color-border)" strokeOpacity={0.55} strokeDasharray="3 5" />
           <XAxis
             type="number"
             tickFormatter={(value) => formatDuration(value)}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tickMargin={8}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
           />
           <YAxis
             type="category"
             dataKey="name"
             width={120}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
           />
-          <Tooltip content={<DailyUsersTooltip />} />
+          <ChartTooltip
+            cursor={{ fill: "var(--color-muted-bg)" }}
+            content={<ChartTooltipContent formatter={(value) => formatDuration(value)} />}
+          />
           <Bar
             dataKey="workSeconds"
             stackId="user"
             fill="var(--color-work)"
             name="Work"
-            radius={0}
+            radius={[0, 5, 5, 0]}
+            animationDuration={520}
+            animationEasing="ease-out"
           />
           <Bar
             dataKey="breakSeconds"
             stackId="user"
             fill="var(--color-break)"
             name="Break"
-            radius={0}
+            radius={[0, 5, 5, 0]}
+            animationDuration={520}
+            animationEasing="ease-out"
           />
           <Bar
             dataKey="idleSeconds"
             stackId="user"
             fill="var(--color-idle)"
             name="Idle"
-            radius={0}
+            radius={[0, 5, 5, 0]}
+            animationDuration={520}
+            animationEasing="ease-out"
           />
         </BarChart>
       </ResponsiveContainer>
+      </ChartContainer>
     </div>
   );
 }
