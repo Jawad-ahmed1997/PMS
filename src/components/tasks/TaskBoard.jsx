@@ -4,12 +4,20 @@ import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import ActionButton from "@/components/ui/ActionButton";
 import { Sheet } from "@/components/ui/sheet";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
 import { TASK_STATUSES, getNextStatuses, getStatusLabel } from "@/lib/kanban";
 import { canMarkTaskDone, normalizeRoleId, roles } from "@/lib/roles";
-import { Select } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import ScrollArea from "@/components/ui/ScrollArea";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BREAK_TYPES, formatBreakTypes } from "@/lib/breakTypes";
@@ -126,6 +134,190 @@ export default function TaskBoard({
   const [taskCovers, setTaskCovers] = useState({}); // taskId -> base64
   const [taskAttachments, setTaskAttachments] = useState({}); // taskId -> Array of attachments
   const [newSubtaskText, setNewSubtaskText] = useState("");
+  const [taskItems, setTaskItems] = useState(tasks ?? []);
+  const [pendingTaskId, setPendingTaskId] = useState(null);
+  const [pendingChecklistId, setPendingChecklistId] = useState(null);
+  const [draggingTaskId, setDraggingTaskId] = useState(null);
+  const [dragOverStatus, setDragOverStatus] = useState(null);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const selectedTask = taskItems.find((task) => task.id === selectedTaskId) ?? null;
+  const [scope, setScope] = useState(currentUserId ? "mine" : "all");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [ownerFilter, setOwnerFilter] = useState("ALL");
+  const [milestoneFilter, setMilestoneFilter] = useState("ALL");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [timeRequestOpen, setTimeRequestOpen] = useState(false);
+  const [timeRequestForm, setTimeRequestForm] = useState({ hours: "", minutes: "", reason: "" });
+  const [timeRequests, setTimeRequests] = useState([]);
+  const [timeRequestsLoading, setTimeRequestsLoading] = useState(false);
+  const [timeRequestActionId, setTimeRequestActionId] = useState(null);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [breakForm, setBreakForm] = useState({ reasons: ["NAMAZ"], note: "" });
+  const [breakPanelOpen, setBreakPanelOpen] = useState(false);
+  const [breakSubmitting, setBreakSubmitting] = useState(false);
+  const [columnPrefs, setColumnPrefs] = useState({});
+  const [resizeState, setResizeState] = useState(null);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [hasSavedPrefs, setHasSavedPrefs] = useState(false);
+  const [dodLink, setDodLink] = useState("");
+  const [pushToProjectDocs, setPushToProjectDocs] = useState(true);
+  const [savingDod, setSavingDod] = useState(false);
+  const scrollContainerRef = useRef(null);
+
+  const milestoneId = tasks?.[0]?.milestoneId ?? "unknown";
+  const prefKey = `kanbanColumnPrefs:${currentUserId ?? "guest"}:${milestoneId}`;
+  const ownerOptions = useMemo(() => {
+    const owners = new Map();
+    taskItems.forEach((task) => {
+      if (task.owner) owners.set(task.owner.id, task.owner.name);
+    });
+    return Array.from(owners.entries()).map(([id, name]) => ({ id, name }));
+  }, [taskItems]);
+  const mentionUsers = useMemo(() => {
+    const users = new Map();
+    taskItems.forEach((task) => {
+      if (task.owner) users.set(task.owner.id, task.owner);
+    });
+    return Array.from(users.values());
+  }, [taskItems]);
+  const selectedSpentSeconds = Number(selectedTask?.spentTimeSeconds ?? 0);
+
+  useEffect(() => {
+    setTaskItems(tasks ?? []);
+  }, [tasks]);
+
+  useEffect(() => {
+    if (!draggingTaskId) return undefined;
+
+    let animationFrameId;
+    let scrollSpeed = 0;
+    const handleDragOver = (event) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const threshold = 100;
+      const maxSpeed = 15;
+      if (x < threshold) scrollSpeed = -((threshold - x) / threshold) * maxSpeed;
+      else if (x > rect.width - threshold) scrollSpeed = ((x - (rect.width - threshold)) / threshold) * maxSpeed;
+      else scrollSpeed = 0;
+    };
+    const scrollTick = () => {
+      const container = scrollContainerRef.current;
+      if (container && scrollSpeed !== 0) container.scrollLeft += scrollSpeed;
+      animationFrameId = requestAnimationFrame(scrollTick);
+    };
+    window.addEventListener("dragover", handleDragOver);
+    animationFrameId = requestAnimationFrame(scrollTick);
+    return () => {
+      window.removeEventListener("dragover", handleDragOver);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [draggingTaskId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    setPrefsLoaded(false);
+    const raw = window.localStorage.getItem(prefKey);
+    setHasSavedPrefs(Boolean(raw));
+    if (!raw) {
+      setColumnPrefs({});
+      setPrefsLoaded(true);
+      return undefined;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      setColumnPrefs(parsed && typeof parsed === "object" ? parsed : {});
+    } catch {
+      setColumnPrefs({});
+    }
+    setPrefsLoaded(true);
+    return undefined;
+  }, [prefKey]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(prefKey, JSON.stringify(columnPrefs));
+    }
+  }, [prefKey, columnPrefs]);
+
+  useEffect(() => {
+    if (!resizeState) return undefined;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (event) => {
+      const delta = event.clientX - resizeState.startX;
+      const width = clampExpandedWidth(resizeState.startWidth + delta);
+      setColumnPrefs((prev) => ({
+        ...prev,
+        [resizeState.statusId]: { ...prev?.[resizeState.statusId], width, collapsed: false, userTouched: true },
+      }));
+    };
+    const onUp = () => {
+      setColumnPrefs((prev) => {
+        const current = prev?.[resizeState.statusId] ?? {};
+        const committedWidth = clampExpandedWidth(current.width ?? resizeState.startWidth ?? DEFAULT_EXPANDED_WIDTH);
+        return { ...prev, [resizeState.statusId]: { ...current, collapsed: false, width: committedWidth, expandedWidth: committedWidth, userTouched: true } };
+      });
+      setResizeState(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [resizeState]);
+
+  const taskCountsByStatus = useMemo(() => {
+    const counts = {};
+    TASK_STATUSES.forEach((status) => { counts[status.id] = 0; });
+    taskItems.forEach((task) => { counts[task.status] = (counts[task.status] ?? 0) + 1; });
+    return counts;
+  }, [taskItems]);
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    setColumnPrefs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      TASK_STATUSES.forEach((status) => {
+        const count = taskCountsByStatus[status.id] ?? 0;
+        const existing = prev?.[status.id] ?? {};
+        const userTouched = Boolean(existing.userTouched);
+        const safeExpandedWidth = clampExpandedWidth(existing.expandedWidth ?? existing.width ?? DEFAULT_EXPANDED_WIDTH);
+        const collapsed = typeof existing.collapsed === "boolean" ? existing.collapsed : !hasSavedPrefs && count === 0;
+        const width = collapsed ? COLLAPSED_WIDTH : safeExpandedWidth;
+        if (existing.collapsed !== collapsed || existing.width !== width || existing.expandedWidth !== safeExpandedWidth || existing.userTouched !== userTouched) {
+          changed = true;
+          next[status.id] = { collapsed, width, expandedWidth: safeExpandedWidth, userTouched };
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [prefsLoaded, taskCountsByStatus, hasSavedPrefs]);
+
+  useEffect(() => {
+    const taskId = searchParams?.get("taskId");
+    if (taskId) setSelectedTaskId(taskId);
+  }, [searchParams]);
+
+  useEffect(() => {
+    setDodLink(selectedTask?.ktLink ?? "");
+    setPushToProjectDocs(true);
+  }, [selectedTask]);
+
 
   const handleCoverUpload = (event, taskId) => {
     const file = event.target.files?.[0];
@@ -1154,113 +1346,92 @@ export default function TaskBoard({
   };
 
   const portalTarget = typeof document !== "undefined" ? document.getElementById("project-board-filter-button-portal") : null;
+  const hasActiveFilters = isFilterOpen || ownerFilter !== "ALL" || statusFilter !== "ALL";
+  const filterButton = (
+    <Button
+      type="button"
+      variant={hasActiveFilters ? "secondary" : "outline"}
+      size="sm"
+      onClick={() => setIsFilterOpen((prev) => !prev)}
+      className="h-8 rounded-xl px-3 text-xs"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-3.5 w-3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        aria-hidden="true"
+      >
+        <path
+          d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span>Filters</span>
+    </Button>
+  );
 
   return (
     <div className="space-y-4">
       {!hideFilterButton && (
         <div className="space-y-3">
           {mounted && portalTarget ? (
-            createPortal(
-              <button
-                type="button"
-                onClick={() => setIsFilterOpen((prev) => !prev)}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-sm ${isFilterOpen || ownerFilter !== "ALL" || statusFilter !== "ALL"
-                  ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)]"
-                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white"
-                  }`}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path
-                    d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span>Filters</span>
-              </button>,
-              portalTarget
-            )
+            createPortal(filterButton, portalTarget)
           ) : (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsFilterOpen((prev) => !prev)}
-                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition shadow-sm ${isFilterOpen || ownerFilter !== "ALL" || statusFilter !== "ALL"
-                  ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)]"
-                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white"
-                  }`}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path
-                    d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span>Filters</span>
-              </button>
-            </div>
+            <div className="flex justify-end">{filterButton}</div>
           )}
 
           {isFilterOpen && (
-            <div className="flex flex-wrap items-center gap-4 bg-[color:var(--color-card)] border border-[color:var(--color-border)] px-4 py-3 rounded-2xl shadow-sm transition-all duration-200">
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm transition-all duration-200">
+              <div className="flex items-center gap-3">
                 {/* Owner Filter Dropdown */}
-                <div className="relative shrink-0 flex items-center">
-                  <select
-                    value={ownerFilter}
-                    onChange={(e) => setOwnerFilter(e.target.value)}
-                    className="appearance-none pl-3 pr-8 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs font-semibold text-[color:var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)] cursor-pointer hover:border-[color:var(--color-accent)] transition"
-                  >
-                    <option value="ALL">All Assignees</option>
+                <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+                  <SelectTrigger className="h-8 min-w-[120px] rounded-xl bg-background px-3 text-xs font-semibold ">
+                    <SelectValue placeholder="All Assignees" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Assignees</SelectItem>
                     {ownerOptions.map((owner) => (
-                      <option key={owner.id} value={owner.id}>
-                        {owner.name}
-                      </option>
+                      <SelectItem key={owner.id} value={owner.id}>{owner.name}</SelectItem>
                     ))}
-                  </select>
-                </div>
+                  </SelectContent>
+                </Select>
 
                 {/* Status Filter Dropdown */}
-                <div className="relative shrink-0 flex items-center">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none pl-3 pr-8 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs font-semibold text-[color:var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)] cursor-pointer hover:border-[color:var(--color-accent)] transition"
-                  >
-                    <option value="ALL">All Statuses</option>
-                    {TASK_STATUSES.map((statusOpt) => (
-                      <option key={statusOpt.id} value={statusOpt.id}>
-                        {statusOpt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-8 min-w-[120px] rounded-xl bg-background px-3 text-xs font-semibold">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <ScrollArea
+                      type="always"
+                      className="h-[300px] max-h-[calc(100vh-10rem)] w-full"
+                      viewportClassName="pr-2"
+                    >
+                      <SelectItem value="ALL">All Statuses</SelectItem>
+                      {TASK_STATUSES.map((statusOpt) => (
+                        <SelectItem key={statusOpt.id} value={statusOpt.id}>{statusOpt.label}</SelectItem>
+                      ))}
+                    </ScrollArea>
+                  </SelectContent>
+                </Select>
 
                 {/* Reset Button */}
                 {(ownerFilter !== "ALL" || statusFilter !== "ALL") && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setOwnerFilter("ALL");
                       setStatusFilter("ALL");
                     }}
-                    className="text-[11px] font-bold text-[color:var(--color-accent)] hover:text-white transition"
+                    className="h-8 px-2 text-xs text-primary"
                   >
                     Reset Filters
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
