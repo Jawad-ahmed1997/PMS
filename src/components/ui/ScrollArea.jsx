@@ -23,7 +23,7 @@ const ScrollArea = forwardRef(function ScrollArea({ className = "", viewportClas
     <ScrollAreaPrimitive.Root ref={ref} type={type} className={cn("relative overflow-hidden", className)} {...props}>
       <ScrollAreaPrimitive.Viewport className={cn("h-full w-full rounded-[inherit]", viewportClassName)}>{children}</ScrollAreaPrimitive.Viewport>
       <ScrollBar orientation="vertical" />
-      <ScrollBar orientation="horizontal" />
+      {/* <ScrollBar orientation="horizontal" /> */}
     </ScrollAreaPrimitive.Root>
   );
 });
