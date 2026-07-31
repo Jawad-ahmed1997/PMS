@@ -30,7 +30,16 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  const session = await getSessionFromRequest(request);
+  const allCookies = request.cookies.getAll().map(c => `${c.name}=${c.value ? '[EXISTS]' : '[EMPTY]'}`).join(", ");
+  console.log(`[Middleware] Protected Path: ${pathname}, Cookies: ${allCookies}`);
+
+  let session = null;
+  try {
+    session = await getSessionFromRequest(request);
+    console.log(`[Middleware] Session:`, session ? { id: session.id, role: session.role } : null);
+  } catch (err) {
+    console.error(`[Middleware] Error getting session:`, err);
+  }
 
   if (!session) {
     const signInUrl = request.nextUrl.clone();
