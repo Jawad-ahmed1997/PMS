@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { normalizeRoleId } from "@/lib/roles";
-import { buildSessionCookie, createSessionToken } from "@/lib/session";
+import {  createSessionToken,buildSessionCookie } from "@/lib/session";
 
 export async function POST(request) {
   const { email, password } = await request.json();
@@ -64,6 +64,6 @@ export async function POST(request) {
     },
   });
 
-  await response.cookies.set(buildSessionCookie(token));
+  response.cookies.set(await buildSessionCookie(token));
   return response;
 }
