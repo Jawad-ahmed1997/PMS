@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import authConfig from "../../auth.config";
 import { cookies } from "next/headers";
 
-const { auth: edgeAuth } = NextAuth(authConfig);
+export const { auth: edgeAuth } = NextAuth(authConfig);
 
 const SESSION_COOKIE = "pms-session";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 8;
