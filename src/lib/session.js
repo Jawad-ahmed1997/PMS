@@ -1,4 +1,8 @@
+import NextAuth from "next-auth";
+import authConfig from "../../auth.config";
 import { cookies } from "next/headers";
+
+const { auth: edgeAuth } = NextAuth(authConfig);
 
 const SESSION_COOKIE = "pms-session";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 8;
@@ -146,12 +150,22 @@ export function clearSessionCookie() {
 }
 
 export async function getSession() {
+  const nextAuthSession = await edgeAuth();
+  if (nextAuthSession?.user) {
+    return nextAuthSession.user;
+  }
+
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   return verifySessionToken(token);
 }
 
 export async function getSessionFromRequest(request) {
+  const nextAuthSession = await edgeAuth(request);
+  if (nextAuthSession?.user) {
+    return nextAuthSession.user;
+  }
+
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   return verifySessionToken(token);
 }
