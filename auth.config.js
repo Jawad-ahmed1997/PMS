@@ -1,7 +1,7 @@
 const authConfig = {
   providers: [],
   session: { strategy: "jwt", maxAge: 60 * 60 * 8 },
-  pages: { signIn: "/auth/sign-in" },
+  pages: { signIn: "/login" },
   cookies: {
     sessionToken: {
       name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}authjs.session-token`,

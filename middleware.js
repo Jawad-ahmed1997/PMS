@@ -13,7 +13,7 @@ const protectedRoutes = [
   "/users",
 ];
 
-const authRoutes = ["/auth", "/auth/sign-in", "/auth/set-password"];
+const authRoutes = ["/auth", "/login", "/auth/set-password"];
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
@@ -34,7 +34,7 @@ export async function middleware(request) {
 
   if (!session) {
     const signInUrl = request.nextUrl.clone();
-    signInUrl.pathname = "/auth/sign-in";
+    signInUrl.pathname = "/login";
     signInUrl.searchParams.set("denied", "1");
     signInUrl.searchParams.set("reason", "Please sign in to continue.");
     return NextResponse.redirect(signInUrl);
