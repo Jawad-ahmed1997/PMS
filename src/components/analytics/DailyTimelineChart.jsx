@@ -309,7 +309,7 @@ export default function DailyTimelineChart({
             return (
             <div
               key={row.user?.id ?? row.user?.name ?? "row"}
-              className="space-y-2 border-b border-[color:var(--color-border)]/30 pb-5 last:border-0 last:pb-0"
+              className="relative z-10 hover:z-20 space-y-2 border-b border-[color:var(--color-border)]/30 pb-5 last:border-0 last:pb-0"
             >
               {/* Header Row: User Info on Left, Summary Stats on Right - Static */}
               <div className="flex items-center justify-between gap-4 px-8">
@@ -330,16 +330,20 @@ export default function DailyTimelineChart({
                 <p className="text-xs text-[#8ea8c8] font-semibold shrink-0">
                   {formatDurationSeconds(row.totals?.dutySeconds)} total
                   <span className="px-2">•</span>
-                  {formatDurationSeconds(row.totals?.workTaskSeconds)} task
+                  {formatDurationSeconds((row.totals?.workTaskSeconds ?? 0) + (row.totals?.workManualSeconds ?? 0))} work
                   <span className="px-2">•</span>
-                  {formatDurationSeconds(row.totals?.workManualSeconds)} manual
+                  {formatDurationSeconds(row.totals?.breakSeconds)} break
                   <span className="px-2">•</span>
                   {formatDurationSeconds(row.totals?.idleSeconds)} idle
+                  <span className="px-2">•</span>
+                  <span className={row.totals?.utilizationPercent >= 70 ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+                    {row.totals?.utilizationPercent ?? 0}% util
+                  </span>
                 </p>
               </div>
 
               <div className="px-8">
-                <div className="overflow-x-auto hide-scrollbar">
+                <div className="overflow-x-auto md:overflow-x-visible hide-scrollbar" style={{ overflowY: "visible" }}>
                   <div style={{ minWidth }} className="h-12">
                     <ChartContainer config={timelineChart.config} className="h-full min-h-0 aspect-auto rounded-xl border border-border/60 bg-muted/20 px-2 py-1">
                       <ResponsiveContainer width="100%" height="100%">
