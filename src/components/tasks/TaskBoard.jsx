@@ -22,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BREAK_TYPES, formatBreakTypes } from "@/lib/breakTypes";
 import { useNotificationSound } from "@/lib/useNotificationSound";
-import ActionButton from "../ui/ActionButton";
 
 const COLLAPSED_WIDTH = 64;
 const DEFAULT_EXPANDED_WIDTH = 320;
@@ -143,7 +142,6 @@ export default function TaskBoard({
   const [milestoneFilter, setMilestoneFilter] = useState("ALL");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
   const [timeRequestOpen, setTimeRequestOpen] = useState(false);
   const [timeRequestForm, setTimeRequestForm] = useState({
     hours: "",
@@ -410,61 +408,16 @@ export default function TaskBoard({
   const [taskCovers, setTaskCovers] = useState({}); // taskId -> base64
   const [taskAttachments, setTaskAttachments] = useState({}); // taskId -> Array of attachments
   const [newSubtaskText, setNewSubtaskText] = useState("");
-  const [taskItems, setTaskItems] = useState(tasks ?? []);
-  const [pendingTaskId, setPendingTaskId] = useState(null);
-  const [pendingChecklistId, setPendingChecklistId] = useState(null);
-  const [draggingTaskId, setDraggingTaskId] = useState(null);
-  const [dragOverStatus, setDragOverStatus] = useState(null);
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const selectedTask = taskItems.find((task) => task.id === selectedTaskId) ?? null;
-  const [scope, setScope] = useState(currentUserId ? "mine" : "all");
-  const [mounted, setMounted] = useState(false);
+  
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [ownerFilter, setOwnerFilter] = useState("ALL");
-  const [milestoneFilter, setMilestoneFilter] = useState("ALL");
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
-  const [timeRequestOpen, setTimeRequestOpen] = useState(false);
-  const [timeRequestForm, setTimeRequestForm] = useState({ hours: "", minutes: "", reason: "" });
-  const [timeRequests, setTimeRequests] = useState([]);
-  const [timeRequestsLoading, setTimeRequestsLoading] = useState(false);
-  const [timeRequestActionId, setTimeRequestActionId] = useState(null);
-  const [requestSubmitting, setRequestSubmitting] = useState(false);
-  const [breakForm, setBreakForm] = useState({ reasons: ["NAMAZ"], note: "" });
-  const [breakPanelOpen, setBreakPanelOpen] = useState(false);
-  const [breakSubmitting, setBreakSubmitting] = useState(false);
-  const [columnPrefs, setColumnPrefs] = useState({});
-  const [resizeState, setResizeState] = useState(null);
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
-  const [hasSavedPrefs, setHasSavedPrefs] = useState(false);
-  const [dodLink, setDodLink] = useState("");
-  const [pushToProjectDocs, setPushToProjectDocs] = useState(true);
-  const [savingDod, setSavingDod] = useState(false);
-  const scrollContainerRef = useRef(null);
-
-  const milestoneId = tasks?.[0]?.milestoneId ?? "unknown";
-  const prefKey = `kanbanColumnPrefs:${currentUserId ?? "guest"}:${milestoneId}`;
-  const ownerOptions = useMemo(() => {
-    const owners = new Map();
-    taskItems.forEach((task) => {
-      if (task.owner) owners.set(task.owner.id, task.owner.name);
-    });
-    return Array.from(owners.entries()).map(([id, name]) => ({ id, name }));
-  }, [taskItems]);
-  const mentionUsers = useMemo(() => {
-    const users = new Map();
-    taskItems.forEach((task) => {
-      if (task.owner) users.set(task.owner.id, task.owner);
-    });
-    return Array.from(users.values());
-  }, [taskItems]);
-  const selectedSpentSeconds = Number(selectedTask?.spentTimeSeconds ?? 0);
-
+ 
+ 
+ 
   useEffect(() => {
     setTaskItems(tasks ?? []);
   }, [tasks]);
@@ -556,12 +509,7 @@ export default function TaskBoard({
     };
   }, [resizeState]);
 
-  const taskCountsByStatus = useMemo(() => {
-    const counts = {};
-    TASK_STATUSES.forEach((status) => { counts[status.id] = 0; });
-    taskItems.forEach((task) => { counts[task.status] = (counts[task.status] ?? 0) + 1; });
-    return counts;
-  }, [taskItems]);
+
 
   useEffect(() => {
     if (!prefsLoaded) return;
