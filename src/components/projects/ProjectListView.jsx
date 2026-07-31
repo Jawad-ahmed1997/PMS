@@ -18,6 +18,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import ViewToggle from "@/components/ui/ViewToggle";
 import { Table } from "@/components/ui/table";
 import Avatar from "@/components/ui/Avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const VIEW_PREFERENCE_KEY = "pms.projects.view";
 const buildErrorMessage = (data) => data?.error ?? data?.message ?? "Unable to load project data.";
@@ -32,18 +33,35 @@ const normalizeProject = (project) => ({
 const ProjectMembers = ({ members }) => {
   const visibleMembers = members.slice(0, 3);
   const extraCount = Math.max(0, members.length - visibleMembers.length);
+  const remainingMembers = members.slice(visibleMembers.length);
   if (!members.length) return <span className="text-xs text-muted-foreground">No members yet</span>;
   return (
-    <div className="flex items-center">
-      <div className="flex -space-x-2">
+    <TooltipProvider delayDuration={150}>
+      <div className="flex items-center">
+        <div className="flex items-center -space-x-2">
         {visibleMembers.map((member) => (
-          <div key={member.id} className="relative rounded-full ring-2 ring-card" title={member.name}>
-            <Avatar name={member.name} size="sm" />
+          <div key={member.id} className="relative rounded-full ring-2 ring-card transition-transform duration-200 hover:z-10 hover:-translate-y-0.5" title={member.name}>
+            <Avatar src={member.image} name={member.name} alt={`${member.name} avatar`} className="h-8 w-8 text-xs" />
           </div>
         ))}
-        {extraCount > 0 ? <span className="ml-2 text-xs font-medium text-muted-foreground">{extraCount} more</span> : null}
+        {extraCount > 0 ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="relative z-[1] ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-border bg-secondary text-[11px] font-semibold text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Show ${extraCount} more project member${extraCount === 1 ? "" : "s"}`}>
+                +{extraCount}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="start" className="max-w-64 whitespace-normal p-3">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Additional members</p>
+              <div className="grid gap-1">
+                {remainingMembers.map((member) => <span key={member.id}>{member.name}</span>)}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 };
 
