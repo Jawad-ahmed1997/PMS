@@ -96,14 +96,13 @@ export function parseDateInput(value, timeZone = DEFAULT_TIME_ZONE) {
   }
   if (typeof value === "string") {
     const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) {
-      return null;
+    if (match) {
+      return {
+        year: Number(match[1]),
+        month: Number(match[2]),
+        day: Number(match[3]),
+      };
     }
-    return {
-      year: Number(match[1]),
-      month: Number(match[2]),
-      day: Number(match[3]),
-    };
   }
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {

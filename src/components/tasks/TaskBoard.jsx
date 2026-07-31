@@ -8,7 +8,7 @@ import ActionButton from "@/components/ui/ActionButton";
 import { Sheet } from "@/components/ui/sheet";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
-import { TASK_STATUSES, getNextStatuses, getStatusLabel } from "@/lib/kanban";
+import { TASK_STATUSES, getNextStatuses, getStatusLabel, isDeveloperOnlyTransition, isManagementOnlyTransition } from "@/lib/kanban";
 import { canMarkTaskDone, normalizeRoleId, roles } from "@/lib/roles";
 import {
   Select,
@@ -130,65 +130,294 @@ export default function TaskBoard({
   const playNotificationSound = useNotificationSound();
   const searchParams = useSearchParams();
 
-  // Mock states for Trello Task Modal features
-  const [taskCovers, setTaskCovers] = useState({}); // taskId -> base64
-  const [taskAttachments, setTaskAttachments] = useState({}); // taskId -> Array of attachments
-  const [newSubtaskText, setNewSubtaskText] = useState("");
-  const [taskItems, setTaskItems] = useState(tasks ?? []);
+  const [taskItems, setTaskItems] = useState(tasks);
   const [pendingTaskId, setPendingTaskId] = useState(null);
   const [pendingChecklistId, setPendingChecklistId] = useState(null);
   const [draggingTaskId, setDraggingTaskId] = useState(null);
   const [dragOverStatus, setDragOverStatus] = useState(null);
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const selectedTask = taskItems.find((task) => task.id === selectedTaskId) ?? null;
-  const [scope, setScope] = useState(currentUserId ? "mine" : "all");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  // Default to all tasks so milestone boards don't appear empty for managers.
+  const [scope, setScope] = useState("all");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [ownerFilter, setOwnerFilter] = useState("ALL");
   const [milestoneFilter, setMilestoneFilter] = useState("ALL");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [timeRequestOpen, setTimeRequestOpen] = useState(false);
-  const [timeRequestForm, setTimeRequestForm] = useState({ hours: "", minutes: "", reason: "" });
+  const [timeRequestForm, setTimeRequestForm] = useState({
+    hours: "",
+    minutes: "",
+    reason: "",
+  });
   const [timeRequests, setTimeRequests] = useState([]);
   const [timeRequestsLoading, setTimeRequestsLoading] = useState(false);
   const [timeRequestActionId, setTimeRequestActionId] = useState(null);
   const [requestSubmitting, setRequestSubmitting] = useState(false);
-  const [breakForm, setBreakForm] = useState({ reasons: ["NAMAZ"], note: "" });
+  const [breakForm, setBreakForm] = useState({
+    reasons: ["NAMAZ"],
+    note: "",
+  });
   const [breakPanelOpen, setBreakPanelOpen] = useState(false);
   const [breakSubmitting, setBreakSubmitting] = useState(false);
   const [columnPrefs, setColumnPrefs] = useState({});
   const [resizeState, setResizeState] = useState(null);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [hasSavedPrefs, setHasSavedPrefs] = useState(false);
-  const [dodLink, setDodLink] = useState("");
-  const [pushToProjectDocs, setPushToProjectDocs] = useState(true);
-  const [savingDod, setSavingDod] = useState(false);
+
   const scrollContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (!draggingTaskId) return;
+
+    let animationFrameId;
+    let scrollSpeed = 0;
+
+    const handleDragOver = (event) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+
+      const threshold = 100;
+      const maxSpeed = 15;
+
+      if (x < threshold) {
+        const ratio = (threshold - x) / threshold;
+        scrollSpeed = -ratio * maxSpeed;
+      } else if (x > rect.width - threshold) {
+        const ratio = (x - (rect.width - threshold)) / threshold;
+        scrollSpeed = ratio * maxSpeed;
+      } else {
+        scrollSpeed = 0;
+      }
+    };
+
+    const scrollTick = () => {
+      const container = scrollContainerRef.current;
+      if (container && scrollSpeed !== 0) {
+        container.scrollLeft += scrollSpeed;
+      }
+      animationFrameId = requestAnimationFrame(scrollTick);
+    };
+
+    window.addEventListener("dragover", handleDragOver);
+    animationFrameId = requestAnimationFrame(scrollTick);
+
+    return () => {
+      window.removeEventListener("dragover", handleDragOver);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [draggingTaskId]);
+
+  useEffect(() => {
+    setTaskItems(tasks);
+  }, [tasks]);
 
   const milestoneId = tasks?.[0]?.milestoneId ?? "unknown";
   const prefKey = `kanbanColumnPrefs:${currentUserId ?? "guest"}:${milestoneId}`;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    setPrefsLoaded(false);
+    const raw = window.localStorage.getItem(prefKey);
+    setHasSavedPrefs(Boolean(raw));
+    if (!raw) {
+      setColumnPrefs({});
+      setPrefsLoaded(true);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      setColumnPrefs(parsed && typeof parsed === "object" ? parsed : {});
+    } catch {
+      setColumnPrefs({});
+    }
+    setPrefsLoaded(true);
+  }, [prefKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(prefKey, JSON.stringify(columnPrefs));
+  }, [prefKey, columnPrefs]);
+
+  useEffect(() => {
+    if (!resizeState) {
+      return;
+    }
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMove = (event) => {
+      const delta = event.clientX - resizeState.startX;
+      const width = clampExpandedWidth(resizeState.startWidth + delta);
+      setColumnPrefs((prev) => ({
+        ...prev,
+        [resizeState.statusId]: {
+          ...prev?.[resizeState.statusId],
+          width,
+          collapsed: false,
+          userTouched: true,
+        },
+      }));
+    };
+    const onUp = () => {
+      setColumnPrefs((prev) => {
+        const current = prev?.[resizeState.statusId] ?? {};
+        const committedWidth = clampExpandedWidth(
+          current.width ?? resizeState.startWidth ?? DEFAULT_EXPANDED_WIDTH
+        );
+
+        return {
+          ...prev,
+          [resizeState.statusId]: {
+            ...current,
+            collapsed: false,
+            width: committedWidth,
+            expandedWidth: committedWidth,
+            userTouched: true,
+          },
+        };
+      });
+      setResizeState(null);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [resizeState]);
+
+  const taskCountsByStatus = useMemo(() => {
+    const counts = {};
+    TASK_STATUSES.forEach((status) => {
+      counts[status.id] = 0;
+    });
+    taskItems.forEach((task) => {
+      counts[task.status] = (counts[task.status] ?? 0) + 1;
+    });
+    return counts;
+  }, [taskItems]);
+
+  useEffect(() => {
+    if (!prefsLoaded) {
+      return;
+    }
+
+    setColumnPrefs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      TASK_STATUSES.forEach((status) => {
+        const count = taskCountsByStatus[status.id] ?? 0;
+        const existing = prev?.[status.id] ?? {};
+        const userTouched = Boolean(existing.userTouched);
+        const safeExpandedWidth = clampExpandedWidth(
+          existing.expandedWidth ?? existing.width ?? DEFAULT_EXPANDED_WIDTH
+        );
+
+        const shouldDefaultCollapse = !hasSavedPrefs && count === 0;
+        const collapsed =
+          typeof existing.collapsed === "boolean"
+            ? existing.collapsed
+            : shouldDefaultCollapse;
+        const width = collapsed ? COLLAPSED_WIDTH : safeExpandedWidth;
+
+        if (
+          existing.collapsed !== collapsed ||
+          existing.width !== width ||
+          existing.expandedWidth !== safeExpandedWidth ||
+          existing.userTouched !== userTouched
+        ) {
+          changed = true;
+          next[status.id] = {
+            collapsed,
+            width,
+            expandedWidth: safeExpandedWidth,
+            userTouched,
+          };
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [prefsLoaded, taskCountsByStatus, hasSavedPrefs]);
+
+  useEffect(() => {
+    const taskId = searchParams?.get("taskId");
+    if (!taskId) {
+      return;
+    }
+    setSelectedTaskId(taskId);
+  }, [searchParams]);
+
   const ownerOptions = useMemo(() => {
     const owners = new Map();
     taskItems.forEach((task) => {
-      if (task.owner) owners.set(task.owner.id, task.owner.name);
+      if (task.owner) {
+        owners.set(task.owner.id, task.owner.name);
+      }
     });
     return Array.from(owners.entries()).map(([id, name]) => ({ id, name }));
   }, [taskItems]);
+
   const mentionUsers = useMemo(() => {
     const users = new Map();
     taskItems.forEach((task) => {
-      if (task.owner) users.set(task.owner.id, task.owner);
+      if (task.owner) {
+        users.set(task.owner.id, task.owner);
+      }
     });
     return Array.from(users.values());
   }, [taskItems]);
+
+  const selectedTask = useMemo(
+    () => taskItems.find((task) => task.id === selectedTaskId) ?? null,
+    [taskItems, selectedTaskId]
+  );
   const selectedSpentSeconds = Number(selectedTask?.spentTimeSeconds ?? 0);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const [dodLink, setDodLink] = useState("");
+  const [pushToProjectDocs, setPushToProjectDocs] = useState(true);
+  const [savingDod, setSavingDod] = useState(false);
+
+  useEffect(() => {
+    if (selectedTask) {
+      setDodLink(selectedTask.ktLink ?? "");
+    } else {
+      setDodLink("");
+    }
+    setPushToProjectDocs(true);
+  }, [selectedTask]);
+
+  // Mock states for Trello Task Modal features
+  const [taskCovers, setTaskCovers] = useState({}); // taskId -> base64
+  const [taskAttachments, setTaskAttachments] = useState({}); // taskId -> Array of attachments
+  const [newSubtaskText, setNewSubtaskText] = useState("");
+  
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const [activeTab, setActiveTab] = useState("overview");
+ 
+ 
+ 
   useEffect(() => {
     setTaskItems(tasks ?? []);
   }, [tasks]);
@@ -280,12 +509,7 @@ export default function TaskBoard({
     };
   }, [resizeState]);
 
-  const taskCountsByStatus = useMemo(() => {
-    const counts = {};
-    TASK_STATUSES.forEach((status) => { counts[status.id] = 0; });
-    taskItems.forEach((task) => { counts[task.status] = (counts[task.status] ?? 0) + 1; });
-    return counts;
-  }, [taskItems]);
+
 
   useEffect(() => {
     if (!prefsLoaded) return;
@@ -558,7 +782,7 @@ export default function TaskBoard({
   const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
 
   const isManager = useMemo(
-    () => [roles.PM, roles.CTO, roles.CEO].includes(normalizedRole),
+    () => [roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole),
     [normalizedRole]
   );
 
@@ -678,12 +902,13 @@ export default function TaskBoard({
       return;
     }
 
-    if (!canMoveTaskForTask(task)) {
-      addToast({
-        title: "Move blocked",
-        message: "You can only move tasks assigned to you.",
-        variant: "error",
-      });
+    if (!canMoveTaskForTask(task, nextStatus)) {
+      const message = isManagementOnlyTransition(task.status, nextStatus)
+        ? "Only PMs, CTOs, or Team Leads can move tasks from Backlog to Ready."
+        : isDeveloperOnlyTransition(task.status, nextStatus)
+        ? "Only the assigned developer can move their task through this stage."
+        : "You can only move tasks assigned to you.";
+      addToast({ title: "Move blocked", message, variant: "error" });
       return;
     }
 
@@ -785,6 +1010,21 @@ export default function TaskBoard({
         });
       }
 
+      // Timer status toasts
+      if (nextStatus === "DEV_TEST") {
+        addToast({
+          title: "⏱ Timer stopped",
+          message: "Task moved to Dev Test — timer has been paused.",
+          variant: "info",
+        });
+      } else if (nextStatus === "IN_PROGRESS" && task.status === "DEV_TEST") {
+        addToast({
+          title: "⏱ Timer restarted",
+          message: "Task returned to In Progress — timer is running again.",
+          variant: "success",
+        });
+      }
+
       setColumnPrefs((prev) => {
         const current = prev?.[nextStatus] ?? {};
         const expandedWidth = clampExpandedWidth(
@@ -804,7 +1044,32 @@ export default function TaskBoard({
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
-        window.dispatchEvent(new CustomEvent("pms:timer-changed"));
+        
+        let activeSessionPayload = null;
+        if (nextStatus === "IN_PROGRESS" && data?.task) {
+          activeSessionPayload = {
+            active: true,
+            task: {
+              id: data.task.id,
+              title: data.task.title,
+              estimatedSeconds: Math.round((data.task.estimatedHours ?? 0) * 3600),
+              status: data.task.status,
+              milestoneId: data.task.milestoneId,
+              projectId: data.task.milestone?.projectId ?? null,
+            },
+            accumulatedSeconds: data.task.spentTimeSeconds ?? 0,
+            runningStartedAt: data.task.lastStartedAt,
+            isPaused: false,
+            activeBreak: null,
+            serverNow: new Date().toISOString(),
+          };
+        }
+
+        window.dispatchEvent(
+          new CustomEvent("pms:timer-changed", {
+            detail: { activeSession: activeSessionPayload },
+          })
+        );
       }
     } catch (error) {
       setTaskItems(previousTaskItems);
@@ -1121,16 +1386,28 @@ export default function TaskBoard({
     return isManager || isTaskOwner(task);
   };
 
-  const canMoveTaskForTask = (task) => {
+  const canMoveTaskForTask = (task, toStatus = null) => {
     if (!currentUserId || !task) {
       return false;
     }
 
-    if ([roles.PM, roles.CTO, roles.CEO].includes(normalizedRole)) {
-      return true;
+    const isManagerRole = [roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole);
+    const isOwner = task.ownerId === currentUserId;
+
+    if (toStatus) {
+      // Management-only transitions (e.g. BACKLOG → READY)
+      // Assignees cannot self-promote tasks out of the backlog.
+      if (isManagementOnlyTransition(task.status, toStatus) && !isManagerRole) {
+        return false;
+      }
+      // Developer-only transitions — managers cannot drag tasks through these
+      // unless they are also the assignee.
+      if (isDeveloperOnlyTransition(task.status, toStatus) && isManagerRole && !isOwner) {
+        return false;
+      }
     }
 
-    return task.ownerId === currentUserId;
+    return isManagerRole || isOwner;
   };
 
   const canRequestMoreTime = (task) => {
@@ -1142,9 +1419,11 @@ export default function TaskBoard({
   };
 
   const canControlBreaks = (task) =>
-    isTaskOwner(task) && ![roles.PM, roles.CTO, roles.CEO].includes(normalizedRole);
+    isTaskOwner(task) && ![roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole);
 
   const handleDragStart = (event, task) => {
+    // For developer-only transitions we need the target column, which we don't
+    // know yet at drag-start. We allow the drag to begin and block at drop.
     if (!canMoveTaskForTask(task)) {
       event.preventDefault();
       addToast({
@@ -1174,12 +1453,13 @@ export default function TaskBoard({
       return;
     }
 
-    if (!canMoveTaskForTask(task)) {
-      addToast({
-        title: "Move blocked",
-        message: "You can only move tasks assigned to you.",
-        variant: "error",
-      });
+    if (!canMoveTaskForTask(task, statusId)) {
+      const message = isManagementOnlyTransition(task.status, statusId)
+        ? "Only PMs, CTOs, or Team Leads can move tasks from Backlog to Ready."
+        : isDeveloperOnlyTransition(task.status, statusId)
+        ? "Only the assigned developer can move their task through this stage."
+        : "You can only move tasks assigned to you.";
+      addToast({ title: "Move blocked", message, variant: "error" });
       return;
     }
 
@@ -1561,6 +1841,11 @@ export default function TaskBoard({
                         )}
                         {task.status === "ON_HOLD" && task.holdReason && (
                           <span className="rounded border border-amber-500/40 px-1.5 py-0.5 text-[10px] text-amber-300">⏸ {task.holdReason}</span>
+                        )}
+                        {Number(task.reworkCount ?? 0) > 0 && (
+                          <span className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400">
+                            ⚠️ Rework ({task.reworkCount})
+                          </span>
                         )}
                       </div>
                       {/* Custom Subtasks Mini List */}

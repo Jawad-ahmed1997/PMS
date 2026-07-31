@@ -207,8 +207,8 @@ export async function POST(request) {
   }
 
   if (["DONE", "REJECTED"].includes(status)) {
-    if (!["PM", "CTO"].includes(context.role)) {
-      return buildError("Only PMs and CTOs can approve or reject tasks.", 403);
+    if (!["PM", "CTO", "TEAM_LEAD"].includes(context.role)) {
+      return buildError("Only PMs, CTOs, and Team Leads can approve or reject tasks.", 403);
     }
   }
 
@@ -351,7 +351,7 @@ export async function POST(request) {
   });
 
   if (
-    ["PM", "CTO"].includes(context.role) &&
+    ["PM", "CTO", "TEAM_LEAD"].includes(context.role) &&
     createdTask.ownerId &&
     createdTask.ownerId !== context.user.id
   ) {

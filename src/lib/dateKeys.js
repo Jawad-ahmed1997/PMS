@@ -1,6 +1,6 @@
 import { parseDateInput } from "@/lib/attendanceTimes";
 
-export const APP_DATE_TIME_ZONE = "America/Los_Angeles";
+export const APP_DATE_TIME_ZONE = "Asia/Karachi";
 
 const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
