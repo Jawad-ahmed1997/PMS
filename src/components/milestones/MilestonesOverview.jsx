@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MilestoneCard from "@/components/milestones/MilestoneCard";
-import ActionButton from "@/components/ui/ActionButton";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/ToastProvider";
 import { getMilestoneStatus } from "@/lib/milestoneProgress";
 import PageHeader from "@/components/layout/PageHeader";
-import Modal from "@/components/ui/Modal";
+import { Dialog } from "@/components/ui/dialog";
 import ViewToggle from "@/components/ui/ViewToggle";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { getTodayInPSTDateString } from "@/lib/pstDate";
 import { canCreateMilestones } from "@/lib/roles";
 
@@ -24,7 +26,7 @@ export default function MilestonesOverview({ role }) {
   const [projectFilter, setProjectFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [viewMode, setViewMode] = useState("grid");
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const canCreate = useMemo(() => canCreateMilestones(role), [role]);
   const [milestoneForm, setMilestoneForm] = useState({
@@ -101,9 +103,9 @@ export default function MilestonesOverview({ role }) {
   }, [addToast]);
 
   useEffect(() => {
-    if (!isModalOpen || !canCreate) return;
+    if (!isDialogOpen || !canCreate) return;
     loadProjects();
-  }, [canCreate, isModalOpen, loadProjects]);
+  }, [canCreate, isDialogOpen, loadProjects]);
 
   const handleCreateMilestone = async (event) => {
     event.preventDefault();
@@ -154,7 +156,7 @@ export default function MilestonesOverview({ role }) {
         endDate: today,
         projectId: projects[0]?.id ?? "",
       });
-      setIsModalOpen(false);
+      setIsDialogOpen(false);
       loadMilestones();
     } catch (error) {
       const message =
@@ -244,7 +246,7 @@ export default function MilestonesOverview({ role }) {
       <div className="flex flex-wrap items-end gap-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-4">
         <div className="flex flex-col gap-1 text-xs text-[color:var(--color-text-muted)]">
           Project
-          <select
+          <Select
             className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
             value={projectFilter}
             onChange={(event) => setProjectFilter(event.target.value)}
@@ -255,11 +257,11 @@ export default function MilestonesOverview({ role }) {
                 {project.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="flex flex-col gap-1 text-xs text-[color:var(--color-text-muted)]">
           Status
-          <select
+          <Select
             className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
@@ -267,7 +269,7 @@ export default function MilestonesOverview({ role }) {
             <option value="ALL">All statuses</option>
             <option value="ACTIVE">Active</option>
             <option value="EXPIRED">Expired</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -280,7 +282,7 @@ export default function MilestonesOverview({ role }) {
       {!status.loading && status.error && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
           <p>{status.error}</p>
-          <ActionButton label="Retry" variant="secondary" onClick={loadMilestones} />
+          <Button label="Retry" variant="secondary" onClick={loadMilestones} />
         </div>
       )}
 
@@ -327,16 +329,16 @@ export default function MilestonesOverview({ role }) {
         </div>
       )}
 
-      <Modal
-        isOpen={isModalOpen}
+      <Dialog
+        isOpen={isDialogOpen}
         title="Create milestone"
         description="Set dates to anchor the milestone timeline."
-        onClose={isSaving ? undefined : () => setIsModalOpen(false)}
+        onClose={isSaving ? undefined : () => setIsDialogOpen(false)}
       >
         <form onSubmit={handleCreateMilestone} className="space-y-4">
           <label className="text-xs text-[color:var(--color-text-muted)]">
             Milestone title
-            <input
+            <Input
               className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
               value={milestoneForm.title}
               onChange={(event) =>
@@ -349,7 +351,7 @@ export default function MilestonesOverview({ role }) {
           </label>
           <label className="text-xs text-[color:var(--color-text-muted)]">
             Project
-            <select
+            <Select
               className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
               value={milestoneForm.projectId}
               onChange={(event) =>
@@ -364,12 +366,12 @@ export default function MilestonesOverview({ role }) {
                   {project.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-xs text-[color:var(--color-text-muted)]">
               Start date
-              <input
+              <Input
                 type="date"
                 className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                 value={milestoneForm.startDate}
@@ -383,7 +385,7 @@ export default function MilestonesOverview({ role }) {
             </label>
             <label className="text-xs text-[color:var(--color-text-muted)]">
               End date
-              <input
+              <Input
                 type="date"
                 className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
                 value={milestoneForm.endDate}
@@ -397,13 +399,13 @@ export default function MilestonesOverview({ role }) {
             </label>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <ActionButton
+            <Button
               label="Cancel"
               variant="secondary"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => setIsDialogOpen(false)}
               className={isSaving ? "pointer-events-none opacity-60" : ""}
             />
-            <ActionButton
+            <Button
               label={isSaving ? "Saving..." : "Create milestone"}
               variant="primary"
               type="submit"
@@ -411,7 +413,7 @@ export default function MilestonesOverview({ role }) {
             />
           </div>
         </form>
-      </Modal>
+      </Dialog>
     </div>
   );
 }

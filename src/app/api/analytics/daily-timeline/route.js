@@ -3,7 +3,7 @@ import { buildError, buildSuccess, ensureAuthenticated, getAuthContext } from "@
 import { buildDailyTimeline } from "@/lib/analytics/dailyTimeline";
 import { getDutyDate } from "@/lib/dutyHours";
 
-const MANAGEMENT_ROLES = new Set(["CEO", "PM", "CTO"]);
+const MANAGEMENT_ROLES = new Set(["CEO", "PM", "CTO", "TEAM_LEAD"]);
 
 function parseDateParam(value) {
   if (!value) {

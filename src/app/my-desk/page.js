@@ -1,5 +1,5 @@
 import MyDeskView from "@/components/my-desk/MyDeskView";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { prisma } from "@/lib/prisma";
 
 export default async function MyDeskPage() {

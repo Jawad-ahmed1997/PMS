@@ -1,5 +1,5 @@
 import ProjectDetailView from "@/components/projects/ProjectDetailView";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { prisma } from "@/lib/prisma";
 import { canCreateMilestones, normalizeRoleId } from "@/lib/roles";
 

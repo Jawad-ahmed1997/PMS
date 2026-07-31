@@ -1,5 +1,5 @@
 import ProjectListView from "@/components/projects/ProjectListView";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { normalizeRoleId, roles } from "@/lib/roles";
 
 export default async function ProjectsPage() {

@@ -1,6 +1,6 @@
 import AttendanceDashboard from "@/components/attendance/AttendanceDashboard";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { normalizeRole, PROJECT_MANAGEMENT_ROLES } from "@/lib/api";
 import {
   computeAttendanceDurationsForRecord,

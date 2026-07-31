@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import ActionButton from "@/components/ui/ActionButton";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/ToastProvider";
-import { Loader2, Plus, Search, Trash2, Link2, Eye, Edit3, BookOpen, Bold, Italic, Heading, List, Code } from "lucide-react";
+import { Plus, Search, Trash2, Link2, Eye, Edit3, BookOpen, Bold, Italic, Heading, List, Code } from "lucide-react";
 import SearchableTaskSelector from "@/components/ui/SearchableTaskSelector";
 
 // A simple, safe client-side Markdown parser for the preview mode
@@ -272,18 +277,20 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
             <h3 className="text-xs font-bold uppercase tracking-wider text-[color:var(--color-text-subtle)]">
               My Notes
             </h3>
-            <button
+            <Button
+              variant="outline"
+              size="icon"
               onClick={handleCreateNote}
               className="flex items-center justify-center p-1 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg)] hover:bg-[color:var(--color-muted-bg)] hover:text-[color:var(--color-accent)] transition text-[color:var(--color-text-subtle)]"
               title="New Note"
             >
               <Plus className="h-4.5 w-4.5" />
-            </button>
+            </Button>
           </div>
           
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)]" />
-            <input
+            <Input
               type="text"
               placeholder="Search notes..."
               className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs text-[color:var(--color-text)] focus:outline-none"
@@ -297,11 +304,12 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loading ? (
             <div className="flex items-center justify-center py-8 text-xs text-[color:var(--color-text-muted)] animate-pulse">
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Loading notes...
+              <Skeleton className="mx-auto h-4 w-32" />
             </div>
           ) : filteredNotes.length > 0 ? (
             filteredNotes.map((note) => (
-              <button
+              <Button
+                variant="ghost"
                 key={note.id}
                 onClick={() => handleSelectNote(note)}
                 className={`w-full text-left p-2.5 rounded-xl border transition flex flex-col gap-1 ${
@@ -326,7 +334,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
                     <Link2 className="h-2 w-2 shrink-0" /> {note.task.title}
                   </span>
                 )}
-              </button>
+              </Button>
             ))
           ) : (
             <p className="text-center text-xs text-[color:var(--color-text-muted)] py-8">
@@ -344,7 +352,8 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
             <div className="p-3 border-b border-[color:var(--color-border)] flex flex-wrap items-center justify-between gap-3 bg-[color:var(--color-muted-bg)]">
               {/* Tab Selector */}
               <div className="flex border border-[color:var(--color-border)] rounded-xl overflow-hidden bg-[color:var(--color-input)] p-0.5">
-                <button
+                <Button
+                  variant={viewMode === "edit" ? "secondary" : "ghost"}
                   onClick={() => setViewMode("edit")}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition ${
                     viewMode === "edit"
@@ -353,8 +362,9 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
                   }`}
                 >
                   <Edit3 className="h-3 w-3" /> Edit
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant={viewMode === "preview" ? "secondary" : "ghost"}
                   onClick={() => setViewMode("preview")}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition ${
                     viewMode === "preview"
@@ -363,35 +373,36 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
                   }`}
                 >
                   <Eye className="h-3 w-3" /> Preview
-                </button>
+                </Button>
               </div>
 
               {/* Actions */}
               <div className="flex items-center gap-2">
-                <ActionButton
-                  label={saving ? "Saving..." : "Save Note"}
-                  variant="success"
+                <Button
+                  variant="default"
                   onClick={handleSaveNote}
                   disabled={saving}
                   size="sm"
-                />
-                <button
+                >{saving ? "Saving..." : "Save Note"}</Button>
+                <Button
+                  variant="destructive"
+                  size="icon"
                   onClick={() => handleDeleteNote(activeNote.id)}
                   className="flex items-center justify-center p-2 rounded-xl border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500 hover:text-white transition text-rose-300"
                   title="Delete Note"
                 >
                   <Trash2 className="h-4.5 w-4.5" />
-                </button>
+                </Button>
               </div>
             </div>
 
             {/* Note Metadata Details */}
             <div className="p-4 border-b border-[color:var(--color-border)] grid gap-4 md:grid-cols-2">
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-text-muted)]">
+                <Label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-text-muted)]">
                   Note Title
-                </label>
-                <input
+                </Label>
+                <Input
                   type="text"
                   placeholder="Enter title..."
                   className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-1.5 text-sm text-[color:var(--color-text)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)]"
@@ -401,9 +412,9 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-text-muted)] flex items-center gap-1">
+                <Label className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-text-muted)]">
                   <Link2 className="h-3.5 w-3.5" /> Link to Task (Optional)
-                </label>
+                </Label>
                 <SearchableTaskSelector
                   tasks={tasks}
                   value={editTaskId}
@@ -418,49 +429,59 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
               <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Format Toolbar */}
                 <div className="px-4 py-1.5 border-b border-[color:var(--color-border)] flex gap-2 items-center overflow-x-auto bg-[color:var(--color-muted-bg)]">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     type="button"
                     onClick={() => insertFormatting("**", "**")}
                     className="p-1.5 rounded hover:bg-[color:var(--color-border)] text-[color:var(--color-text-subtle)] transition"
                     title="Bold"
                   >
                     <Bold className="h-3.5 w-3.5" />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     type="button"
                     onClick={() => insertFormatting("*", "*")}
                     className="p-1.5 rounded hover:bg-[color:var(--color-border)] text-[color:var(--color-text-subtle)] transition"
                     title="Italic"
                   >
                     <Italic className="h-3.5 w-3.5" />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     type="button"
                     onClick={() => insertFormatting("### ", "")}
                     className="p-1.5 rounded hover:bg-[color:var(--color-border)] text-[color:var(--color-text-subtle)] transition"
                     title="Header"
                   >
                     <Heading className="h-3.5 w-3.5" />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     type="button"
                     onClick={() => insertFormatting("- ", "")}
                     className="p-1.5 rounded hover:bg-[color:var(--color-border)] text-[color:var(--color-text-subtle)] transition"
                     title="Bullet List"
                   >
                     <List className="h-3.5 w-3.5" />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     type="button"
                     onClick={() => insertFormatting("```\n", "\n```")}
                     className="p-1.5 rounded hover:bg-[color:var(--color-border)] text-[color:var(--color-text-subtle)] transition"
                     title="Code Block"
                   >
                     <Code className="h-3.5 w-3.5" />
-                  </button>
+                  </Button>
                 </div>
 
-                <textarea
+                <Textarea
                   ref={textareaRef}
                   placeholder="Start writing in Markdown..."
                   className="flex-1 w-full p-4 bg-transparent text-sm text-[color:var(--color-text)] placeholder-[color:var(--color-text-muted)] focus:outline-none resize-none overflow-y-auto font-sans leading-relaxed"
@@ -496,11 +517,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
             <p className="text-xs text-[color:var(--color-text-muted)] mt-1 mb-4 max-w-xs">
               Select an existing private note from the sidebar, or create a new one to document links or notes.
             </p>
-            <ActionButton
-              label="Create Note"
-              variant="success"
-              onClick={handleCreateNote}
-            />
+            <Button variant="default" onClick={handleCreateNote}>Create Note</Button>
           </div>
         )}
       </div>

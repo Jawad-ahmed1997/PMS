@@ -49,7 +49,7 @@ export async function POST(request, { params }) {
   }
 
   const activeBreaks = await prisma.taskBreak.findMany({
-    where: { taskId, userId: context.user.id, endedAt: null },
+    where: { taskId, endedAt: null },
     orderBy: { startedAt: "desc" },
   });
 
@@ -57,7 +57,7 @@ export async function POST(request, { params }) {
     console.info("No active break found for task resume.", {
       taskId,
       userId: context.user.id,
-      filters: { taskId, userId: context.user.id, endedAt: null },
+      filters: { taskId, endedAt: null },
     });
     return buildSuccess("No active break found for this task.", { break: null });
   }
@@ -87,7 +87,7 @@ export async function POST(request, { params }) {
           );
           return tx.taskBreak.update({
             where: { id: brk.id },
-            data: { endedAt: now, durationSeconds },
+            data: { endedAt: now, durationSeconds, endedBy: context.user.id },
           });
         })
       );

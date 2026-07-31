@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { auth } from "../../auth";
 import { prisma } from "@/lib/prisma";
 
-export const ADMIN_ROLES = ["CEO", "PM", "CTO", "SENIOR_DEVELOPER"];
-export const PROJECT_MANAGEMENT_ROLES = ["CEO", "PM", "CTO"];
-export const WORK_ITEM_CREATION_ROLES = ["PM", "CTO"];
-export const USER_CREATION_ROLES = ["CEO", "PM", "CTO"];
+export const ADMIN_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD", "SENIOR_DEVELOPER"];
+export const PROJECT_MANAGEMENT_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD"];
+export const WORK_ITEM_CREATION_ROLES = ["PM", "CTO", "TEAM_LEAD"];
+export const USER_CREATION_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD"];
 export const ALL_ROLES = [...ADMIN_ROLES, "DEVELOPER", "INTERN", "JUNIOR_INTERN"];
 
 export function normalizeRole(role) {
@@ -28,22 +28,26 @@ export function normalizeRole(role) {
     return "DEVELOPER";
   }
 
+  if (cleaned === "TEAM_LEAD") {
+    return "TEAM_LEAD";
+  }
+
   return cleaned;
 }
 
 export async function getAuthContext() {
-  const session = await getSession();
+  const session = await auth();
 
   if (!session) {
     return { session: null, user: null, role: null };
   }
 
-  const role = normalizeRole(session.role);
-  const user = session.email
-    ? await prisma.user.findUnique({ where: { email: session.email } })
+  const role = normalizeRole(session.user.role);
+  const user = session?.user?.id
+    ? await prisma.user.findUnique({ where: { id: session.user.id } })
     : null;
 
-  return { session, user, role };
+  return { session: session?.user ? session : null, user, role };
 }
 
 export function buildError(message, status = 400, details = null) {
@@ -70,15 +74,11 @@ export function buildSuccess(message, data = {}, status = 200) {
 }
 
 export function ensureAuthenticated(context) {
-  if (!context.session) {
+  if (!context.session || !context.user) {
     return buildError("Authentication required.", 401);
   }
 
-  if (!context.user) {
-    return buildError("User account not found.", 401);
-  }
-
-  if (!context.user.isActive) {
+  if (!context.user.isActive || context.user.status === "DISABLED") {
     return buildError("User account is inactive.", 403);
   }
 
@@ -114,5 +114,5 @@ export function isAdminRole(role) {
 }
 
 export function isManagementRole(role) {
-  return ["PM", "CTO"].includes(role);
+  return ["PM", "CTO", "TEAM_LEAD"].includes(role);
 }

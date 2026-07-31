@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import { Dialog } from "@/components/ui/dialog";
+import Avatar from "@/components/ui/Avatar";
+import Pagination from "@/components/ui/Pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 import CreateUserForm from "@/components/users/CreateUserForm";
 import { roleOptions, normalizeRoleId } from "@/lib/roles";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -20,6 +23,9 @@ export default function UserManagementView() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const { addToast } = useToast();
   const [reinvitingIds, setReinvitingIds] = useState({});
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const handleReinvite = async (userId) => {
     setReinvitingIds((prev) => ({ ...prev, [userId]: true }));
@@ -81,6 +87,9 @@ export default function UserManagementView() {
     );
   });
 
+  const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-6">
       {/* Top controls: Search input & Create Button */}
@@ -103,9 +112,12 @@ export default function UserManagementView() {
           </span>
           <input
             type="text"
-            placeholder="Search users by name, email or role..."
+            placeholder="Search members by name, email or role..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text)] placeholder-[color:var(--color-text-subtle)] focus:outline-none focus:border-[color:var(--color-accent)] transition-colors"
           />
         </div>
@@ -123,20 +135,12 @@ export default function UserManagementView() {
 
       {/* Users List Table */}
       {loading ? (
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-8 text-center text-sm text-[color:var(--color-text-muted)]">
-          Loading users directory...
-        </div>
-      ) : filteredUsers.length === 0 ? (
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-8 text-center text-sm text-[color:var(--color-text-subtle)]">
-          {searchQuery ? "No users match your search." : "No users found in database."}
-        </div>
-      ) : (
         <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] border-collapse text-left text-sm text-[color:var(--color-text-muted)]">
               <thead>
                 <tr className="border-b border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] text-[color:var(--color-text-subtle)] font-medium">
-                  <th className="px-6 py-4">User</th>
+                  <th className="px-6 py-4">Member</th>
                   <th className="px-6 py-4">Designation</th>
                   <th className="px-6 py-4">Email</th>
                   <th className="px-6 py-4">Status</th>
@@ -144,13 +148,47 @@ export default function UserManagementView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--color-border)]/50">
-                {filteredUsers.map((user) => (
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={index}>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-9 w-9 rounded-full" />
+                        <Skeleton className="h-4 w-32" />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
+                    <td className="px-6 py-4"><Skeleton className="h-4 w-40" /></td>
+                    <td className="px-6 py-4"><Skeleton className="h-6 w-16 rounded-full" /></td>
+                    <td className="px-6 py-4 text-right"><Skeleton className="h-8 w-20 ml-auto rounded-lg" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : filteredUsers.length === 0 ? (
+        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-8 text-center text-sm text-[color:var(--color-text-subtle)]">
+          {searchQuery ? "No members match your search." : "No members found in database."}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] overflow-hidden flex flex-col">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] border-collapse text-left text-sm text-[color:var(--color-text-muted)]">
+              <thead>
+                <tr className="border-b border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] text-[color:var(--color-text-subtle)] font-medium">
+                  <th className="px-6 py-4">Member</th>
+                  <th className="px-6 py-4">Designation</th>
+                  <th className="px-6 py-4">Email</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[color:var(--color-border)]/50">
+                {paginatedUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-[color:var(--color-surface-muted)]/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#253242] text-sm font-bold text-white/90">
-                          {(user.name ?? "U").trim().charAt(0).toUpperCase()}
-                        </div>
+                        <Avatar name={user.name} />
                         <div className="min-w-0">
                           <p className="font-medium text-[color:var(--color-text)] truncate">{user.name}</p>
                         </div>
@@ -180,7 +218,7 @@ export default function UserManagementView() {
                         <button
                           onClick={() => handleReinvite(user.id)}
                           disabled={reinvitingIds[user.id]}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--color-border)] px-2.5 py-1.5 text-xs font-medium text-amber-400 hover:border-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--color-border)] px-2.5 py-1.5 text-xs font-medium text-amber-400 hover:border-amber-400 hover:text-amber-300 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {reinvitingIds[user.id] ? "Sending..." : "Resend Invite"}
                         </button>
@@ -190,7 +228,7 @@ export default function UserManagementView() {
                           setSelectedUser(user);
                           setIsCreateOpen(true);
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--color-border)] px-2.5 py-1.5 text-xs font-medium text-[color:var(--color-text-subtle)] hover:border-[color:var(--color-accent)] hover:text-white transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--color-border)] px-2.5 py-1.5 text-xs font-medium text-[color:var(--color-text-subtle)] hover:border-[color:var(--color-accent)] hover:text-white transition-colors cursor-pointer"
                       >
                         <svg
                           className="h-3.5 w-3.5"
@@ -213,13 +251,22 @@ export default function UserManagementView() {
               </tbody>
             </table>
           </div>
+          {totalPages > 1 && (
+            <div className="border-t border-[color:var(--color-border)]">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      {/* Reusable Modal containing the creation/edit form */}
-      <Modal
+      {/* Reusable Dialog containing the creation/edit form */}
+      <Dialog
         isOpen={isCreateOpen}
-        title={selectedUser ? "Edit User Account" : "Invite Team Member"}
+        title={selectedUser ? "Edit Member Account" : "Invite Team Member"}
         description={selectedUser ? "Modify account details for this team member." : "Enter their details to send an invitation email."}
         onClose={() => setIsCreateOpen(false)}
       >
@@ -231,7 +278,7 @@ export default function UserManagementView() {
             onCancel={() => setIsCreateOpen(false)}
           />
         </div>
-      </Modal>
+      </Dialog>
     </div>
   );
 }

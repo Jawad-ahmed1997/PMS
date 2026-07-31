@@ -1,228 +1,176 @@
 "use client";
+import { Button } from "@/components/ui/button";
+import ScrollArea from "@/components/ui/ScrollArea";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navigationItems } from "@/lib/navigation";
+import { Activity, BarChart3, CalendarDays, ChevronLeft, ChevronRight, FolderKanban, LayoutDashboard, Milestone, UserRoundPlus } from "lucide-react";
+import SidebarProfile from "./SidebarProfile";
+import Logo from "../ui/Logo";
 
 const iconMap = {
   Dashboard: (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   Projects: (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   "My Tasks": (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   "My Desk": (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M9 14h6M9 10h6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 14h6M9 10h6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   Activity: (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        d="M4 12h4l2-5 4 10 2-5h4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 12h4l2-5 4 10 2-5h4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   Attendance: (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        d="M8 4v3M16 4v3M4 9h16M6 7h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M8 4v3M16 4v3M4 9h16M6 7h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   Reports: (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        d="M4 19h16M6 16V8m6 8V5m6 11v-6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 19h16M6 16V8m6 8V5m6 11v-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
-  "Members": (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M4 20a8 8 0 0 1 16 0M19 8v4m2-2h-4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+  Members: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 20a8 8 0 0 1 16 0M19 8v4m2-2h-4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  Milestones: <Milestone className="h-[18px] w-[18px]" />,
+  "Create user": <UserRoundPlus className="h-[18px] w-[18px]" />,
 };
 
-export default function Sidebar({ activeRole, collapsed, onToggle }) {
-  const pathname = usePathname();
 
+const navigationGroups = [
+  { label: "Overview", items: ["Dashboard", "Projects", "My Tasks", "My Desk", "Activity"] },
+  { label: "Operations", items: ["Attendance", "Reports"] },
+  { label: "Administration", items: ["Members"] },
+];
+
+export default function Sidebar({ activeRole, collapsed, onToggle, session, onLogout }) {
+  const pathname = usePathname();
   const visibleItems = navigationItems.filter((item) =>
-    activeRole ? item.roles.includes(activeRole.id) : false
+    activeRole ? item.roles.includes(activeRole.id) : false,
   );
+
+  const groupedItems = navigationGroups
+    .map((group) => ({
+      ...group,
+      items: visibleItems.filter((item) => group.items.includes(item.label)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside
-      className="fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-[color:var(--color-border)] bg-[color:var(--color-sidebar)] transition-[width] duration-200"
+      className="fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border/70 bg-[color:var(--color-sidebar)] transition-[width] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
       style={{ width: "var(--sidebar-width)" }}
+      aria-label="Primary navigation"
     >
-      <div className="flex items-center justify-between px-5 py-5">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[color:var(--color-accent-muted)] text-base font-semibold text-[color:var(--color-accent)]">
-            PM
-          </span>
-          {!collapsed ? (
-            <div>
-              <p className="text-sm font-semibold text-[color:var(--color-text)]">
-                PMS Cloud
-              </p>
-              <p className="text-xs text-[color:var(--color-text-subtle)]">
-                Workspace
-              </p>
-            </div>
-          ) : null}
-        </div>
-        <button
+      <div className={`relative flex h-[4.75rem] shrink-0 items-center ${collapsed ? "justify-center" : "justify-between px-5"}`}>
+        <Button
           type="button"
-          onClick={onToggle}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-subtle)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          variant="ghost"
+          onClick={collapsed ? onToggle : undefined}
+          tabIndex={collapsed ? 0 : -1}
+          className={`relative flex min-w-0 items-center text-primary focus-visible:ring-ring ${collapsed ? "h-10 w-10 justify-center" : "h-10 flex-1 cursor-default justify-start hover:bg-transparent"}`}
+          aria-label={collapsed ? "Expand sidebar" : undefined}
         >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
+          <span
+            className={`absolute inset-0 flex h-10 w-10 items-center justify-center text-base font-bold tracking-[-0.08em] transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${collapsed ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"}`}
+            aria-hidden={!collapsed}
           >
-            <path
-              d={
-                collapsed
-                  ? "M9 6l6 6-6 6"
-                  : "M15 6l-6 6 6 6"
-              }
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+            G
+          </span>
+          <span
+            className={`flex items-center overflow-hidden whitespace-nowrap text-left transition-[max-width,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${collapsed ? "pointer-events-none max-w-0 -translate-x-2 opacity-0" : "max-w-[118px] translate-x-0 opacity-100 delay-75"}`}
+            aria-hidden={collapsed}
+          >
+            <Logo alt="PMS Cloud" priority className="h-auto w-[118px]" />
+          </span>
+        </Button>
+        {!collapsed ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onToggle}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border  duration-150 hover:border-primary/30 hover:bg-accent hover:text-primary active:translate-y-px focus-visible:ring-ring"
+            aria-label="Collapse sidebar"
+          >
+            <ChevronLeft className="h-9 w-9 font-bold  " />
+          </Button>
+        ) :
+          undefined
+        }
       </div>
 
-      <nav className="mt-2 flex-1 space-y-2 px-3">
-        {visibleItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`group relative flex items-center gap-3 rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                isActive
-                  ? "bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
-                  : "text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-muted-bg)] hover:text-[color:var(--color-text)]"
-              }`}
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[color:var(--color-muted-bg)] text-[color:var(--color-text)] transition group-hover:text-[color:var(--color-accent)]">
-                {iconMap[item.label]}
-              </span>
-              {!collapsed ? (
-                <span className="flex-1">{item.label}</span>
-              ) : (
-                <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-1 text-xs font-semibold text-[color:var(--color-text)] opacity-0 shadow-lg transition group-hover:opacity-100">
-                  {item.label}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-        {!visibleItems.length && (
-          <p className="px-3 text-xs text-[color:var(--color-text-subtle)]">
-            No routes available for this role.
-          </p>
-        )}
-      </nav>
+      <ScrollArea className="min-h-0 flex-1">
+        <nav className={`px-2 pb-5 pt-2 ${collapsed ? "sm:px-2" : "sm:px-3"}`}>
+          <TooltipProvider delayDuration={120} skipDelayDuration={100}>
+            <div className="space-y-5">
+              {groupedItems.map((group, groupIndex) => (
+                <div key={group.label} className={collapsed ? "contents" : "space-y-1.5"}>
+                  <div className={`px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/75 transition-opacity duration-150 ${collapsed ? "pointer-events-none h-0 overflow-hidden p-0 opacity-0" : "pb-1 opacity-100"}`}>
+                    {group.label}
+                  </div>
+                  {group.items.map((item) => {
+                    const isActive =
+                      pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    const link = (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        aria-label={item.label}
+                        aria-current={isActive ? "page" : undefined}
+                        className={`group relative flex rounded-xl text-sm font-medium transition-[background-color,color] duration-200 ease-out motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${collapsed ? "h-[4.25rem] flex-col justify-center gap-0.5 px-2 py-1" : "h-11 items-center gap-3 px-3"} ${isActive ? "bg-sidebar-active text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                      >
+                        {isActive ? <span className="absolute left-0  top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-full " aria-hidden="true" /> : null}
+                        <span className={`flex shrink-0 items-center ml-3 justify-center text-current transition-[background-color,border-color,color] duration-200 ${collapsed ? "h-9 w-9" : "h-8 w-8"} ${isActive ? "  text-primary" : "border-border/70 bg-muted/50 group-hover:border-border group-hover:bg-background/70"}`}>{iconMap[item.label]}</span>
+                        {!collapsed ? <span className="max-w-[140px] overflow-hidden whitespace-nowrap">{item.label}</span> : null}
+                        {collapsed && isActive ? <span className="max-w-[4.5rem] ml-1.5  text-[10px] font-semibold leading-none text-current">{item.label}</span> : null}
+                      </Link>
+                    );
+                    return collapsed ? (
+                      <Tooltip key={item.href}>
+                        <TooltipTrigger asChild>{link}</TooltipTrigger>
+                        <TooltipContent side="right">{item.label}</TooltipContent>
+                      </Tooltip>
+                    ) : link;
+                  })}
+                  {!collapsed && groupIndex < groupedItems.length - 1 ? <Separator className="mx-3 mt-5 w-auto" /> : null}
+                </div>
+              ))}
+              {!groupedItems.length ? (
+                <p className="px-3 text-xs text-muted-foreground">No routes available for this role.</p>
+              ) : null}
+            </div>
+          </TooltipProvider>
+        </nav>
+      </ScrollArea>
+
+      {session ? <SidebarProfile session={session} collapsed={collapsed} onLogout={onLogout} /> : null}
     </aside>
   );
 }

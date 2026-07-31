@@ -1,6 +1,6 @@
 import UserManagementView from "@/components/users/UserManagementView";
 import PageHeader from "@/components/layout/PageHeader";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { normalizeRoleId, roles } from "@/lib/roles";
 
 export default async function CreateUserPage() {
@@ -11,8 +11,8 @@ export default async function CreateUserPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="User management"
-        title="Users directory"
+        eyebrow="Member management"
+        title="Members directory"
         subtitle="View existing accounts and provision new team access."
       />
 

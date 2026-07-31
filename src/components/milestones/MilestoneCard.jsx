@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 import {
@@ -107,9 +108,9 @@ export default function MilestoneCard({
 
   if (onClick) {
     return (
-      <button type="button" className="block w-full text-left" onClick={onClick}>
+      <Button type="button" variant="ghost" className="block w-full text-left" onClick={onClick}>
         {content}
-      </button>
+      </Button>
     );
   }
 

@@ -3,13 +3,25 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import ActionButton from "@/components/ui/ActionButton";
-import Drawer from "@/components/ui/Drawer";
+import { Sheet } from "@/components/ui/sheet";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
-import { TASK_STATUSES, getNextStatuses, getStatusLabel } from "@/lib/kanban";
+import { TASK_STATUSES, getNextStatuses, getStatusLabel, isDeveloperOnlyTransition, isManagementOnlyTransition } from "@/lib/kanban";
 import { canMarkTaskDone, normalizeRoleId, roles } from "@/lib/roles";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import ScrollArea from "@/components/ui/ScrollArea";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { BREAK_TYPES, formatBreakTypes } from "@/lib/breakTypes";
+import { useNotificationSound } from "@/lib/useNotificationSound";
 
 const COLLAPSED_WIDTH = 64;
 const DEFAULT_EXPANDED_WIDTH = 320;
@@ -115,7 +127,9 @@ export default function TaskBoard({
   hideFilterButton = false,
 }) {
   const { addToast } = useToast();
+  const playNotificationSound = useNotificationSound();
   const searchParams = useSearchParams();
+
   const [taskItems, setTaskItems] = useState(tasks);
   const [pendingTaskId, setPendingTaskId] = useState(null);
   const [pendingChecklistId, setPendingChecklistId] = useState(null);
@@ -128,7 +142,6 @@ export default function TaskBoard({
   const [milestoneFilter, setMilestoneFilter] = useState("ALL");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
   const [timeRequestOpen, setTimeRequestOpen] = useState(false);
   const [timeRequestForm, setTimeRequestForm] = useState({
     hours: "",
@@ -240,7 +253,6 @@ export default function TaskBoard({
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
-    // Pointer events keep resizing smooth/live across mouse, touch, and pen.
     const onMove = (event) => {
       const delta = event.clientX - resizeState.startX;
       const width = clampExpandedWidth(resizeState.startWidth + delta);
@@ -396,6 +408,140 @@ export default function TaskBoard({
   const [taskCovers, setTaskCovers] = useState({}); // taskId -> base64
   const [taskAttachments, setTaskAttachments] = useState({}); // taskId -> Array of attachments
   const [newSubtaskText, setNewSubtaskText] = useState("");
+  
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const [activeTab, setActiveTab] = useState("overview");
+ 
+ 
+ 
+  useEffect(() => {
+    setTaskItems(tasks ?? []);
+  }, [tasks]);
+
+  useEffect(() => {
+    if (!draggingTaskId) return undefined;
+
+    let animationFrameId;
+    let scrollSpeed = 0;
+    const handleDragOver = (event) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const threshold = 100;
+      const maxSpeed = 15;
+      if (x < threshold) scrollSpeed = -((threshold - x) / threshold) * maxSpeed;
+      else if (x > rect.width - threshold) scrollSpeed = ((x - (rect.width - threshold)) / threshold) * maxSpeed;
+      else scrollSpeed = 0;
+    };
+    const scrollTick = () => {
+      const container = scrollContainerRef.current;
+      if (container && scrollSpeed !== 0) container.scrollLeft += scrollSpeed;
+      animationFrameId = requestAnimationFrame(scrollTick);
+    };
+    window.addEventListener("dragover", handleDragOver);
+    animationFrameId = requestAnimationFrame(scrollTick);
+    return () => {
+      window.removeEventListener("dragover", handleDragOver);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [draggingTaskId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    setPrefsLoaded(false);
+    const raw = window.localStorage.getItem(prefKey);
+    setHasSavedPrefs(Boolean(raw));
+    if (!raw) {
+      setColumnPrefs({});
+      setPrefsLoaded(true);
+      return undefined;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      setColumnPrefs(parsed && typeof parsed === "object" ? parsed : {});
+    } catch {
+      setColumnPrefs({});
+    }
+    setPrefsLoaded(true);
+    return undefined;
+  }, [prefKey]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(prefKey, JSON.stringify(columnPrefs));
+    }
+  }, [prefKey, columnPrefs]);
+
+  useEffect(() => {
+    if (!resizeState) return undefined;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (event) => {
+      const delta = event.clientX - resizeState.startX;
+      const width = clampExpandedWidth(resizeState.startWidth + delta);
+      setColumnPrefs((prev) => ({
+        ...prev,
+        [resizeState.statusId]: { ...prev?.[resizeState.statusId], width, collapsed: false, userTouched: true },
+      }));
+    };
+    const onUp = () => {
+      setColumnPrefs((prev) => {
+        const current = prev?.[resizeState.statusId] ?? {};
+        const committedWidth = clampExpandedWidth(current.width ?? resizeState.startWidth ?? DEFAULT_EXPANDED_WIDTH);
+        return { ...prev, [resizeState.statusId]: { ...current, collapsed: false, width: committedWidth, expandedWidth: committedWidth, userTouched: true } };
+      });
+      setResizeState(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [resizeState]);
+
+
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    setColumnPrefs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      TASK_STATUSES.forEach((status) => {
+        const count = taskCountsByStatus[status.id] ?? 0;
+        const existing = prev?.[status.id] ?? {};
+        const userTouched = Boolean(existing.userTouched);
+        const safeExpandedWidth = clampExpandedWidth(existing.expandedWidth ?? existing.width ?? DEFAULT_EXPANDED_WIDTH);
+        const collapsed = typeof existing.collapsed === "boolean" ? existing.collapsed : !hasSavedPrefs && count === 0;
+        const width = collapsed ? COLLAPSED_WIDTH : safeExpandedWidth;
+        if (existing.collapsed !== collapsed || existing.width !== width || existing.expandedWidth !== safeExpandedWidth || existing.userTouched !== userTouched) {
+          changed = true;
+          next[status.id] = { collapsed, width, expandedWidth: safeExpandedWidth, userTouched };
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [prefsLoaded, taskCountsByStatus, hasSavedPrefs]);
+
+  useEffect(() => {
+    const taskId = searchParams?.get("taskId");
+    if (taskId) setSelectedTaskId(taskId);
+  }, [searchParams]);
+
+  useEffect(() => {
+    setDodLink(selectedTask?.ktLink ?? "");
+    setPushToProjectDocs(true);
+  }, [selectedTask]);
+
 
   const handleCoverUpload = (event, taskId) => {
     const file = event.target.files?.[0];
@@ -412,6 +558,7 @@ export default function TaskBoard({
         message: "Task cover photo updated successfully.",
         variant: "success",
       });
+      playNotificationSound();
     };
     reader.readAsDataURL(file);
   };
@@ -592,7 +739,7 @@ export default function TaskBoard({
           const existingVideos = typeof ktData.kt.videoWalkthroughs === "string"
             ? JSON.parse(ktData.kt.videoWalkthroughs)
             : ktData.kt.videoWalkthroughs ?? [];
-          
+
           const exists = existingVideos.some((v) => v.url === dodLink.trim());
           if (!exists) {
             const newVideo = {
@@ -606,7 +753,7 @@ export default function TaskBoard({
               }),
             };
             const updatedVideos = [...existingVideos, newVideo];
-            
+
             await fetch(`/api/projects/${projectId}/kt`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
@@ -635,7 +782,7 @@ export default function TaskBoard({
   const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
 
   const isManager = useMemo(
-    () => [roles.PM, roles.CTO, roles.CEO].includes(normalizedRole),
+    () => [roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole),
     [normalizedRole]
   );
 
@@ -755,12 +902,13 @@ export default function TaskBoard({
       return;
     }
 
-    if (!canMoveTaskForTask(task)) {
-      addToast({
-        title: "Move blocked",
-        message: "You can only move tasks assigned to you.",
-        variant: "error",
-      });
+    if (!canMoveTaskForTask(task, nextStatus)) {
+      const message = isManagementOnlyTransition(task.status, nextStatus)
+        ? "Only PMs, CTOs, or Team Leads can move tasks from Backlog to Ready."
+        : isDeveloperOnlyTransition(task.status, nextStatus)
+        ? "Only the assigned developer can move their task through this stage."
+        : "You can only move tasks assigned to you.";
+      addToast({ title: "Move blocked", message, variant: "error" });
       return;
     }
 
@@ -862,6 +1010,21 @@ export default function TaskBoard({
         });
       }
 
+      // Timer status toasts
+      if (nextStatus === "DEV_TEST") {
+        addToast({
+          title: "⏱ Timer stopped",
+          message: "Task moved to Dev Test — timer has been paused.",
+          variant: "info",
+        });
+      } else if (nextStatus === "IN_PROGRESS" && task.status === "DEV_TEST") {
+        addToast({
+          title: "⏱ Timer restarted",
+          message: "Task returned to In Progress — timer is running again.",
+          variant: "success",
+        });
+      }
+
       setColumnPrefs((prev) => {
         const current = prev?.[nextStatus] ?? {};
         const expandedWidth = clampExpandedWidth(
@@ -881,7 +1044,32 @@ export default function TaskBoard({
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
-        window.dispatchEvent(new CustomEvent("pms:timer-changed"));
+        
+        let activeSessionPayload = null;
+        if (nextStatus === "IN_PROGRESS" && data?.task) {
+          activeSessionPayload = {
+            active: true,
+            task: {
+              id: data.task.id,
+              title: data.task.title,
+              estimatedSeconds: Math.round((data.task.estimatedHours ?? 0) * 3600),
+              status: data.task.status,
+              milestoneId: data.task.milestoneId,
+              projectId: data.task.milestone?.projectId ?? null,
+            },
+            accumulatedSeconds: data.task.spentTimeSeconds ?? 0,
+            runningStartedAt: data.task.lastStartedAt,
+            isPaused: false,
+            activeBreak: null,
+            serverNow: new Date().toISOString(),
+          };
+        }
+
+        window.dispatchEvent(
+          new CustomEvent("pms:timer-changed", {
+            detail: { activeSession: activeSessionPayload },
+          })
+        );
       }
     } catch (error) {
       setTaskItems(previousTaskItems);
@@ -1132,8 +1320,8 @@ export default function TaskBoard({
         ...item,
         breaks: data.break
           ? (item.breaks ?? []).map((brk) =>
-              brk.id === data.break.id ? data.break : brk
-            )
+            brk.id === data.break.id ? data.break : brk
+          )
           : item.breaks ?? [],
         activeBreak: null,
       }));
@@ -1198,16 +1386,28 @@ export default function TaskBoard({
     return isManager || isTaskOwner(task);
   };
 
-  const canMoveTaskForTask = (task) => {
+  const canMoveTaskForTask = (task, toStatus = null) => {
     if (!currentUserId || !task) {
       return false;
     }
 
-    if ([roles.PM, roles.CTO, roles.CEO].includes(normalizedRole)) {
-      return true;
+    const isManagerRole = [roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole);
+    const isOwner = task.ownerId === currentUserId;
+
+    if (toStatus) {
+      // Management-only transitions (e.g. BACKLOG → READY)
+      // Assignees cannot self-promote tasks out of the backlog.
+      if (isManagementOnlyTransition(task.status, toStatus) && !isManagerRole) {
+        return false;
+      }
+      // Developer-only transitions — managers cannot drag tasks through these
+      // unless they are also the assignee.
+      if (isDeveloperOnlyTransition(task.status, toStatus) && isManagerRole && !isOwner) {
+        return false;
+      }
     }
 
-    return task.ownerId === currentUserId;
+    return isManagerRole || isOwner;
   };
 
   const canRequestMoreTime = (task) => {
@@ -1219,9 +1419,11 @@ export default function TaskBoard({
   };
 
   const canControlBreaks = (task) =>
-    isTaskOwner(task) && ![roles.PM, roles.CTO, roles.CEO].includes(normalizedRole);
+    isTaskOwner(task) && ![roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole);
 
   const handleDragStart = (event, task) => {
+    // For developer-only transitions we need the target column, which we don't
+    // know yet at drag-start. We allow the drag to begin and block at drop.
     if (!canMoveTaskForTask(task)) {
       event.preventDefault();
       addToast({
@@ -1251,12 +1453,13 @@ export default function TaskBoard({
       return;
     }
 
-    if (!canMoveTaskForTask(task)) {
-      addToast({
-        title: "Move blocked",
-        message: "You can only move tasks assigned to you.",
-        variant: "error",
-      });
+    if (!canMoveTaskForTask(task, statusId)) {
+      const message = isManagementOnlyTransition(task.status, statusId)
+        ? "Only PMs, CTOs, or Team Leads can move tasks from Backlog to Ready."
+        : isDeveloperOnlyTransition(task.status, statusId)
+        ? "Only the assigned developer can move their task through this stage."
+        : "You can only move tasks assigned to you.";
+      addToast({ title: "Move blocked", message, variant: "error" });
       return;
     }
 
@@ -1311,14 +1514,14 @@ export default function TaskBoard({
       if (canMarkTaskDone(normalizedRole)) {
         return (
           <div className="flex flex-wrap gap-2">
-            <ActionButton
+            <Button
               label={isPending ? "Approving..." : "Approve"}
               size="sm"
               variant="success"
               className={buttonClass}
               onClick={() => handleStatusChange(task, "DONE")}
             />
-            <ActionButton
+            <Button
               label={isPending ? "Rejecting..." : "Reject"}
               size="sm"
               variant="danger"
@@ -1350,7 +1553,7 @@ export default function TaskBoard({
       }
 
       return (
-        <ActionButton
+        <Button
           label={isPending ? "Restarting..." : "Resume work"}
           size="sm"
           variant="warning"
@@ -1379,7 +1582,7 @@ export default function TaskBoard({
     }
 
     return (
-      <ActionButton
+      <Button
         label={isPending ? "Moving..." : "Move forward"}
         size="sm"
         variant="secondary"
@@ -1423,115 +1626,92 @@ export default function TaskBoard({
   };
 
   const portalTarget = typeof document !== "undefined" ? document.getElementById("project-board-filter-button-portal") : null;
+  const hasActiveFilters = isFilterOpen || ownerFilter !== "ALL" || statusFilter !== "ALL";
+  const filterButton = (
+    <Button
+      type="button"
+      variant={hasActiveFilters ? "secondary" : "outline"}
+      size="sm"
+      onClick={() => setIsFilterOpen((prev) => !prev)}
+      className="h-8 rounded-xl px-3 text-xs"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-3.5 w-3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        aria-hidden="true"
+      >
+        <path
+          d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span>Filters</span>
+    </Button>
+  );
 
   return (
     <div className="space-y-4">
       {!hideFilterButton && (
         <div className="space-y-3">
           {mounted && portalTarget ? (
-            createPortal(
-              <button
-                type="button"
-                onClick={() => setIsFilterOpen((prev) => !prev)}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-sm ${
-                  isFilterOpen || ownerFilter !== "ALL" || statusFilter !== "ALL"
-                    ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)]"
-                    : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white"
-                }`}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path
-                    d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span>Filters</span>
-              </button>,
-              portalTarget
-            )
+            createPortal(filterButton, portalTarget)
           ) : (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsFilterOpen((prev) => !prev)}
-                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition shadow-sm ${
-                  isFilterOpen || ownerFilter !== "ALL" || statusFilter !== "ALL"
-                    ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)]"
-                    : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)] hover:text-white"
-                }`}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path
-                    d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span>Filters</span>
-              </button>
-            </div>
+            <div className="flex justify-end">{filterButton}</div>
           )}
 
           {isFilterOpen && (
-            <div className="flex flex-wrap items-center gap-4 bg-[color:var(--color-card)] border border-[color:var(--color-border)] px-4 py-3 rounded-2xl shadow-sm transition-all duration-200">
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm transition-all duration-200">
+              <div className="flex items-center gap-3">
                 {/* Owner Filter Dropdown */}
-                <div className="relative shrink-0 flex items-center">
-                  <select
-                    value={ownerFilter}
-                    onChange={(e) => setOwnerFilter(e.target.value)}
-                    className="appearance-none pl-3 pr-8 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs font-semibold text-[color:var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)] cursor-pointer hover:border-[color:var(--color-accent)] transition"
-                  >
-                    <option value="ALL">All Assignees</option>
+                <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+                  <SelectTrigger className="h-8 min-w-[120px] rounded-xl bg-background px-3 text-xs font-semibold ">
+                    <SelectValue placeholder="All Assignees" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Assignees</SelectItem>
                     {ownerOptions.map((owner) => (
-                      <option key={owner.id} value={owner.id}>
-                        {owner.name}
-                      </option>
+                      <SelectItem key={owner.id} value={owner.id}>{owner.name}</SelectItem>
                     ))}
-                  </select>
-                </div>
+                  </SelectContent>
+                </Select>
 
                 {/* Status Filter Dropdown */}
-                <div className="relative shrink-0 flex items-center">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none pl-3 pr-8 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs font-semibold text-[color:var(--color-text)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)] cursor-pointer hover:border-[color:var(--color-accent)] transition"
-                  >
-                    <option value="ALL">All Statuses</option>
-                    {TASK_STATUSES.map((statusOpt) => (
-                      <option key={statusOpt.id} value={statusOpt.id}>
-                        {statusOpt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-8 min-w-[120px] rounded-xl bg-background px-3 text-xs font-semibold">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <ScrollArea
+                      type="always"
+                      className="h-[300px] max-h-[calc(100vh-10rem)] w-full"
+                      viewportClassName="pr-2"
+                    >
+                      <SelectItem value="ALL">All Statuses</SelectItem>
+                      {TASK_STATUSES.map((statusOpt) => (
+                        <SelectItem key={statusOpt.id} value={statusOpt.id}>{statusOpt.label}</SelectItem>
+                      ))}
+                    </ScrollArea>
+                  </SelectContent>
+                </Select>
 
                 {/* Reset Button */}
                 {(ownerFilter !== "ALL" || statusFilter !== "ALL") && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setOwnerFilter("ALL");
                       setStatusFilter("ALL");
                     }}
-                    className="text-[11px] font-bold text-[color:var(--color-accent)] hover:text-white transition"
+                    className="h-8 px-2 text-xs text-primary"
                   >
                     Reset Filters
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -1554,241 +1734,242 @@ export default function TaskBoard({
           const width = isCollapsed ? COLLAPSED_WIDTH : expandedWidth;
 
           return (
-          <div
-            key={status.id}
-            style={{
-              width,
-              minWidth: width,
-              maxWidth: width,
-              willChange: "width",
-              transition: isResizing ? "none" : "width 180ms ease",
-            }}
-            className={`relative flex-none rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] p-4 ${
-              dragOverStatus === status.id
+            <div
+              key={status.id}
+              style={{
+                width,
+                minWidth: width,
+                maxWidth: width,
+                willChange: "width",
+                transition: isResizing ? "none" : "width 180ms ease",
+              }}
+              className={`relative flex-none rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] p-4 ${dragOverStatus === status.id
                 ? "border-[color:var(--color-accent)] bg-[color:var(--color-card)]"
                 : ""
-            }`}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragOverStatus(status.id);
-            }}
-            onDragLeave={() => setDragOverStatus(null)}
-            onDrop={(event) => handleDrop(event, status.id)}
-          >
-            <div
-              className={`mb-3 overflow-hidden ${
-                isCollapsed
+                }`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragOverStatus(status.id);
+              }}
+              onDragLeave={() => setDragOverStatus(null)}
+              onDrop={(event) => handleDrop(event, status.id)}
+            >
+              <div
+                className={`mb-3 overflow-hidden ${isCollapsed
                   ? "flex min-h-[140px] flex-col items-center justify-start gap-2"
                   : "flex h-8 items-center justify-between gap-2"
-              }`}
-            >
-              {isCollapsed ? (
-                <>
-                  <span className="inline-flex h-5 min-w-5 max-w-10 items-center justify-center overflow-hidden rounded-full border border-[color:var(--color-border)] px-1.5 text-[11px] leading-none text-[color:var(--color-text-muted)]">
-                    {taskCount}
-                  </span>
-                  <h3 className="max-h-[86px] overflow-hidden text-xs font-semibold text-[color:var(--color-text)] [writing-mode:vertical-rl] [transform:rotate(180deg)]">
-                    {status.label}
-                  </h3>
-                  <button
-                    type="button"
-                    className="inline-flex h-6 w-6 items-center justify-center rounded border border-[color:var(--color-border)] text-sm font-semibold text-[color:var(--color-text)] transition hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-muted)]"
-                    aria-label={`Expand ${status.label} column`}
-                    title="Expand column"
-                    onClick={() => expandColumn(status.id)}
-                  >
-                    +
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <h3 className="truncate text-sm font-semibold text-[color:var(--color-text)]">
-                      {status.label}
-                    </h3>
+                  }`}
+              >
+                {isCollapsed ? (
+                  <>
                     <span className="inline-flex h-5 min-w-5 max-w-10 items-center justify-center overflow-hidden rounded-full border border-[color:var(--color-border)] px-1.5 text-[11px] leading-none text-[color:var(--color-text-muted)]">
                       {taskCount}
                     </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="inline-flex h-6 w-6 items-center justify-center rounded border border-[color:var(--color-border)] text-sm font-semibold text-[color:var(--color-text)] transition hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-muted)]"
-                    aria-label={`Collapse ${status.label} column`}
-                    title="Collapse column"
-                    onClick={() => collapseColumn(status.id)}
-                  >
-                    -
-                  </button>
-                </>
-              )}
-            </div>
-            {!isCollapsed && <div className="min-w-0 space-y-3 overflow-hidden">
-              {(groupedTasks[status.id] ?? []).map((task) => {
-                const predefinedItems = (task.checklistItems ?? []).filter((item) => !item.isCustom);
-                const completedChecklistCount =
-                  predefinedItems.filter((item) => item.isCompleted).length;
-                const checklistTotal = predefinedItems.length;
-                const estimatedSeconds = Math.max(
-                  0,
-                  (task.estimatedHours ?? 0) * 3600
-                );
-                const effectiveSpentSeconds = Number(
-                  task.spentTimeSeconds ?? 0
-                );
-                const estimatedLabel =
-                  estimatedSeconds > 0
-                    ? formatEstimatedTime(task.estimatedHours)
-                    : "No estimate";
-                const progress =
-                  estimatedSeconds > 0
-                    ? effectiveSpentSeconds / estimatedSeconds
-                    : 0;
-                const progressState = getProgressState(task);
-                return (
-                  <div
-                    key={task.id}
-                    className={`min-w-0 cursor-pointer overflow-hidden rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-2.5 transition hover:border-[color:var(--color-accent)] sm:p-3 ${
-                      pendingTaskId === task.id ? "opacity-60" : ""
-                    } ${draggingTaskId === task.id ? "opacity-70" : ""}`}
-                    draggable={Boolean(currentUserId)}
-                    onDragStart={(event) => handleDragStart(event, task)}
-                    onDragEnd={handleDragEnd}
-                    onClick={() => setSelectedTaskId(task.id)}
-                  >
-                    <p className="truncate text-sm font-semibold text-[color:var(--color-text)]">
-                      {task.title}
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {task.status === "BLOCKED" && (
-                        <span className="rounded border border-rose-500/40 px-1.5 py-0.5 text-[10px] text-rose-300">🔒 {task.blockedType}: {task.blockedReason}</span>
-                      )}
-                      {task.status === "ON_HOLD" && task.holdReason && (
-                        <span className="rounded border border-amber-500/40 px-1.5 py-0.5 text-[10px] text-amber-300">⏸ {task.holdReason}</span>
-                      )}
+                    <h3 className="max-h-[86px] overflow-hidden text-xs font-semibold text-[color:var(--color-text)] [writing-mode:vertical-rl] [transform:rotate(180deg)]">
+                      {status.label}
+                    </h3>
+                    <button
+                      type="button"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-[color:var(--color-border)] text-sm font-semibold text-[color:var(--color-text)] transition hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-muted)]"
+                      aria-label={`Expand ${status.label} column`}
+                      title="Expand column"
+                      onClick={() => expandColumn(status.id)}
+                    >
+                      +
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <h3 className="truncate text-sm font-semibold text-[color:var(--color-text)]">
+                        {status.label}
+                      </h3>
+                      <span className="inline-flex h-5 min-w-5 max-w-10 items-center justify-center overflow-hidden rounded-full border border-[color:var(--color-border)] px-1.5 text-[11px] leading-none text-[color:var(--color-text-muted)]">
+                        {taskCount}
+                      </span>
                     </div>
-                    {/* Custom Subtasks Mini List */}
-                    {(() => {
-                      const items = (task.checklistItems ?? []).filter((item) => item.isCustom);
-                      if (items.length === 0) return null;
-                      return (
-                        <div className="mt-2.5 space-y-1 border-t border-[color:var(--color-border)]/30 pt-2">
-                          {items.map((sub) => (
-                            <div key={sub.id} className="flex items-center gap-1.5 text-[10.5px] text-[color:var(--color-text-muted)]">
-                              <span className={`h-1.5 w-1.5 rounded-full ${sub.isCompleted ? "bg-emerald-400" : "bg-zinc-500"}`} />
-                              <span className={`truncate ${sub.isCompleted ? "line-through text-[color:var(--color-text-subtle)]" : ""}`}>
-                                {sub.label}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                    <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                        <span
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-muted-bg)] text-[10px] font-semibold text-[color:var(--color-text)]"
-                          title={task.owner?.name ?? "Unassigned"}
-                        >
-                          {(task.owner?.name ?? "U").charAt(0).toUpperCase()}
-                        </span>
-                        <div className="flex flex-col min-w-0">
-                          <span className="truncate text-[11px] font-medium text-[color:var(--color-text-subtle)] leading-tight">
-                            {task.owner?.name ?? "Unassigned"}
+                    <button
+                      type="button"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-[color:var(--color-border)] text-sm font-semibold text-[color:var(--color-text)] transition hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-muted)]"
+                      aria-label={`Collapse ${status.label} column`}
+                      title="Collapse column"
+                      onClick={() => collapseColumn(status.id)}
+                    >
+                      -
+                    </button>
+                  </>
+                )}
+              </div>
+              {!isCollapsed && <div className="min-w-0 space-y-3 overflow-hidden">
+                {(groupedTasks[status.id] ?? []).map((task) => {
+                  const predefinedItems = (task.checklistItems ?? []).filter((item) => !item.isCustom);
+                  const completedChecklistCount =
+                    predefinedItems.filter((item) => item.isCompleted).length;
+                  const checklistTotal = predefinedItems.length;
+                  const estimatedSeconds = Math.max(
+                    0,
+                    (task.estimatedHours ?? 0) * 3600
+                  );
+                  const effectiveSpentSeconds = Number(
+                    task.spentTimeSeconds ?? 0
+                  );
+                  const estimatedLabel =
+                    estimatedSeconds > 0
+                      ? formatEstimatedTime(task.estimatedHours)
+                      : "No estimate";
+                  const progress =
+                    estimatedSeconds > 0
+                      ? effectiveSpentSeconds / estimatedSeconds
+                      : 0;
+                  const progressState = getProgressState(task);
+                  return (
+                    <div
+                      key={task.id}
+                      className={`min-w-0 cursor-pointer overflow-hidden rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-2.5 transition hover:border-[color:var(--color-accent)] sm:p-3 ${pendingTaskId === task.id ? "opacity-60" : ""
+                        } ${draggingTaskId === task.id ? "opacity-70" : ""}`}
+                      draggable={Boolean(currentUserId)}
+                      onDragStart={(event) => handleDragStart(event, task)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => setSelectedTaskId(task.id)}
+                    >
+                      <p className="truncate text-sm font-semibold text-[color:var(--color-text)]">
+                        {task.title}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {task.status === "BLOCKED" && (
+                          <span className="rounded border border-rose-500/40 px-1.5 py-0.5 text-[10px] text-rose-300">🔒 {task.blockedType}: {task.blockedReason}</span>
+                        )}
+                        {task.status === "ON_HOLD" && task.holdReason && (
+                          <span className="rounded border border-amber-500/40 px-1.5 py-0.5 text-[10px] text-amber-300">⏸ {task.holdReason}</span>
+                        )}
+                        {Number(task.reworkCount ?? 0) > 0 && (
+                          <span className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400">
+                            ⚠️ Rework ({task.reworkCount})
                           </span>
-                          <div className="flex min-w-0 items-center gap-0.5 text-[10px] text-[color:var(--color-text-subtle)]">
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-3 w-3 shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                            >
-                              <path
-                                d="M9 12h8M9 7h8M5 7h.01M5 12h.01M5 17h.01M9 17h8"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                            <span>
-                              {completedChecklistCount}/{checklistTotal}
-                            </span>
-                            {task.personalTodos && task.personalTodos.length > 0 && (
-                              <span
-                                className="ml-1.5 inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md"
-                                title="Your Personal To-Dos linked to this task"
-                              >
-                                ☑ {task.personalTodos.filter((t) => t.isCompleted).length}/{task.personalTodos.length}
-                              </span>
-                            )}
-                            {task.personalNotes && task.personalNotes.length > 0 && (
-                              <span
-                                className="ml-1 inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded-md"
-                                title="Your Personal Notes linked to this task"
-                              >
-                                📝 {task.personalNotes.length}
-                              </span>
-                            )}
-                            {(() => {
-                              const items = (task.checklistItems ?? []).filter((item) => item.isCustom);
-                              if (items.length === 0) return null;
-                              return (
-                                <span
-                                  className="ml-1.5 inline-flex items-center gap-0.5 text-[9.5px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded-md"
-                                  title="Custom Subtasks progress"
-                                >
-                                  ⎇ {items.filter((s) => s.isCompleted).length}/{items.length}
+                        )}
+                      </div>
+                      {/* Custom Subtasks Mini List */}
+                      {(() => {
+                        const items = (task.checklistItems ?? []).filter((item) => item.isCustom);
+                        if (items.length === 0) return null;
+                        return (
+                          <div className="mt-2.5 space-y-1 border-t border-[color:var(--color-border)]/30 pt-2">
+                            {items.map((sub) => (
+                              <div key={sub.id} className="flex items-center gap-1.5 text-[10.5px] text-[color:var(--color-text-muted)]">
+                                <span className={`h-1.5 w-1.5 rounded-full ${sub.isCompleted ? "bg-emerald-400" : "bg-zinc-500"}`} />
+                                <span className={`truncate ${sub.isCompleted ? "line-through text-[color:var(--color-text-subtle)]" : ""}`}>
+                                  {sub.label}
                                 </span>
-                              );
-                            })()}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                          <span
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-muted-bg)] text-[10px] font-semibold text-[color:var(--color-text)]"
+                            title={task.owner?.name ?? "Unassigned"}
+                          >
+                            {(task.owner?.name ?? "U").charAt(0).toUpperCase()}
+                          </span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="truncate text-[11px] font-medium text-[color:var(--color-text-subtle)] leading-tight">
+                              {task.owner?.name ?? "Unassigned"}
+                            </span>
+                            <div className="flex min-w-0 items-center gap-0.5 text-[10px] text-[color:var(--color-text-subtle)]">
+                              <svg
+                                viewBox="0 0 24 24"
+                                className="h-3 w-3 shrink-0"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              >
+                                <path
+                                  d="M9 12h8M9 7h8M5 7h.01M5 12h.01M5 17h.01M9 17h8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                              <span>
+                                {completedChecklistCount}/{checklistTotal}
+                              </span>
+                              {task.personalTodos && task.personalTodos.length > 0 && (
+                                <span
+                                  className="ml-1.5 inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md"
+                                  title="Your Personal To-Dos linked to this task"
+                                >
+                                  ☑ {task.personalTodos.filter((t) => t.isCompleted).length}/{task.personalTodos.length}
+                                </span>
+                              )}
+                              {task.personalNotes && task.personalNotes.length > 0 && (
+                                <span
+                                  className="ml-1 inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded-md"
+                                  title="Your Personal Notes linked to this task"
+                                >
+                                  📝 {task.personalNotes.length}
+                                </span>
+                              )}
+                              {(() => {
+                                const items = (task.checklistItems ?? []).filter((item) => item.isCustom);
+                                if (items.length === 0) return null;
+                                return (
+                                  <span
+                                    className="ml-1.5 inline-flex items-center gap-0.5 text-[9.5px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded-md"
+                                    title="Custom Subtasks progress"
+                                  >
+                                    ⎇ {items.filter((s) => s.isCompleted).length}/{items.length}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex flex-col items-center text-[10px] text-[color:var(--color-text-subtle)]">
-                        <ProgressRing
-                          progress={progress}
-                          state={progressState}
-                        />
-                        <span>{estimatedLabel}</span>
-                        <span>{formatDurationShort(effectiveSpentSeconds)}</span>
-                        <span>{getPresenceLabel(task)}</span>
+                        <div className="flex flex-col items-center text-[10px] text-[color:var(--color-text-subtle)]">
+                          <ProgressRing
+                            progress={progress}
+                            state={progressState}
+                          />
+                          <span>{estimatedLabel}</span>
+                          <span>{formatDurationShort(effectiveSpentSeconds)}</span>
+                          <span>{getPresenceLabel(task)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-              {taskCount === 0 && (
-                <p className="text-xs text-[color:var(--color-text-subtle)]">
-                  No tasks here.
-                </p>
-              )}
-            </div>}
-            {!isCollapsed && (
-              <div
-                role="separator"
-                aria-label={`Resize ${status.label} column`}
-                className={`group absolute right-0 top-0 h-full w-2 cursor-col-resize rounded-r-2xl transition ${
-                  isResizing
+                  );
+                })}
+                {taskCount === 0 && (
+                  <p className="text-xs text-[color:var(--color-text-subtle)]">
+                    No tasks here.
+                  </p>
+                )}
+              </div>}
+              {!isCollapsed && (
+                <div
+                  role="separator"
+                  aria-label={`Resize ${status.label} column`}
+                  className={`group absolute right-0 top-0 h-full w-2 cursor-col-resize rounded-r-2xl transition ${isResizing
                     ? "bg-[color:var(--color-accent-muted)]"
                     : "hover:bg-[color:var(--color-accent-muted)]"
-                }`}
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  setResizeState({
-                    statusId: status.id,
-                    startX: event.clientX,
-                    startWidth: expandedWidth,
-                  });
-                }}
-              >
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-px bg-[color:var(--color-border)] transition group-hover:bg-[color:var(--color-accent)]" />
-                <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col gap-1 opacity-0 transition group-hover:opacity-80">
-                  <span className="h-1 w-1 rounded-full bg-[color:var(--color-text-subtle)]" />
-                  <span className="h-1 w-1 rounded-full bg-[color:var(--color-text-subtle)]" />
-                  <span className="h-1 w-1 rounded-full bg-[color:var(--color-text-subtle)]" />
+                    }`}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    setResizeState({
+                      statusId: status.id,
+                      startX: event.clientX,
+                      startWidth: expandedWidth,
+                    });
+                  }}
+                >
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-px bg-[color:var(--color-border)] transition group-hover:bg-[color:var(--color-accent)]" />
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col gap-1 opacity-0 transition group-hover:opacity-80">
+                    <span className="h-1 w-1 rounded-full bg-[color:var(--color-text-subtle)]" />
+                    <span className="h-1 w-1 rounded-full bg-[color:var(--color-text-subtle)]" />
+                    <span className="h-1 w-1 rounded-full bg-[color:var(--color-text-subtle)]" />
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -1804,7 +1985,7 @@ export default function TaskBoard({
 
           {/* Modal Container */}
           <div className="relative z-10 flex h-[90vh] max-h-[850px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] shadow-2xl transition-all">
-            
+
             {/* Cover Banner Section */}
             {taskCovers[selectedTask.id] ? (
               <div className="relative h-48 w-full bg-[color:var(--color-muted-bg)] overflow-hidden shrink-0">
@@ -1844,10 +2025,10 @@ export default function TaskBoard({
 
             {/* Main Columns Split Layout */}
             <div className="flex flex-1 flex-col md:flex-row overflow-hidden bg-[color:var(--color-card)]">
-              
+
               {/* Left Column (Scrollable details / subtasks / attachments) */}
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                
+
                 {/* Title and Type badge */}
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-4">
@@ -1937,9 +2118,8 @@ export default function TaskBoard({
                               return (
                                 <li
                                   key={item.id}
-                                  className={`flex items-start gap-2 text-xs text-[color:var(--color-text-muted)] ${
-                                    isUpdating ? "opacity-60" : ""
-                                  }`}
+                                  className={`flex items-start gap-2 text-xs text-[color:var(--color-text-muted)] ${isUpdating ? "opacity-60" : ""
+                                    }`}
                                 >
                                   <input
                                     type="checkbox"
@@ -2239,7 +2419,7 @@ export default function TaskBoard({
                       />
                     );
                   })()}
-                  
+
                   {/* Status Actions (e.g., Approve / Reject testing sign-off) */}
                   <div className="ml-auto">
                     {renderActions(selectedTask)}

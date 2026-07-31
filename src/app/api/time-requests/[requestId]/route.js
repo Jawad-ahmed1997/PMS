@@ -10,7 +10,7 @@ import { createNotification } from "@/lib/notifications";
 const ALLOWED_STATUSES = ["APPROVED", "REJECTED"];
 
 function isLeader(role) {
-  return ["PM", "CTO"].includes(role);
+  return ["PM", "CTO", "TEAM_LEAD"].includes(role);
 }
 
 function formatDuration(seconds) {
@@ -34,7 +34,7 @@ export async function PATCH(request, { params }) {
   }
 
   if (!isLeader(context.role)) {
-    return buildError("Only PMs and CTOs can review time requests.", 403);
+    return buildError("Only PMs, CTOs, and Team Leads can review time requests.", 403);
   }
 
   const { requestId } = await params;

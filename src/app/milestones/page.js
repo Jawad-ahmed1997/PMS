@@ -1,5 +1,5 @@
 import MilestonesOverview from "@/components/milestones/MilestonesOverview";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 
 export default async function MilestonesPage() {
   const session = await getSession();

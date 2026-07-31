@@ -1,13 +1,13 @@
 import ActivityDashboard from "@/components/activity/ActivityDashboard";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { normalizeRole } from "@/lib/api";
 
 export default async function ActivityPage() {
   const session = await getSession();
   const hasDatabase = Boolean(process.env.DATABASE_URL);
   const role = normalizeRole(session?.role);
-  const canViewAll = ["CEO", "PM", "CTO"].includes(role);
+  const canViewAll = ["CEO", "PM", "CTO", "TEAM_LEAD"].includes(role);
 
   let currentUser = null;
   let users = [];

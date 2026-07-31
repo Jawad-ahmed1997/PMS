@@ -1,7 +1,9 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Textarea } from "@/components/ui/textarea";
 import useOutsideClick from "@/hooks/useOutsideClick";
 
 const buildErrorMessage = (data, fallback) =>
@@ -78,11 +80,11 @@ export default function CommentThread({
 
     const activityItems = showDetails
       ? activities.map((a) => ({
-          id: a.id,
-          type: "activity",
-          date: new Date(a.date || a.createdAt || Date.now()),
-          data: a,
-        }))
+        id: a.id,
+        type: "activity",
+        date: new Date(a.date || a.createdAt || Date.now()),
+        data: a,
+      }))
       : [];
 
     return [...commentItems, ...activityItems].sort(
@@ -309,7 +311,7 @@ export default function CommentThread({
       {/* Input box section */}
       <div className="space-y-2">
         <div className="relative" ref={mentionRef}>
-          <textarea
+          <Textarea
             ref={inputRef}
             rows={3}
             value={message}
@@ -320,7 +322,7 @@ export default function CommentThread({
           {mentionState.open && filteredUsers.length > 0 ? (
             <div className="absolute bottom-full left-0 z-10 mb-2 max-h-48 overflow-y-auto w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-lg">
               {filteredUsers.map((user) => (
-                <button
+                <Button
                   key={user.id}
                   type="button"
                   onClick={() => handleMentionSelect(user)}
@@ -330,20 +332,20 @@ export default function CommentThread({
                   <span className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
                     {user.role}
                   </span>
-                </button>
+                </Button>
               ))}
             </div>
           ) : null}
         </div>
         <div className="flex justify-end">
-          <button
+          <Button
             type="button"
             onClick={handleSubmit}
             disabled={status.submitting || !message.trim()}
             className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {status.submitting ? "Sending..." : "Send"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -385,7 +387,7 @@ export default function CommentThread({
                         })}
                       </span>
                       {comment.updatedAt && (
-                        <span 
+                        <span
                           className="text-[9.5px] text-[color:var(--color-text-subtle)] font-medium italic"
                           title={`Edited on ${new Date(comment.updatedAt).toLocaleString()}`}
                         >

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { hashPassword, isPasswordInput } from "@/lib/auth/password";
 import { sendInviteEmail } from "@/lib/email";
 import {
   ALL_ROLES,

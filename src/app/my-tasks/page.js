@@ -1,5 +1,5 @@
 import MyTasksView from "@/components/my-tasks/MyTasksView";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 import { prisma } from "@/lib/prisma";
 
 export default async function MyTasksPage() {

@@ -6,6 +6,7 @@ import {
 import { getTimeZoneNow, normalizeAttendanceTimes } from "@/lib/attendanceTimes";
 import { dateKeyToUtcDate, isDateKeyInRange, shiftDateKey, toDateKey } from "@/lib/dateKeys";
 import { normalizeAutoOffForAttendances } from "@/lib/attendanceAutoOff";
+import { endActiveSessionsAtTime } from "@/lib/taskWorkSessions";
 import {
   PROJECT_MANAGEMENT_ROLES,
   buildError,
@@ -58,7 +59,14 @@ function getEditWindow() {
 
 function isDateEditable(date) {
   const window = getEditWindow();
-  const targetKey = toDateKey(date);
+  let targetKey;
+  if (date instanceof Date) {
+    targetKey = date.toISOString().slice(0, 10);
+  } else if (typeof date === "string") {
+    targetKey = date.slice(0, 10);
+  } else {
+    targetKey = toDateKey(date);
+  }
   if (!window || !targetKey) {
     return false;
   }
@@ -247,6 +255,14 @@ export async function POST(request) {
       breaks: { orderBy: { startAt: "asc" } },
     },
   });
+
+  if (outTime) {
+    try {
+      await endActiveSessionsAtTime(prisma, targetUserId, outTime);
+    } catch (err) {
+      console.error("Failed to end active task work sessions on manual checkout:", err);
+    }
+  }
 
   return buildSuccess("Attendance saved.", {
     attendance: attachComputedDurations(attendance),

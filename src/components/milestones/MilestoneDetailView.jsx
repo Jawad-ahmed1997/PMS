@@ -1,14 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import {
+  DialogRoot,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/ToastProvider";
 import TaskBoard from "@/components/tasks/TaskBoard";
 import PageHeader from "@/components/layout/PageHeader";
 import { TASK_STATUSES } from "@/lib/kanban";
 import { TASK_TYPE_CHECKLISTS } from "@/lib/taskChecklists";
 import { canCreateTasks, normalizeRoleId, roles } from "@/lib/roles";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import ScrollArea from "@/components/ui/ScrollArea";
 import {
   getMilestoneCapacity,
   getMilestoneStatus,
@@ -27,7 +46,7 @@ export default function MilestoneDetailView({
   const [milestone, setMilestone] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [status, setStatus] = useState({ loading: true, error: null });
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [users, setUsers] = useState([]);
@@ -210,7 +229,7 @@ export default function MilestoneDetailView({
         isCompleted: item.isCompleted,
       })),
     });
-    setIsModalOpen(true);
+    setIsDialogOpen(true);
   };
 
   const handleTaskSubmit = async (event) => {
@@ -290,7 +309,7 @@ export default function MilestoneDetailView({
         window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
       }
       resetTaskForm();
-      setIsModalOpen(false);
+      setIsDialogOpen(false);
       if (editingTaskId) {
         setTasks((prev) =>
           prev.map((task) => (task.id === data.task.id ? data.task : task))
@@ -328,12 +347,12 @@ export default function MilestoneDetailView({
         backLabel="Back to milestones"
         actions={
           canCreateTask ? (
-            <ActionButton
+            <Button
               label="Create task"
-              variant="success"
+              variant="primary"
               onClick={() => {
                 resetTaskForm();
-                setIsModalOpen(true);
+                setIsDialogOpen(true);
               }}
             />
           ) : null
@@ -376,7 +395,7 @@ export default function MilestoneDetailView({
       {!status.loading && status.error && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
           <p>{status.error}</p>
-          <ActionButton label="Retry" variant="secondary" onClick={loadMilestone} />
+          <Button label="Retry" variant="secondary" onClick={loadMilestone} />
         </div>
       )}
 
@@ -407,239 +426,262 @@ export default function MilestoneDetailView({
         </>
       )}
 
-      <Modal
-        isOpen={isModalOpen}
-        title={editingTaskId ? "Edit task" : "Create task"}
-        description={
-          editingTaskId
-            ? "Update the task details and checklist."
-            : "Tasks created here are tied to this milestone."
-        }
-        onClose={
-          savingTask
-            ? undefined
-            : () => {
-                setIsModalOpen(false);
-                resetTaskForm();
-              }
-        }
+      <DialogRoot
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !savingTask) {
+            setIsDialogOpen(false);
+            resetTaskForm();
+          }
+        }}
       >
-        <form onSubmit={handleTaskSubmit} className="flex max-h-[60vh] flex-col">
-          <div className="space-y-4 overflow-y-auto pr-1">
-            <label className="text-xs text-[color:var(--color-text-muted)]">
-              Task title
-              <input
-                className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-                value={taskForm.title}
-                onChange={(event) =>
-                  setTaskForm((prev) => ({ ...prev, title: event.target.value }))
-                }
-              />
-            </label>
-            <label className="text-xs text-[color:var(--color-text-muted)]">
-              Description
-              <textarea
-                className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-                rows={4}
-                value={taskForm.description}
-                onChange={(event) =>
-                  setTaskForm((prev) => ({
-                    ...prev,
-                    description: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <div className="grid gap-3 md:grid-cols-2">
-              {!editingTaskId ? (
-                <label className="text-xs text-[color:var(--color-text-muted)]">
-                  Status
-                  <select
-                    className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-                    value={taskForm.status}
+        <DialogContent className="max-h-[85vh] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingTaskId ? "Edit task" : "Create task"}</DialogTitle>
+            <DialogDescription>
+              {editingTaskId
+                ? "Update the task details and checklist."
+                : "Tasks created here are tied to this milestone."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleTaskSubmit} className="mt-6 flex min-h-0 flex-1 flex-col">
+            <ScrollArea className="min-h-0 flex-1" viewportClassName="pr-3">
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="milestone-task-title">Task title</Label>
+                  <Input
+                    id="milestone-task-title"
+                    value={taskForm.title}
+                    onChange={(event) =>
+                      setTaskForm((prev) => ({ ...prev, title: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="milestone-task-description">Description</Label>
+                  <Textarea
+                    id="milestone-task-description"
+                    rows={4}
+                    value={taskForm.description}
                     onChange={(event) =>
                       setTaskForm((prev) => ({
                         ...prev,
-                        status: event.target.value,
+                        description: event.target.value,
                       }))
                     }
-                  >
-                    {TASK_STATUSES.map((statusOption) => (
-                      <option key={statusOption.id} value={statusOption.id}>
-                        {statusOption.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <label className="text-xs text-[color:var(--color-text-muted)]">
-                Type
-                <select
-                  className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-                  value={taskForm.type}
-                  onChange={(event) =>
-                    setTaskForm((prev) => ({
-                      ...prev,
-                      type: event.target.value,
-                    }))
-                  }
-                >
-                  {taskTypes.map((taskType) => (
-                    <option key={taskType} value={taskType}>
-                      {taskType}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label className="text-xs text-[color:var(--color-text-muted)]">
-              Assignee
-              <select
-                className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-                value={taskForm.ownerId}
-                onChange={(event) =>
-                  setTaskForm((prev) => ({
-                    ...prev,
-                    ownerId: event.target.value,
-                  }))
-                }
-                disabled={!canManageAssignments}
-              >
-                <option value="">
-                  {canManageAssignments ? "Select developer" : "Unassigned"}
-                </option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs text-[color:var(--color-text-muted)]">
-              Estimated time
-              <input
-                className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-                placeholder="2 hours 30 minutes"
-                value={taskForm.estimatedTime}
-                onChange={(event) =>
-                  setTaskForm((prev) => ({
-                    ...prev,
-                    estimatedTime: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            {editingTaskId ? (
-              <div className="space-y-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-                  Checklist
-                </p>
-                <div className="space-y-2">
-                  {taskForm.checklistItems.length ? (
-                    taskForm.checklistItems.map((item, index) => (
-                      <div
-                        key={item.id ?? `new-${index}`}
-                        className="flex items-center gap-2"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={item.isCompleted}
-                          onChange={(event) =>
-                            setTaskForm((prev) => ({
-                              ...prev,
-                              checklistItems: prev.checklistItems.map(
-                                (existing, itemIndex) =>
-                                  itemIndex === index
-                                    ? {
-                                        ...existing,
-                                        isCompleted: event.target.checked,
-                                      }
-                                    : existing
-                              ),
-                            }))
-                          }
-                          className="h-4 w-4 rounded border-[color:var(--color-border)] bg-transparent text-emerald-500"
-                        />
-                        <input
-                          className="flex-1 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-xs text-[color:var(--color-text)]"
-                          value={item.label}
-                          onChange={(event) =>
-                            setTaskForm((prev) => ({
-                              ...prev,
-                              checklistItems: prev.checklistItems.map(
-                                (existing, itemIndex) =>
-                                  itemIndex === index
-                                    ? {
-                                        ...existing,
-                                        label: event.target.value,
-                                      }
-                                    : existing
-                              ),
-                            }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-[10px] text-[color:var(--color-text-muted)] transition hover:border-rose-400 hover:text-rose-300"
-                          onClick={() =>
-                            setTaskForm((prev) => ({
-                              ...prev,
-                              checklistItems: prev.checklistItems.filter(
-                                (_, itemIndex) => itemIndex !== index
-                              ),
-                            }))
-                          }
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-[color:var(--color-text-subtle)]">
-                      No checklist items yet.
-                    </p>
-                  )}
+                  />
                 </div>
-                <button
-                  type="button"
-                  className="w-fit rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
-                  onClick={() =>
-                    setTaskForm((prev) => ({
-                      ...prev,
-                      checklistItems: [
-                        ...prev.checklistItems,
-                        { label: "", isCompleted: false },
-                      ],
-                    }))
-                  }
-                >
-                  Add checklist item
-                </button>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {!editingTaskId ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="milestone-task-status">Status</Label>
+                      <Select
+                        value={taskForm.status}
+                        onValueChange={(value) =>
+                          setTaskForm((prev) => ({ ...prev, status: value }))
+                        }
+                      >
+                        <SelectTrigger id="milestone-task-status">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TASK_STATUSES.map((statusOption) => (
+                            <SelectItem key={statusOption.id} value={statusOption.id}>
+                              {statusOption.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="milestone-task-type">Type</Label>
+                    <Select
+                      value={taskForm.type}
+                      onValueChange={(value) =>
+                        setTaskForm((prev) => ({ ...prev, type: value }))
+                      }
+                    >
+                      <SelectTrigger id="milestone-task-type">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {taskTypes.map((taskType) => (
+                          <SelectItem key={taskType} value={taskType}>
+                            {taskType}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="milestone-task-owner">Assignee</Label>
+                  <Select
+                    value={taskForm.ownerId || "UNASSIGNED"}
+                    onValueChange={(value) =>
+                      setTaskForm((prev) => ({
+                        ...prev,
+                        ownerId: value === "UNASSIGNED" ? "" : value,
+                      }))
+                    }
+                    disabled={!canManageAssignments}
+                  >
+                    <SelectTrigger id="milestone-task-owner">
+                      <SelectValue
+                        placeholder={canManageAssignments ? "Select developer" : "Unassigned"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="UNASSIGNED">
+                        {canManageAssignments ? "Select developer" : "Unassigned"}
+                      </SelectItem>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="milestone-task-estimate">Estimated time</Label>
+                  <Input
+                    id="milestone-task-estimate"
+                    placeholder="2 hours 30 minutes"
+                    value={taskForm.estimatedTime}
+                    onChange={(event) =>
+                      setTaskForm((prev) => ({
+                        ...prev,
+                        estimatedTime: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                {editingTaskId ? (
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
+                    <div>
+                      <p className="text-sm font-semibold">Checklist</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Track the completion of this task&apos;s checklist items.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {taskForm.checklistItems.length ? (
+                        taskForm.checklistItems.map((item, index) => (
+                          <div
+                            key={item.id ?? `new-${index}`}
+                            className="flex items-center gap-2"
+                          >
+                            <Checkbox
+                              checked={item.isCompleted}
+                              onCheckedChange={(checked) =>
+                                setTaskForm((prev) => ({
+                                  ...prev,
+                                  checklistItems: prev.checklistItems.map(
+                                    (existing, itemIndex) =>
+                                      itemIndex === index
+                                        ? {
+                                            ...existing,
+                                            isCompleted: checked === true,
+                                          }
+                                        : existing
+                                  ),
+                                }))
+                              }
+                              aria-label={`Mark ${item.label || "checklist item"} complete`}
+                            />
+                            <Input
+                              value={item.label}
+                              onChange={(event) =>
+                                setTaskForm((prev) => ({
+                                  ...prev,
+                                  checklistItems: prev.checklistItems.map(
+                                    (existing, itemIndex) =>
+                                      itemIndex === index
+                                        ? {
+                                            ...existing,
+                                            label: event.target.value,
+                                          }
+                                        : existing
+                                  ),
+                                }))
+                              }
+                              className="flex-1"
+                              aria-label="Checklist item"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setTaskForm((prev) => ({
+                                  ...prev,
+                                  checklistItems: prev.checklistItems.filter(
+                                    (_, itemIndex) => itemIndex !== index
+                                  ),
+                                }))
+                              }
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          No checklist items yet.
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-fit"
+                      onClick={() =>
+                        setTaskForm((prev) => ({
+                          ...prev,
+                          checklistItems: [
+                            ...prev.checklistItems,
+                            { label: "", isCompleted: false },
+                          ],
+                        }))
+                      }
+                    >
+                      Add checklist item
+                    </Button>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-          <div className="sticky bottom-0 mt-4 flex flex-wrap justify-end gap-2 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
-            <ActionButton
-              label="Cancel"
-              variant="secondary"
-              onClick={() => setIsModalOpen(false)}
-              className={savingTask ? "pointer-events-none opacity-60" : ""}
-            />
-            <ActionButton
-              label={
-                savingTask
+            </ScrollArea>
+
+            <DialogFooter className="mt-4 border-t border-border pt-4">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsDialogOpen(false)}
+                disabled={savingTask}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={savingTask}>
+                {savingTask
                   ? "Saving..."
                   : editingTaskId
                     ? "Save changes"
-                    : "Create Task"
-              }
-              variant="primary"
-              type="submit"
-              className={savingTask ? "pointer-events-none opacity-60" : ""}
-            />
-          </div>
-        </form>
-      </Modal>
+                    : "Create Task"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </DialogRoot>
     </div>
   );
 }

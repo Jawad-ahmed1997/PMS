@@ -1,20 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, MoreHorizontal, Pencil } from "lucide-react";
 
-import ActionButton from "@/components/ui/ActionButton";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 import { useToast } from "@/components/ui/ToastProvider";
-import ProjectModal from "@/components/projects/ProjectModal";
+import ProjectDialog from "@/components/projects/ProjectModal";
 import PageHeader from "@/components/layout/PageHeader";
 import ViewToggle from "@/components/ui/ViewToggle";
-import useOutsideClick from "@/hooks/useOutsideClick";
+import { Table } from "@/components/ui/table";
+import Avatar from "@/components/ui/Avatar";
 
 const VIEW_PREFERENCE_KEY = "pms.projects.view";
-
-const buildErrorMessage = (data) =>
-  data?.error ?? data?.message ?? "Unable to load project data.";
-
+const buildErrorMessage = (data) => data?.error ?? data?.message ?? "Unable to load project data.";
 const normalizeProject = (project) => ({
   id: project.id,
   name: project.name,
@@ -26,32 +32,16 @@ const normalizeProject = (project) => ({
 const ProjectMembers = ({ members }) => {
   const visibleMembers = members.slice(0, 3);
   const extraCount = Math.max(0, members.length - visibleMembers.length);
-
-  if (!members.length) {
-    return (
-      <span className="text-xs text-[color:var(--color-text-subtle)]">
-        No members yet
-      </span>
-    );
-  }
-
+  if (!members.length) return <span className="text-xs text-muted-foreground">No members yet</span>;
   return (
     <div className="flex items-center">
       <div className="flex -space-x-2">
         {visibleMembers.map((member) => (
-          <span
-            key={member.id}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] text-[11px] font-semibold text-[color:var(--color-text)]"
-            title={member.name}
-          >
-            {(member.name ?? "U").charAt(0).toUpperCase()}
-          </span>
+          <div key={member.id} className="relative rounded-full ring-2 ring-card" title={member.name}>
+            <Avatar name={member.name} size="sm" />
+          </div>
         ))}
-        {extraCount > 0 ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] text-[10px] font-semibold text-[color:var(--color-text-subtle)]">
-            +{extraCount}
-          </span>
-        ) : null}
+        {extraCount > 0 ? <span className="ml-2 text-xs font-medium text-muted-foreground">{extraCount} more</span> : null}
       </div>
     </div>
   );
@@ -63,297 +53,81 @@ export default function ProjectListView({ canManageProjects }) {
   const [projects, setProjects] = useState([]);
   const [status, setStatus] = useState({ loading: true, error: null });
   const [viewMode, setViewMode] = useState("grid");
-  const [modalState, setModalState] = useState({
-    open: false,
-    mode: "create",
-    project: null,
-  });
+  const [modalState, setDialogState] = useState({ open: false, mode: "create", project: null });
 
   const loadProjects = useCallback(async () => {
     setStatus({ loading: true, error: null });
     try {
       const response = await fetch("/api/projects");
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(buildErrorMessage(data));
-      }
-
-      const normalized = (data?.projects ?? []).map((project) =>
-        normalizeProject(project)
-      );
-      setProjects(normalized);
+      if (!response.ok) throw new Error(buildErrorMessage(data));
+      setProjects((data?.projects ?? []).map(normalizeProject));
       setStatus({ loading: false, error: null });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to load project data.";
+      const message = error instanceof Error ? error.message : "Unable to load project data.";
       setStatus({ loading: false, error: message });
-      addToast({
-        title: "Projects unavailable",
-        message,
-        variant: "error",
-      });
+      addToast({ title: "Projects unavailable", message, variant: "error" });
     }
   }, [addToast]);
 
+  useEffect(() => { loadProjects(); }, [loadProjects]);
   useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
-
-  useEffect(() => {
-    const stored =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem(VIEW_PREFERENCE_KEY)
-        : null;
-    if (stored === "grid" || stored === "list") {
-      setViewMode(stored);
-    }
+    const stored = typeof window !== "undefined" ? window.localStorage.getItem(VIEW_PREFERENCE_KEY) : null;
+    if (stored === "grid" || stored === "list") setViewMode(stored);
   }, []);
-
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(VIEW_PREFERENCE_KEY, viewMode);
+    if (typeof window !== "undefined") window.localStorage.setItem(VIEW_PREFERENCE_KEY, viewMode);
   }, [viewMode]);
 
-  const openCreateModal = () => {
-    setModalState({ open: true, mode: "create", project: null });
-  };
+  const openCreateDialog = () => setDialogState({ open: true, mode: "create", project: null });
+  const openEditDialog = (project) => setDialogState({ open: true, mode: "edit", project });
+  const closeDialog = () => setDialogState({ open: false, mode: "create", project: null });
 
-  const openEditModal = (project) => {
-    setModalState({ open: true, mode: "edit", project });
-  };
+  const ProjectActionMenu = ({ project }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" onClick={(event) => event.stopPropagation()} className="h-8 w-8 text-muted-foreground" aria-label="Project actions" title="Project actions">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40" onClick={(event) => event.stopPropagation()}>
+        <DropdownMenuItem onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onSelect={(event) => { event.stopPropagation(); router.push(`/projects/${project.id}`); }}><Eye className="mr-2 h-4 w-4" />View</DropdownMenuItem>
+        {canManageProjects ? <DropdownMenuItem onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onSelect={(event) => { event.stopPropagation(); openEditDialog(project); }}><Pencil className="mr-2 h-4 w-4" />Edit</DropdownMenuItem> : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
-  const closeModal = () => {
-    setModalState({ open: false, mode: "create", project: null });
-  };
-
-  const ProjectActionMenu = ({ project }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const menuRef = useRef(null);
-
-    useOutsideClick(menuRef, () => setIsOpen(false), isOpen);
-
-    const handleView = () => {
-      setIsOpen(false);
-      router.push(`/projects/${project.id}`);
-    };
-
-    const handleEdit = () => {
-      setIsOpen(false);
-      openEditModal(project);
-    };
-
-    return (
-      <div className="relative" ref={menuRef}>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setIsOpen((prev) => !prev);
-          }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
-          aria-label="Project actions"
-          title="Project actions"
-          aria-expanded={isOpen}
-          aria-haspopup="menu"
-        >
-          <span className="text-lg leading-none">⋮</span>
-        </button>
-        {isOpen ? (
-          <div
-            className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                handleView();
-              }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path
-                  d="M1.5 12s4.5-7 10.5-7 10.5 7 10.5 7-4.5 7-10.5 7-10.5-7-10.5-7Z"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              <span>View</span>
-            </button>
-            {canManageProjects ? (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleEdit();
-                }}
-                className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path
-                    d="M4 20h4l10-10-4-4L4 16v4Z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M13 7l4 4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span>Edit</span>
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    );
-  };
+  const statusBadge = (project) => <Badge variant={project.status === "Active" ? "secondary" : "outline"} className="text-[10px] uppercase tracking-wider">{project.status}</Badge>;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Projects"
-        title="Portfolio overview"
-        subtitle="Track active initiatives across the organization."
-        actions={
-          canManageProjects ? (
-            <ActionButton
-              label="Create project"
-              variant="success"
-              onClick={openCreateModal}
-            />
-          ) : null
-        }
-        viewToggle={
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-        }
-      />
+    <div className="space-y-8">
+      <PageHeader eyebrow="Projects" title="Portfolio overview" subtitle="Track active initiatives across the organization." actions={canManageProjects ? <Button onClick={openCreateDialog}>Create project</Button> : null} viewToggle={<ViewToggle value={viewMode} onChange={setViewMode} />} />
 
-      {status.loading && (
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">
-          Loading projects...
-        </div>
-      )}
-      {!status.loading && status.error && (
-        <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
-          <p>{status.error}</p>
-          <ActionButton label="Retry" variant="secondary" onClick={loadProjects} />
-        </div>
-      )}
-      {!status.loading && !status.error && !projects.length && (
-        <div className="rounded-2xl border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">
-          No projects yet. Create one to begin planning milestones.
-        </div>
-      )}
+      {status.loading && <div className="rounded-xl border border-border/70 bg-card p-6 text-sm text-muted-foreground">Loading projects...</div>}
+      {!status.loading && status.error && <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive"><p>{status.error}</p><Button variant="secondary" onClick={loadProjects}>Retry</Button></div>}
+      {!status.loading && !status.error && !projects.length && <div className="rounded-xl border border-dashed border-border bg-card p-8 text-sm text-muted-foreground">No projects yet. Create one to begin planning milestones.</div>}
 
-      {!status.loading && !status.error && projects.length ? (
-        viewMode === "grid" ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => (
-              <div
-                key={project.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => router.push(`/projects/${project.id}`)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    router.push(`/projects/${project.id}`);
-                  }
-                }}
-                className="cursor-pointer rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5 transition hover:border-[color:var(--color-accent)]"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-[color:var(--color-text)]">
-                      {project.name}
-                    </p>
-                    <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                      {project.description || "No description provided."}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-[color:var(--color-border)] px-2 py-1 text-[11px] text-[color:var(--color-text-muted)]">
-                    {project.status}
-                  </span>
-                </div>
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <ProjectMembers members={project.members} />
-                  <ProjectActionMenu project={project} />
-                </div>
+      {!status.loading && !status.error && projects.length ? viewMode === "grid" ? (
+        <div className="grid auto-rows-fr gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {projects.map((project, index) => (
+            <div key={project.id} role="button" tabIndex={0} onClick={() => router.push(`/projects/${project.id}`)} onKeyDown={(event) => { if (event.key === "Enter") router.push(`/projects/${project.id}`); }} style={{ animationDelay: `${index * 50}ms` }} className="group flex h-full cursor-pointer flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card p-5 transition-colors duration-200 ease-out hover:border-foreground/25 hover:bg-muted/20 animate-in fade-in slide-in-from-bottom-4 fill-mode-both">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1"><h3 className="truncate text-base font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary">{project.name}</h3><p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{project.description || "No description provided."}</p></div>
+                <div className="shrink-0">{statusBadge(project)}</div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)]">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[color:var(--color-surface-muted)] text-xs uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-                <tr>
-                  <th className="px-4 py-3">Project</th>
-                  <th className="px-4 py-3">Description</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Members</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((project) => (
-                  <tr
-                    key={project.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push(`/projects/${project.id}`)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        router.push(`/projects/${project.id}`);
-                      }
-                    }}
-                    className="border-t border-[color:var(--color-border)] text-sm transition hover:bg-[color:var(--color-muted-bg)]"
-                  >
-                    <td className="px-4 py-3 text-[color:var(--color-text)]">
-                      <p className="font-semibold">{project.name}</p>
-                    </td>
-                    <td className="px-4 py-3 text-[color:var(--color-text-muted)]">
-                      {project.description || "No description provided."}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)]">
-                        {project.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <ProjectMembers members={project.members} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <ProjectActionMenu project={project} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
+              <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-4"><ProjectMembers members={project.members} /><ProjectActionMenu project={project} /></div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
+          <Table className="w-full text-left text-sm"><thead className="bg-muted/50 text-xs uppercase tracking-[0.16em] text-muted-foreground"><tr><th className="px-4 py-3">Project</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Members</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody>
+            {projects.map((project, index) => <tr key={project.id} role="button" tabIndex={0} onClick={() => router.push(`/projects/${project.id}`)} onKeyDown={(event) => { if (event.key === "Enter") router.push(`/projects/${project.id}`); }} style={{ animationDelay: `${index * 30}ms` }} className="group cursor-pointer animate-in fade-in slide-in-from-bottom-2 fill-mode-both border-t border-border/60 text-sm transition-colors duration-200 hover:bg-muted/40"><td className="px-4 py-4"><p className="font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary">{project.name}</p></td><td className="max-w-xs truncate px-4 py-4 text-muted-foreground">{project.description || "No description provided."}</td><td className="px-4 py-4">{statusBadge(project)}</td><td className="px-4 py-4"><ProjectMembers members={project.members} /></td><td className="px-4 py-4 text-right"><ProjectActionMenu project={project} /></td></tr>)}
+          </tbody></Table>
+        </div>
       ) : null}
 
-      <ProjectModal
-        isOpen={modalState.open}
-        mode={modalState.mode}
-        initialValues={modalState.project}
-        onClose={closeModal}
-        onSuccess={loadProjects}
-      />
+      <ProjectDialog isOpen={modalState.open} mode={modalState.mode} initialValues={modalState.project} onClose={closeDialog} onSuccess={loadProjects} />
     </div>
   );
 }

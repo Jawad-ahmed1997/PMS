@@ -1,8 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
 import TimelineCard from "@/components/analytics/TimelineCard";
 import WorkstackChart from "@/components/analytics/WorkstackChart";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 function formatDuration(seconds) {
   if (!seconds || seconds <= 0) {
@@ -67,47 +78,43 @@ function normalizeTotals(totals) {
 
 function AnalyticsSkeleton() {
   return (
-    <div className="space-y-3 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
-      <div className="h-4 w-1/3 animate-pulse rounded bg-[color:var(--color-muted-bg)]" />
-      <div className="h-3 w-1/2 animate-pulse rounded bg-[color:var(--color-muted-bg)]" />
-      <div className="h-24 w-full animate-pulse rounded-xl bg-[color:var(--color-muted-bg)]" />
-    </div>
+    <Card><CardContent className="space-y-3 p-5"><div className="h-4 w-1/3 animate-pulse rounded bg-muted" /><div className="h-3 w-1/2 animate-pulse rounded bg-muted" /><div className="h-24 w-full animate-pulse rounded-lg bg-muted" /></CardContent></Card>
   );
 }
 
 function UserTotals({ totals }) {
   const safeTotals = normalizeTotals(totals ?? EMPTY_TOTALS);
   return (
-    <div className="grid gap-3 md:grid-cols-4">
-      <div className="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] p-3">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
+    <div className="grid gap-4 md:grid-cols-4">
+      <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+        <p className="text-xs font-medium text-muted-foreground">
           Work
         </p>
-        <p className="mt-2 text-lg font-semibold text-[color:var(--color-text)]">
+        <p className="mt-2 text-xl font-semibold tracking-tight text-foreground">
           {formatDuration(safeTotals.workSeconds)}
         </p>
       </div>
-      <div className="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] p-3">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
+      <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+        <p className="text-xs font-medium text-muted-foreground">
           Break
         </p>
-        <p className="mt-2 text-lg font-semibold text-[color:var(--color-text)]">
+        <p className="mt-2 text-xl font-semibold tracking-tight text-foreground">
           {formatDuration(safeTotals.breakSeconds)}
         </p>
       </div>
-      <div className="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] p-3">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
+      <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+        <p className="text-xs font-medium text-muted-foreground">
           Idle
         </p>
-        <p className="mt-2 text-lg font-semibold text-[color:var(--color-text)]">
+        <p className="mt-2 text-xl font-semibold tracking-tight text-foreground">
           {formatDuration(safeTotals.idleSeconds)}
         </p>
       </div>
-      <div className="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] p-3">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
+      <div className="rounded-lg border border-border/70 bg-muted/40 p-4">
+        <p className="text-xs font-medium text-muted-foreground">
           Utilization
         </p>
-        <p className="mt-2 text-lg font-semibold text-[color:var(--color-text)]">
+        <p className="mt-2 text-xl font-semibold tracking-tight text-foreground">
           {formatPercent(safeTotals.utilization)}
         </p>
       </div>
@@ -115,10 +122,16 @@ function UserTotals({ totals }) {
   );
 }
 
+const dailyUsersChartConfig = {
+  workSeconds: { label: "Work", color: "var(--color-work)" },
+  breakSeconds: { label: "Break", color: "var(--color-break)" },
+  idleSeconds: { label: "Idle", color: "var(--color-idle)" },
+};
+
 function UsersSummaryTable({ users }) {
   if (!users?.length) {
     return (
-      <div className="rounded-xl border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] p-4 text-xs text-[color:var(--color-text-subtle)]">
+      <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
         No users to summarize.
       </div>
     );
@@ -126,33 +139,115 @@ function UsersSummaryTable({ users }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full text-left text-xs text-[color:var(--color-text-muted)]">
-        <thead className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
-          <tr>
-            <th className="px-3 py-2">User</th>
-            <th className="px-3 py-2">Work</th>
-            <th className="px-3 py-2">Break</th>
-            <th className="px-3 py-2">Idle</th>
-            <th className="px-3 py-2">Utilization</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="min-w-full text-left text-sm text-muted-foreground">
+        <TableHeader><TableRow>
+          <TableHead>User</TableHead><TableHead>Work</TableHead><TableHead>Break</TableHead><TableHead>Idle</TableHead><TableHead>Utilization</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
           {users.map((entry) => {
             const totals = normalizeTotals(entry?.totals ?? EMPTY_TOTALS);
             return (
-              <tr key={entry.user.id} className="border-t border-[color:var(--color-border)]">
-                <td className="px-3 py-2 text-sm font-semibold text-[color:var(--color-text)]">
+              <TableRow key={entry.user.id}>
+                <TableCell className="font-semibold text-foreground">
                   {entry.user.name}
-                </td>
-                <td className="px-3 py-2">{formatDuration(totals.workSeconds)}</td>
-                <td className="px-3 py-2">{formatDuration(totals.breakSeconds)}</td>
-                <td className="px-3 py-2">{formatDuration(totals.idleSeconds)}</td>
-                <td className="px-3 py-2">{formatPercent(totals.utilization)}</td>
-              </tr>
+                </TableCell>
+                <TableCell>{formatDuration(totals.workSeconds)}</TableCell><TableCell>{formatDuration(totals.breakSeconds)}</TableCell><TableCell>{formatDuration(totals.idleSeconds)}</TableCell><TableCell>{formatPercent(totals.utilization)}</TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function DailyUsersStackedChart({ users }) {
+  const data = useMemo(() => {
+    return [...(users ?? [])]
+      .map((entry) => {
+        const totals = normalizeTotals(entry?.totals ?? EMPTY_TOTALS);
+        return {
+          id: entry.user.id,
+          name: entry.user.name,
+          dutySeconds: totals.dutySeconds,
+          workSeconds: totals.workSeconds,
+          breakSeconds: totals.breakSeconds,
+          idleSeconds: totals.idleSeconds,
+          utilization: totals.utilization,
+        };
+      })
+      .sort((a, b) => b.dutySeconds - a.dutySeconds);
+  }, [users]);
+
+  const height = Math.max(220, data.length * 44);
+
+  if (!data.length) {
+    return (
+      <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-6 text-center">
+        <div>
+          <p className="text-sm font-medium text-foreground">No daily activity yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">Work, break, and idle time will appear here.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full min-h-[220px] w-full" style={{ height }}>
+      <ChartContainer config={dailyUsersChartConfig} className="h-full min-h-[220px] aspect-auto">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" barCategoryGap={10} margin={{ top: 12, right: 20, left: 40, bottom: 8 }}>
+          <CartesianGrid horizontal={false} stroke="var(--color-border)" strokeOpacity={0.55} strokeDasharray="3 5" />
+          <XAxis
+            type="number"
+            tickFormatter={(value) => formatDuration(value)}
+            axisLine={false}
+            tickLine={false}
+            tickMargin={8}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={120}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+          />
+          <ChartTooltip
+            cursor={{ fill: "var(--color-muted-bg)" }}
+            content={<ChartTooltipContent formatter={(value) => formatDuration(value)} />}
+          />
+          <Bar
+            dataKey="workSeconds"
+            stackId="user"
+            fill="var(--color-work)"
+            name="Work"
+            radius={[0, 5, 5, 0]}
+            animationDuration={520}
+            animationEasing="ease-out"
+          />
+          <Bar
+            dataKey="breakSeconds"
+            stackId="user"
+            fill="var(--color-break)"
+            name="Break"
+            radius={[0, 5, 5, 0]}
+            animationDuration={520}
+            animationEasing="ease-out"
+          />
+          <Bar
+            dataKey="idleSeconds"
+            stackId="user"
+            fill="var(--color-idle)"
+            name="Idle"
+            radius={[0, 5, 5, 0]}
+            animationDuration={520}
+            animationEasing="ease-out"
+          />
+        </BarChart>
+      </ResponsiveContainer>
+      </ChartContainer>
     </div>
   );
 }
@@ -198,7 +293,7 @@ export default function AnalyticsResults({ period, date, userId }) {
     return () => controller.abort();
   }, [period, date, userId]);
 
-  const payload = state.payload ?? {};
+  const payload = useMemo(() => state.payload ?? {}, [state.payload]);
   const results = useMemo(() => payload?.users ?? [], [payload]);
   const teamTotals = normalizeTotals(payload?.teamTotals ?? EMPTY_TOTALS);
   const teamPerDay = payload?.perDayTotals ?? payload?.teamPerDay ?? [];
@@ -212,7 +307,7 @@ export default function AnalyticsResults({ period, date, userId }) {
 
   if (state.status === "error") {
     return (
-      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 text-sm text-rose-200">
+      <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-5 text-sm text-destructive">
         {state.error}
       </div>
     );
@@ -220,9 +315,9 @@ export default function AnalyticsResults({ period, date, userId }) {
 
   if (!results.length) {
     return (
-      <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5 text-sm text-[color:var(--color-text-subtle)]">
-        No analytics to display.
-      </div>
+    <Card><CardContent className="p-5 text-sm text-muted-foreground">
+      No analytics to display.
+    </CardContent></Card>
     );
   }
 
@@ -230,34 +325,44 @@ export default function AnalyticsResults({ period, date, userId }) {
     if (mode === "all") {
       return (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
+          <Card>
+            <CardContent className="p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-[color:var(--color-text)]">
+              <p className="text-sm font-semibold text-foreground">
                 Team totals
               </p>
-              <span className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
+              <span className="text-xs font-medium text-muted-foreground">
                 Daily
               </span>
             </div>
             <div className="mt-4">
               <UserTotals totals={teamTotals} />
             </div>
-          </div>
-          <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-[color:var(--color-text)]">
+            </CardContent>
+          </Card>
+          <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
+            <Card><CardContent className="p-5">
+              <p className="text-sm font-semibold text-foreground">
+                Daily work mix
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Work, break, and idle time per user.
+              </p>
+              <div className="mt-4">
+                <DailyUsersStackedChart users={results} />
+              </div>
+            </CardContent></Card>
+            <Card><CardContent className="p-5">
+              <p className="text-sm font-semibold text-foreground">
                 User totals
               </p>
-              <span className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
-                Daily
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Work, break, idle, and utilization.
-            </p>
-            <div className="mt-4">
-              <UsersSummaryTable users={results} />
-            </div>
+              </p>
+              <div className="mt-4">
+                <UsersSummaryTable users={results} />
+              </div>
+            </CardContent></Card>
           </div>
         </div>
       );
@@ -288,25 +393,25 @@ export default function AnalyticsResults({ period, date, userId }) {
   if (mode === "all") {
     return (
       <div className="space-y-4">
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
+        <Card><CardContent className="p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-[color:var(--color-text)]">
+            <p className="text-sm font-semibold text-foreground">
               Team totals
             </p>
-            <span className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
+            <span className="text-xs font-medium text-muted-foreground">
               {period}
             </span>
           </div>
           <div className="mt-4">
             <UserTotals totals={teamTotals} />
           </div>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
+        </CardContent></Card>
+        <Card><CardContent className="p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-[color:var(--color-text)]">
+            <p className="text-sm font-semibold text-foreground">
               Team daily totals
             </p>
-            <span className="text-xs uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
+            <span className="text-xs font-medium text-muted-foreground">
               {period}
             </span>
           </div>
@@ -320,18 +425,18 @@ export default function AnalyticsResults({ period, date, userId }) {
               }
             />
           </div>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
-          <p className="text-sm font-semibold text-[color:var(--color-text)]">
+        </CardContent></Card>
+        <Card><CardContent className="p-5">
+          <p className="text-sm font-semibold text-foreground">
             User totals
           </p>
-          <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
+          <p className="mt-1 text-sm text-muted-foreground">
             Total work, break, idle, and utilization for the team.
           </p>
           <div className="mt-4">
             <UsersSummaryTable users={results} />
           </div>
-        </div>
+        </CardContent></Card>
       </div>
     );
   }
@@ -339,20 +444,20 @@ export default function AnalyticsResults({ period, date, userId }) {
   return (
     <div className="space-y-4">
       {results.map((entry) => (
-        <div
+        <Card
           key={entry.user.id}
-          className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5"
+          className="p-5"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-[color:var(--color-text)]">
+              <p className="text-sm font-semibold text-foreground">
                 {entry.user.name}
               </p>
-              <p className="text-xs text-[color:var(--color-text-subtle)]">
+              <p className="text-xs text-muted-foreground">
                 {entry.user.role}
               </p>
             </div>
-            <p className="text-xs text-[color:var(--color-text-muted)] uppercase tracking-[0.2em]">
+            <p className="text-xs font-medium text-muted-foreground">
               {period}
             </p>
           </div>
@@ -374,7 +479,7 @@ export default function AnalyticsResults({ period, date, userId }) {
               );
             })()}
           </div>
-        </div>
+        </Card>
       ))}
     </div>
   );

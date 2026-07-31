@@ -2,14 +2,25 @@
 
 import { useEffect, useState } from "react";
 
-import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import {
+  DialogRoot,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import Avatar from "@/components/ui/Avatar";
 
 const buildErrorMessage = (data) =>
   data?.error ?? data?.message ?? "Unable to save project.";
 
-export default function ProjectModal({
+export default function ProjectDialog({
   isOpen,
   mode,
   initialValues,
@@ -104,94 +115,117 @@ export default function ProjectModal({
     }
   };
 
+  const toggleMember = (userId) => {
+    setFormValues((prev) => {
+      const next = new Set(prev.memberIds);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return { ...prev, memberIds: Array.from(next) };
+    });
+  };
+
   return (
-    <Modal
-      isOpen={isOpen}
-      title={mode === "edit" ? "Edit project" : "Create project"}
-      description="Capture initiative goals and project summaries."
-      onClose={isSaving ? undefined : onClose}
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="text-xs text-[color:var(--color-text-muted)]">
-          Project name
-          <input
-            className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-            value={formValues.name}
-            onChange={(event) =>
-              setFormValues((prev) => ({
-                ...prev,
-                name: event.target.value,
-              }))
-            }
-          />
-        </label>
-        <label className="text-xs text-[color:var(--color-text-muted)]">
-          Description
-          <textarea
-            rows={4}
-            className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)]"
-            value={formValues.description}
-            onChange={(event) =>
-              setFormValues((prev) => ({
-                ...prev,
-                description: event.target.value,
-              }))
-            }
-          />
-        </label>
-        <div className="space-y-2 text-xs text-[color:var(--color-text-muted)]">
-          <p>Members</p>
-          <div className="grid max-h-40 gap-2 overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] p-3 text-xs text-[color:var(--color-text)]">
-            {users.length ? (
-              users.map((user) => {
-                const isSelected = formValues.memberIds.includes(user.id);
-                return (
-                  <label
-                    key={user.id}
-                    className="flex items-center gap-2"
-                  >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-[color:var(--color-border)] bg-transparent text-[color:var(--color-accent)]"
-                      checked={isSelected}
-                      onChange={(event) => {
-                        setFormValues((prev) => {
-                          const next = new Set(prev.memberIds);
-                          if (event.target.checked) {
-                            next.add(user.id);
-                          } else {
-                            next.delete(user.id);
-                          }
-                          return { ...prev, memberIds: Array.from(next) };
-                        });
+    <DialogRoot open={isOpen} onOpenChange={(open) => !open && !isSaving && onClose?.()}>
+      <DialogContent className="max-h-[85vh] overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>{mode === "edit" ? "Edit project" : "Create project"}</DialogTitle>
+          <DialogDescription>Capture initiative goals and project summaries.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="mt-6 flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-5 overflow-y-auto pr-2 pb-4 hide-scrollbar">
+          <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
+            Project name
+            <Input
+              className="w-full text-sm"
+              value={formValues.name}
+              placeholder="e.g. Phoenix Redesign"
+              onChange={(event) =>
+                setFormValues((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
+            Description
+            <Textarea
+              rows={4}
+              className="min-h-24 resize-none text-sm"
+              value={formValues.description}
+              placeholder="Brief summary of the project goals..."
+              onChange={(event) =>
+                setFormValues((prev) => ({
+                  ...prev,
+                  description: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <div className="space-y-3 text-xs text-[color:var(--color-text-muted)]">
+            <p>Team Members</p>
+            <div className="grid max-h-56 gap-1.5 overflow-y-auto rounded-xl border border-border/70 bg-muted/20 p-2 hide-scrollbar">
+              {users.length ? (
+                users.map((user) => {
+                  const isSelected = formValues.memberIds.includes(user.id);
+                  return (
+                    <div
+                      key={user.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleMember(user.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleMember(user.id);
+                        }
                       }}
-                    />
-                    <span>{user.name}</span>
-                  </label>
-                );
-              })
-            ) : (
-              <p className="text-xs text-[color:var(--color-text-subtle)]">
-                No active users available.
-              </p>
-            )}
+                      className={`flex cursor-pointer items-center justify-between rounded-lg p-3 transition-colors duration-200 ${
+                        isSelected
+                          ? "bg-primary/10 ring-1 ring-primary/30"
+                          : "hover:bg-muted"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar name={user.name} size="md" />
+                        <div className="flex flex-col">
+                          <span className={`font-semibold ${isSelected ? "text-[color:var(--color-text)]" : "text-[color:var(--color-text)]"}`}>
+                            {user.name}
+                          </span>
+                          <span className="text-[10px] text-[color:var(--color-text-subtle)]">
+                            {user.role}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <Checkbox checked={isSelected} onCheckedChange={() => toggleMember(user.id)} onClick={(event) => event.stopPropagation()} aria-label={`Select ${user.name}`} />
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="p-4 text-center text-sm text-[color:var(--color-text-subtle)]">
+                  No active users available.
+                </p>
+              )}
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <ActionButton
-            label="Cancel"
-            variant="secondary"
+          <DialogFooter className="mt-4 flex-row flex-wrap justify-end gap-3 border-t border-border bg-card pt-4">
+          <Button
+            type="button"
+            variant="outline"
             onClick={onClose}
-            className={isSaving ? "pointer-events-none opacity-60" : ""}
-          />
-          <ActionButton
-            label={isSaving ? "Saving..." : "Save project"}
-            variant="primary"
-            type="submit"
-            className={isSaving ? "pointer-events-none opacity-60" : ""}
-          />
-        </div>
-      </form>
-    </Modal>
+            disabled={isSaving}
+          >Cancel</Button>
+          <Button type="submit" variant="default" disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save project"}
+          </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </DialogRoot>
   );
 }

@@ -1,8 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MoreHorizontal } from "lucide-react";
 import ActionButton from "@/components/ui/ActionButton";
-import Modal from "@/components/ui/Modal";
+import {
+  DialogRoot,
+  DialogPortal,
+  DialogOverlay,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import ScrollArea from "@/components/ui/ScrollArea";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
+import { TimePicker } from "@/components/ui/time-picker";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
 import PageHeader from "@/components/layout/PageHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import useOutsideClick from "@/hooks/useOutsideClick";
@@ -42,7 +61,10 @@ function formatDisplayDate(value) {
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
-  return date.toLocaleDateString();
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function formatDisplayTime(value) {
@@ -50,7 +72,13 @@ function formatDisplayTime(value) {
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const hoursStr = String(hours).padStart(2, "0");
+  return `${hoursStr}:${minutes} ${ampm}`;
 }
 
 function formatTimeInput(value) {
@@ -61,7 +89,9 @@ function formatTimeInput(value) {
   if (Number.isNaN(date.getTime())) {
     return "";
   }
-  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
 }
 
 function formatDurationFromSeconds(seconds) {
@@ -151,7 +181,14 @@ function isTodayDate(value) {
 }
 
 function isEditableAttendanceDate(value) {
-  const target = formatDateForInput(value);
+  let target;
+  if (value instanceof Date) {
+    target = value.toISOString().slice(0, 10);
+  } else if (typeof value === "string") {
+    target = value.slice(0, 10);
+  } else {
+    target = formatDateForInput(value);
+  }
   const today = getTodayInPSTDateString();
   if (!target || !today) {
     return false;
@@ -230,7 +267,7 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <Button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -239,11 +276,10 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
           }
           setIsOpen((prev) => !prev);
         }}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition ${
-          disabled
-            ? "cursor-not-allowed opacity-60"
-            : "hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
-        }`}
+        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition ${disabled
+          ? "cursor-not-allowed opacity-60"
+          : "hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
+          }`}
         aria-label="Attendance actions"
         title={disabled ? tooltip : "Attendance actions"}
         aria-expanded={isOpen}
@@ -251,13 +287,13 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
         disabled={disabled}
       >
         <span className="text-lg leading-none">⋮</span>
-      </button>
+        </Button>
       {isOpen ? (
         <div
           className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <button
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -267,7 +303,7 @@ const AttendanceMenu = ({ onEdit, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
           >
             Edit
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>
@@ -282,7 +318,7 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <Button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -291,11 +327,10 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
           }
           setIsOpen((prev) => !prev);
         }}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition ${
-          disabled
-            ? "cursor-not-allowed opacity-60"
-            : "hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
-        }`}
+        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] transition ${disabled
+          ? "cursor-not-allowed opacity-60"
+          : "hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text)]"
+          }`}
         aria-label="Break actions"
         title={disabled ? tooltip : "Break actions"}
         aria-expanded={isOpen}
@@ -303,13 +338,13 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
         disabled={disabled}
       >
         <span className="text-lg leading-none">⋮</span>
-      </button>
+        </Button>
       {isOpen ? (
         <div
           className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs text-[color:var(--color-text)] shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <button
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -319,8 +354,8 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
           >
             Edit
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -330,12 +365,39 @@ const BreakMenu = ({ onEdit, onDelete, disabled, tooltip }) => {
             className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-rose-300 hover:bg-rose-500/10"
           >
             Delete
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>
   );
 };
+
+function AttendanceMenuShadcn({ onEdit, disabled, tooltip }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="icon" disabled={disabled} title={disabled ? tooltip : "Attendance actions"} aria-label="Attendance actions" className="h-8 w-8 rounded-full"><MoreHorizontal className="h-4 w-4" /></Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={onEdit}>Edit</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function BreakMenuShadcn({ onEdit, onDelete, disabled, tooltip }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="icon" disabled={disabled} title={disabled ? tooltip : "Break actions"} aria-label="Break actions" className="h-8 w-8 rounded-full"><MoreHorizontal className="h-4 w-4" /></Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={onEdit}>Edit</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">Delete</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function AttendanceDashboard({
   initialAttendance,
@@ -533,27 +595,28 @@ export default function AttendanceDashboard({
   };
 
   const openCreateModal = () => {
-    const defaultUser = selectedUser ?? currentUser;
+    const now = new Date();
     setForm({
       date: getTodayInPSTDateString(),
-      inTime: "",
-      outTime: "",
+      inTime: formatTimeInput(now),
+      outTime: formatTimeInput(now),
       note: "",
-      userId: defaultUser?.id ?? currentUser?.id ?? "",
+      userId: "",
     });
     setWfhIntervals([]);
     setWfhForm({ startTime: "", endTime: "" });
-    setFormUserQuery(defaultUser?.name ?? "");
+    setFormUserQuery("");
     setActiveRecord(null);
     setModalState({ open: true, mode: "create" });
   };
 
   const openEditModal = (record) => {
     setActiveRecord(record);
+    const now = new Date();
     setForm({
-      date: formatDateForInput(record.date),
-      inTime: formatTimeInput(record.inTime),
-      outTime: formatTimeInput(record.outTime),
+      date: formatDateForInput(record.date) || getTodayInPSTDateString(),
+      inTime: formatTimeInput(record.inTime) || formatTimeInput(now),
+      outTime: formatTimeInput(record.outTime) || formatTimeInput(now),
       note: record.note ?? "",
       userId: record.userId ?? record.user?.id ?? "",
     });
@@ -877,65 +940,65 @@ export default function AttendanceDashboard({
         eyebrow="People Ops"
         title="Attendance"
         subtitle="Track check-ins and check-outs across the team."
-        actions={<ActionButton label="Add Attendance" onClick={openCreateModal} />}
+        actions={<Button type="button" onClick={openCreateModal}>Add Attendance</Button>}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-4">
         <div className="flex flex-wrap items-center gap-2">
           {badgeOptions.map((badge) => (
-            <button
+            <Button
               key={badge.id}
               type="button"
               onClick={() => setActiveBadge(badge.id)}
-              className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                activeBadge === badge.id
-                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
-                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
-              }`}
+              variant={activeBadge === badge.id ? "default" : "outline"}
+              size="sm"
+              className={`flex items-center gap-2 rounded-lg border px-3 py-1 text-xs font-semibold transition ${activeBadge === badge.id
+                ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
+                : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
+                }`}
             >
               <span>{badge.label}</span>
               <span className="rounded-full bg-[color:var(--color-muted-bg)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--color-text-muted)]">
                 {badgeCounts[badge.id] ?? 0}
               </span>
-            </button>
+            </Button>
           ))}
           <div className="flex flex-wrap items-center gap-2">
             {presetOptions.map((preset) => (
-              <button
+              <Button
                 key={preset.id}
                 type="button"
                 onClick={() => handlePresetClick(preset.id)}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                  activePreset === preset.id
-                    ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
-                    : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
-                }`}
+                variant={activePreset === preset.id ? "default" : "outline"}
+                size="sm"
+                className={`rounded-lg border px-3 py-1 text-xs font-semibold transition ${activePreset === preset.id
+                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
+                  : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-accent)]"
+                  }`}
               >
                 {preset.label}
-              </button>
+              </Button>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs text-[color:var(--color-text-subtle)]">
               From
-              <input
-                type="date"
+              <DatePicker
+                name="from"
                 value={range.from}
                 onChange={(event) => handleRangeChange("from", event.target.value)}
-                className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-1 text-xs font-semibold text-[color:var(--color-text)]"
               />
             </label>
             <label className="flex items-center gap-2 text-xs text-[color:var(--color-text-subtle)]">
               To
-              <input
-                type="date"
+              <DatePicker
+                name="to"
                 value={range.to}
                 onChange={(event) => handleRangeChange("to", event.target.value)}
-                className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-1 text-xs font-semibold text-[color:var(--color-text)]"
               />
             </label>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] px-3 py-1 text-xs font-semibold text-[color:var(--color-text-muted)]">
+          <div className="flex items-center gap-2 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] px-3 py-3 text-xs font-semibold text-[color:var(--color-text-muted)]">
             <span>Presence</span>
             <span className="text-[color:var(--color-text)]">
               {formatPresenceLabel(presenceNow)}
@@ -944,8 +1007,10 @@ export default function AttendanceDashboard({
         </div>
 
         {isLeader ? (
-          <div className="relative w-full max-w-xs" ref={userMenuRef}>
-            <input
+          <Popover open={isUserMenuOpen} onOpenChange={setIsUserMenuOpen}>
+            <PopoverAnchor asChild>
+            <div className="relative w-full max-w-xs">
+            <Input
               value={userQuery}
               onChange={(event) => {
                 setUserQuery(event.target.value);
@@ -955,56 +1020,57 @@ export default function AttendanceDashboard({
                 }
               }}
               onFocus={() => setIsUserMenuOpen(true)}
+              onClick={() => setIsUserMenuOpen(true)}
               placeholder="Search user"
-              className="w-full rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-4 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+              className="w-full rounded-lg pl-4 pr-10"
             />
             {selectedUser ? (
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setSelectedUser(null);
                   setUserQuery("");
                   setIsUserMenuOpen(false);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--color-text-muted)]"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground"
                 aria-label="Clear user filter"
               >
                 ×
-              </button>
+              </Button>
             ) : null}
-            {isUserMenuOpen ? (
-              <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
-                {filteredUsers.length ? (
-                  filteredUsers.map((user) => (
-                    <button
+            </div>
+            </PopoverAnchor>
+            <PopoverContent align="end" className="w-[min(20rem,calc(100vw-2rem))] p-0">
+              <Command value={userQuery} onValueChange={setUserQuery}>
+                <CommandInput placeholder="Search users" autoFocus />
+                <CommandGroup className="max-h-56 overflow-y-auto">
+                  {filteredUsers.map((user) => (
+                    <CommandItem
                       key={user.id}
-                      type="button"
-                      onClick={() => {
+                      value={`${user.name} ${user.email}`}
+                      onSelect={() => {
                         setSelectedUser(user);
                         setUserQuery(user.name);
                         setIsUserMenuOpen(false);
                       }}
-                      className="flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
+                      className="flex flex-col items-start gap-1"
                     >
                       <span className="text-sm font-semibold">{user.name}</span>
-                      <span className="text-[11px] text-[color:var(--color-text-subtle)]">
-                        {user.role}
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
-                    No users found.
-                  </p>
-                )}
-              </div>
-            ) : null}
-          </div>
+                      <span className="text-[11px] text-muted-foreground">{user.role}</span>
+                    </CommandItem>
+                  ))}
+                  <CommandEmpty>No users found.</CommandEmpty>
+                </CommandGroup>
+              </Command>
+            </PopoverContent>
+          </Popover>
         ) : null}
       </div>
 
       {activeBreakRecord &&
-      (isLeader || isAttendanceRunning(activeBreakRecord, new Date())) ? (
+        (isLeader || isAttendanceRunning(activeBreakRecord, new Date())) ? (
         <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -1052,7 +1118,7 @@ export default function AttendanceDashboard({
                       </p>
                     ) : null}
                   </div>
-                  <BreakMenu
+                  <BreakMenuShadcn
                     onEdit={() => openBreakModalForm({ mode: "edit", breakItem: item })}
                     onDelete={() => handleBreakDelete(item)}
                     disabled={!canManageBreaks}
@@ -1108,63 +1174,63 @@ export default function AttendanceDashboard({
                     const durations = getRecordDurations(record);
                     return (
                       <>
-                  {isLeader ? (
-                    <td className="px-4 py-4">
-                      <div className="text-sm font-semibold text-[color:var(--color-text)]">
-                        {record.user?.name ?? "Unknown"}
-                      </div>
-                      <div className="text-xs text-[color:var(--color-text-subtle)]">
-                        {record.user?.role ?? ""}
-                      </div>
-                    </td>
-                  ) : null}
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {formatDisplayDate(record.date)}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {record.inTime ? formatDisplayTime(record.inTime) : "-"}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {record.outTime ? (
-                      <div className="space-y-1">
-                        <p>{formatDisplayTime(record.outTime)}</p>
-                        {record.autoOff ? (
-                          <span
-                            className="inline-flex rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200"
-                            title="Auto closed after 10 hours (missing out time)"
-                          >
-                            Auto Off
-                          </span>
+                        {isLeader ? (
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-semibold text-[color:var(--color-text)]">
+                              {record.user?.name ?? "Unknown"}
+                            </div>
+                            <div className="text-xs text-[color:var(--color-text-subtle)]">
+                              {record.user?.role ?? ""}
+                            </div>
+                          </td>
                         ) : null}
-                      </div>
-                    ) : record.inTime ? (
-                      <div className="space-y-1 text-[color:var(--color-text-subtle)]">
-                        <p>Out time not added yet</p>
-                        <p className="text-[11px]">In recorded, waiting for out time</p>
-                      </div>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {durations.office}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {durations.wfh}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text)]">
-                    {durations.total}
-                  </td>
-                  <td className="px-4 py-4 text-[color:var(--color-text-muted)]">
-                    {record.note || "-"}
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <AttendanceMenu
-                      onEdit={() => openEditModal(record)}
-                      disabled={!isLeader && !isEditableAttendanceDate(record.date)}
-                      tooltip="You can only edit attendance for today and the last 2 days."
-                    />
-                  </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {formatDisplayDate(record.date)}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {record.inTime ? formatDisplayTime(record.inTime) : "-"}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {record.outTime ? (
+                            <div className="space-y-1">
+                              <p>{formatDisplayTime(record.outTime)}</p>
+                              {record.autoOff ? (
+                                <span
+                                  className="inline-flex rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200"
+                                  title="Auto closed after 10 hours (missing out time)"
+                                >
+                                  Auto Off
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : record.inTime ? (
+                            <div className="space-y-1 text-[color:var(--color-text-subtle)]">
+                              <p>Out time not added yet</p>
+                              <p className="text-[11px]">In recorded, waiting for out time</p>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {durations.office}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {durations.wfh}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {durations.total}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text-muted)]">
+                          {record.note || "-"}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <AttendanceMenuShadcn
+                            onEdit={() => openEditModal(record)}
+                            disabled={!isLeader && !isEditableAttendanceDate(record.date)}
+                            tooltip="You can only edit attendance for today and the last 2 days."
+                          />
+                        </td>
                       </>
                     );
                   })()}
@@ -1179,19 +1245,23 @@ export default function AttendanceDashboard({
         </div>
       )}
 
-      <Modal
-        isOpen={modalState.open}
-        title={modalState.mode === "edit" ? "Edit attendance" : "Add attendance"}
-        description="Record check-in and check-out times for any date."
-        onClose={closeModal}
-      >
-        <form onSubmit={handleSubmit} className="flex h-full flex-col">
-          <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1 hide-scrollbar">
+      <DialogRoot open={modalState.open} onOpenChange={(open) => !open && closeModal()}>
+        <DialogPortal>
+          <DialogOverlay />
+          <DialogContent className="h-[85vh] max-h-[85vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>{modalState.mode === "edit" ? "Edit attendance" : "Add attendance"}</DialogTitle>
+              <DialogDescription>Record check-in and check-out times for any date.</DialogDescription>
+            </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <ScrollArea viewportClassName="pr-4" className="mt-5 min-h-0 flex-1 overflow-hidden pr-1 [&>div]:space-y-6">
             {isLeader ? (
-              <div className="relative" ref={formUserMenuRef}>
+              <Popover open={isFormUserMenuOpen} onOpenChange={setIsFormUserMenuOpen}>
+                <PopoverAnchor asChild>
+              <div className="relative">
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   User
-                  <input
+                  <Input
                     value={formUserQuery}
                     onChange={(event) => {
                       setFormUserQuery(event.target.value);
@@ -1201,99 +1271,93 @@ export default function AttendanceDashboard({
                       }
                     }}
                     onFocus={() => setIsFormUserMenuOpen(true)}
-                    placeholder="Select user"
-                    className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+                    onClick={() => setIsFormUserMenuOpen(true)}
+                    placeholder="Search and select a user..."
+                    className="mb-3"
                   />
                 </label>
                 {form.userId ? (
-                  <button
+                    <Button
                     type="button"
                     onClick={() => {
                       setForm((prev) => ({ ...prev, userId: "" }));
                       setFormUserQuery("");
                       setIsFormUserMenuOpen(false);
                     }}
-                    className="absolute right-3 top-9 text-[color:var(--color-text-muted)]"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-8 h-8 w-8 text-muted-foreground"
                     aria-label="Clear user selection"
                   >
                     ×
-                  </button>
+                    </Button>
                 ) : null}
-                {isFormUserMenuOpen ? (
-                  <div className="absolute right-0 z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-2 text-xs shadow-xl">
-                    {filteredFormUsers.length ? (
-                      filteredFormUsers.map((user) => (
-                        <button
+                </div>
+                </PopoverAnchor>
+                <PopoverContent align="end" className="w-[min(20rem,calc(100vw-2rem))] p-0">
+                  <Command value={formUserQuery} onValueChange={setFormUserQuery}>
+                    <CommandInput placeholder="Search users" autoFocus />
+                    <CommandGroup className="max-h-56 overflow-y-auto">
+                      {filteredFormUsers.map((user) => (
+                        <CommandItem
                           key={user.id}
-                          type="button"
-                          onClick={() => {
+                          value={`${user.name} ${user.email}`}
+                          onSelect={() => {
                             setForm((prev) => ({ ...prev, userId: user.id }));
                             setFormUserQuery(user.name);
                             setIsFormUserMenuOpen(false);
                           }}
-                          className="flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-[color:var(--color-text)] hover:bg-[color:var(--color-muted-bg)]"
+                          className="flex flex-col items-start gap-1"
                         >
                           <span className="text-sm font-semibold">{user.name}</span>
-                          <span className="text-[11px] text-[color:var(--color-text-subtle)]">
-                            {user.role}
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="px-3 py-2 text-[color:var(--color-text-subtle)]">
-                        No users found.
-                      </p>
-                    )}
-                  </div>
-                ) : null}
-              </div>
+                          <span className="text-[11px] text-muted-foreground">{user.role}</span>
+                        </CommandItem>
+                      ))}
+                      <CommandEmpty>No users found.</CommandEmpty>
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             ) : null}
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-3 lg:grid-cols-3 mb-3">
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Date
-                <input
-                  type="date"
+                <DatePicker
                   name="date"
                   value={form.date}
                   onChange={handleFormChange}
                   required
-                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
                 />
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 In time
-                <input
-                  type="time"
+                <TimePicker
                   name="inTime"
                   value={form.inTime}
                   onChange={handleFormChange}
                   required
-                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
                 />
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Out time
-                  <input
-                    type="time"
-                    name="outTime"
-                    value={form.outTime}
-                    onChange={handleFormChange}
-                    className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
-                  />
-                </label>
+                <TimePicker
+                  name="outTime"
+                  value={form.outTime}
+                  onChange={handleFormChange}
+                />
+              </label>
             </div>
-            <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
+            <label className="grid mb-3 gap-2 text-xs text-[color:var(--color-text-muted)]">
               Note
-              <textarea
+              <Textarea
                 name="note"
                 value={form.note}
                 onChange={handleFormChange}
                 rows={3}
                 placeholder="Optional notes"
-                className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
               />
             </label>
-            <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] p-4">
+            <div className="rounded-lg mb-3 border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] p-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
                   Work From Home
@@ -1322,24 +1386,20 @@ export default function AttendanceDashboard({
               <div className="mt-4 grid gap-3 lg:grid-cols-3">
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   Start time
-                  <input
-                    type="time"
+                  <TimePicker
                     name="startTime"
                     value={wfhForm.startTime}
                     onChange={handleWfhChange}
                     disabled={!canAddWfh}
-                    className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </label>
                 <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                   End time
-                  <input
-                    type="time"
+                  <TimePicker
                     name="endTime"
                     value={wfhForm.endTime}
                     onChange={handleWfhChange}
                     disabled={!canAddWfh}
-                    className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </label>
                 <div className="flex items-end">
@@ -1381,10 +1441,10 @@ export default function AttendanceDashboard({
                         key={item.id}
                         className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-3 py-2"
                       >
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-[color:var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
-                          {formatBreakType(item.types, item.type)}
+                        <div className="space-y-1 mb3">
+                          <div className="flex flex-wrap items-center gap-2 " >
+                            <span className="rounded-lg border border-[color:var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
+                              {formatBreakType(item.types, item.type)}
                             </span>
                             <span>{formatDurationFromMinutes(item.durationMinutes)}</span>
                             <span>
@@ -1395,7 +1455,7 @@ export default function AttendanceDashboard({
                           {item.notes ? <p>{item.notes}</p> : null}
                         </div>
                         {isLeader || isAttendanceRunning(activeRecord, new Date()) ? (
-                          <BreakMenu
+                          <BreakMenuShadcn
                             onEdit={() =>
                               openBreakModalForm({ mode: "edit", breakItem: item })
                             }
@@ -1418,7 +1478,7 @@ export default function AttendanceDashboard({
                 ) : null}
               </div>
             ) : null}
-          </div>
+          </ScrollArea>
           <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] py-4">
             <ActionButton
               label={modalState.mode === "edit" ? "Save changes" : "Save attendance"}
@@ -1428,25 +1488,28 @@ export default function AttendanceDashboard({
             />
           </div>
         </form>
-      </Modal>
+      </DialogContent>
+          </DialogPortal>
+        </DialogRoot>
 
-      <Modal
-        isOpen={breakModal.open}
-        title={breakModal.mode === "edit" ? "Edit break" : "Add break"}
-        description="Log a break taken during duty."
-        onClose={closeBreakModal}
-      >
+      <DialogRoot open={breakModal.open} onOpenChange={(open) => !open && closeBreakModal()}>
+        <DialogPortal>
+          <DialogOverlay />
+          <DialogContent className="max-h-[85vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>{breakModal.mode === "edit" ? "Edit break" : "Add break"}</DialogTitle>
+              <DialogDescription>Log a break taken during duty.</DialogDescription>
+            </DialogHeader>
         <form onSubmit={handleBreakSubmit} className="flex h-full flex-col">
-          <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1 hide-scrollbar">
+          <ScrollArea viewportClassName="pr-4" className="mt-5 min-h-0 flex-1 pr-1 [&>div]:space-y-6">
             <div className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               <p>Break type</p>
               <div className="grid gap-2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] p-3">
                 {breakTypeOptions.map((option) => (
                   <label key={option.id} className="flex items-center gap-2 text-sm text-[color:var(--color-text)]">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={breakForm.types.includes(option.id)}
-                      onChange={() => handleBreakTypeToggle(option.id)}
+                      onCheckedChange={() => handleBreakTypeToggle(option.id)}
                     />
                     {option.label}
                   </label>
@@ -1456,40 +1519,34 @@ export default function AttendanceDashboard({
             <div className="grid gap-3 lg:grid-cols-2">
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Start time
-                <input
-                  type="time"
+                <TimePicker
                   name="startTime"
                   value={breakForm.startTime}
                   onChange={handleBreakFormChange}
-                  required
-                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
                 />
               </label>
               <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
                 Duration (minutes)
-                <input
-                  type="number"
+                <Input
                   name="durationMinutes"
                   value={breakForm.durationMinutes}
                   onChange={handleBreakFormChange}
                   min={1}
                   required
-                  className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
                 />
               </label>
             </div>
             <label className="grid gap-2 text-xs text-[color:var(--color-text-muted)]">
               Notes
-              <textarea
+              <Textarea
                 name="notes"
                 value={breakForm.notes}
                 onChange={handleBreakFormChange}
                 rows={3}
-                
-                className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-sm text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
+
               />
             </label>
-          </div>
+          </ScrollArea>
           <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
             <ActionButton
               label={breakSubmitting ? "Saving..." : "Save break"}
@@ -1500,7 +1557,9 @@ export default function AttendanceDashboard({
             />
           </div>
         </form>
-      </Modal>
+      </DialogContent>
+          </DialogPortal>
+        </DialogRoot>
     </div>
   );
 }

@@ -2,14 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useToast } from "./ToastProvider";
+import { Button } from "./button";
 
 export default function ActionLink({ href, label, toast, className = "" }) {
   const router = useRouter();
   const { addToast } = useToast();
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       className={className}
       onClick={() => {
         addToast(toast);
@@ -17,6 +19,6 @@ export default function ActionLink({ href, label, toast, className = "" }) {
       }}
     >
       {label}
-    </button>
+    </Button>
   );
 }

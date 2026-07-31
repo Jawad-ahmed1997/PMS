@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import MilestoneDetailView from "@/components/milestones/MilestoneDetailView";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session-server";
 
 const isValidObjectId = (value) =>
   typeof value === "string" && /^[0-9a-fA-F]{24}$/.test(value);
