@@ -3,6 +3,7 @@ import {
   computeAttendanceDurationsForRecord,
   getUserPresenceNow,
 } from "@/lib/dutyHours";
+export const dynamic = "force-dynamic";
 import { getTimeZoneNow, normalizeAttendanceTimes } from "@/lib/attendanceTimes";
 import { dateKeyToUtcDate, isDateKeyInRange, shiftDateKey, toDateKey } from "@/lib/dateKeys";
 import { normalizeAutoOffForAttendances } from "@/lib/attendanceAutoOff";
@@ -145,7 +146,7 @@ export async function GET(request) {
     },
   });
 
-  await normalizeAutoOffForAttendances(prisma, attendance, getTimeZoneNow());
+  await normalizeAutoOffForAttendances(prisma, attendance, new Date());
 
   attendance = await prisma.attendance.findMany({
     where,
@@ -159,7 +160,7 @@ export async function GET(request) {
 
   const presenceUserId = requestedUserId ?? context.user.id;
   const presenceNow = presenceUserId
-    ? await getUserPresenceNow(prisma, presenceUserId, getTimeZoneNow())
+    ? await getUserPresenceNow(prisma, presenceUserId)
     : null;
 
   return buildSuccess("Attendance loaded.", {
@@ -266,6 +267,6 @@ export async function POST(request) {
 
   return buildSuccess("Attendance saved.", {
     attendance: attachComputedDurations(attendance),
-    presenceNow: await getUserPresenceNow(prisma, targetUserId, getTimeZoneNow()),
+    presenceNow: await getUserPresenceNow(prisma, targetUserId),
   });
 }

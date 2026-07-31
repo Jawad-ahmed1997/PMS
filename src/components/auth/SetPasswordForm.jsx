@@ -37,7 +37,7 @@ export default function SetPasswordForm() {
         </div>
         <button
           type="button"
-          onClick={() => router.push("/auth/sign-in")}
+          onClick={() => router.push("/login")}
           className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-400 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:shadow-indigo-500/30"
         >
           Go to Sign In →

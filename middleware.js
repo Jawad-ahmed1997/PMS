@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { edgeAuth, verifySessionToken } from "@/lib/session";
 import { getDefaultRouteForRole, roleHasRouteAccess } from "@/lib/roles";
 
 const protectedRoutes = [
@@ -13,9 +13,9 @@ const protectedRoutes = [
   "/users",
 ];
 
-const authRoutes = ["/auth", "/auth/sign-in", "/auth/set-password"];
+const authRoutes = ["/auth", "/auth/sign-in", "/auth/set-password", "/login"];
 
-export async function middleware(request) {
+export default edgeAuth(async function middleware(request) {
   const { pathname } = request.nextUrl;
 
   if (authRoutes.some((route) => pathname.startsWith(route))) {
@@ -30,11 +30,28 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  const session = await getSessionFromRequest(request);
+  const allCookies = request.cookies.getAll().map(c => `${c.name}=${c.value ? '[EXISTS]' : '[EMPTY]'}`).join(", ");
+  console.log(`[Middleware] Protected Path: ${pathname}, Cookies: ${allCookies}`);
+
+  let session = request.auth?.user || null;
+  console.log(`[Middleware] NextAuth Session from request.auth:`, session ? { id: session.id, role: session.role } : null);
+
+  if (!session) {
+    const token = request.cookies.get("pms-session")?.value;
+    if (token) {
+      console.log(`[Middleware] Found custom pms-session cookie, verifying...`);
+      try {
+        session = await verifySessionToken(token);
+        console.log(`[Middleware] Custom session:`, session ? { id: session.id, role: session.role } : null);
+      } catch (err) {
+        console.error(`[Middleware] Custom token verification error:`, err);
+      }
+    }
+  }
 
   if (!session) {
     const signInUrl = request.nextUrl.clone();
-    signInUrl.pathname = "/auth/sign-in";
+    signInUrl.pathname = "/login";
     signInUrl.searchParams.set("denied", "1");
     signInUrl.searchParams.set("reason", "Please sign in to continue.");
     return NextResponse.redirect(signInUrl);
@@ -52,7 +69,7 @@ export async function middleware(request) {
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
