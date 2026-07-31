@@ -905,7 +905,7 @@ export default function ProjectDetailView({
           }
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-2xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingTaskId ? "Edit task" : "Create task"}</DialogTitle>
             <DialogDescription>
@@ -915,9 +915,8 @@ export default function ProjectDetailView({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleTaskSubmit} className="mt-6 flex min-h-0 flex-1 flex-col">
-            <ScrollArea className="min-h-0 flex-1" viewportClassName="pr-3">
-              <div className="space-y-5">
+          <form onSubmit={handleTaskSubmit} className="mt-6 space-y-6">
+            <div className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="project-task-title">Task title</Label>
                   <Input
@@ -1019,9 +1018,8 @@ export default function ProjectDetailView({
                     value={taskForm.estimatedTime}
                     onChange={(event) => setTaskForm((prev) => ({ ...prev, estimatedTime: event.target.value }))}
                   />
-                </div>
               </div>
-            </ScrollArea>
+            </div>
 
             <DialogFooter className="mt-4 border-t border-border pt-4">
               <Button

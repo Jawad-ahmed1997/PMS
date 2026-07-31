@@ -4,6 +4,7 @@ import {
   ensureAuthenticated,
   getAuthContext,
 } from "@/lib/api";
+export const dynamic = "force-dynamic";
 import { normalizeAutoOffForUser } from "@/lib/attendanceAutoOff";
 import { normalizeBreakTypes } from "@/lib/breakTypes";
 

@@ -2394,6 +2394,17 @@ export default function TaskBoard({
                       onClick={() => setTimeRequestOpen((prev) => !prev)}
                     />
                   ) : null}
+                  {canEditTask(selectedTask) && onEditTask ? (
+                    <ActionButton
+                      label="Edit task"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedTaskId(null);
+                        onEditTask(selectedTask);
+                      }}
+                    />
+                  ) : null}
                   {(() => {
                     const isAllowedStatus = ["IN_PROGRESS"].includes(selectedTask.status);
                     const canControl = canControlBreaks(selectedTask);
