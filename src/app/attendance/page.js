@@ -66,7 +66,7 @@ export default async function AttendancePage() {
           breaks: { orderBy: { startAt: "asc" } },
         },
       });
-      await normalizeAutoOffForAttendances(prisma, attendance, getTimeZoneNow());
+      await normalizeAutoOffForAttendances(prisma, attendance, new Date());
 
       attendance = await prisma.attendance.findMany({
         where: {

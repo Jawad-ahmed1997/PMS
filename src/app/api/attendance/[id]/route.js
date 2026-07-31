@@ -6,6 +6,7 @@ import {
   ensureAuthenticated,
   getAuthContext,
 } from "@/lib/api";
+export const dynamic = "force-dynamic";
 import {
   computeAttendanceDurationsForRecord,
   getUserPresenceNow,
