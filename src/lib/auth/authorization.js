@@ -10,6 +10,7 @@ export async function getCurrentUser() {
 
 export async function requireUser() {
   const user = await getCurrentUser();
+  console.log("user:",user)
   if (!user || !user.isActive || user.status === "DISABLED") redirect("/login");
   return user;
 }
