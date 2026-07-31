@@ -161,11 +161,30 @@ export async function getSession() {
 }
 
 export async function getSessionFromRequest(request) {
-  const nextAuthSession = await edgeAuth(request);
-  if (nextAuthSession?.user) {
-    return nextAuthSession.user;
+  try {
+    console.log(`[session.js] getSessionFromRequest: calling edgeAuth(request)...`);
+    const nextAuthSession = await edgeAuth(request);
+    console.log(`[session.js] edgeAuth(request) returned:`, nextAuthSession ? { user: nextAuthSession.user } : null);
+    if (nextAuthSession?.user) {
+      return nextAuthSession.user;
+    }
+  } catch (err) {
+    console.error(`[session.js] edgeAuth(request) error:`, err);
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  return verifySessionToken(token);
+  if (token) {
+    console.log(`[session.js] Found custom pms-session cookie: [EXISTS], verifying...`);
+    try {
+      const verified = await verifySessionToken(token);
+      console.log(`[session.js] Custom token verification result:`, verified ? { id: verified.id, role: verified.role } : null);
+      return verified;
+    } catch (err) {
+      console.error(`[session.js] Custom token verification error:`, err);
+    }
+  } else {
+    console.log(`[session.js] No custom pms-session cookie found.`);
+  }
+
+  return null;
 }
