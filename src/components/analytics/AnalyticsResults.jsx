@@ -327,43 +327,19 @@ export default function AnalyticsResults({ period, date, userId }) {
         <div className="space-y-4">
           <Card>
             <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-foreground">
-                Team totals
-              </p>
-              <span className="text-xs font-medium text-muted-foreground">
-                Daily
-              </span>
-            </div>
-            <div className="mt-4">
-              <UserTotals totals={teamTotals} />
-            </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-foreground">
+                  Team totals
+                </p>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Daily
+                </span>
+              </div>
+              <div className="mt-4">
+                <UserTotals totals={teamTotals} />
+              </div>
             </CardContent>
           </Card>
-          <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
-            <Card><CardContent className="p-5">
-              <p className="text-sm font-semibold text-foreground">
-                Daily work mix
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Work, break, and idle time per user.
-              </p>
-              <div className="mt-4">
-                <DailyUsersStackedChart users={results} />
-              </div>
-            </CardContent></Card>
-            <Card><CardContent className="p-5">
-              <p className="text-sm font-semibold text-foreground">
-                User totals
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Work, break, idle, and utilization.
-              </p>
-              <div className="mt-4">
-                <UsersSummaryTable users={results} />
-              </div>
-            </CardContent></Card>
-          </div>
         </div>
       );
     }

@@ -12,6 +12,7 @@ import useOutsideClick from "@/hooks/useOutsideClick";
 import AnalyticsResults from "@/components/analytics/AnalyticsResults";
 import DailyTimelineChart from "@/components/analytics/DailyTimelineChart";
 import ClientOnly from "@/components/ui/ClientOnly";
+import { TimePicker } from "@/components/ui/time-picker";
 import {
   Select,
   SelectContent,
@@ -91,73 +92,7 @@ function formatDateInputValue(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function TimePicker({ name, value, onChange, disabled }) {
-  const [hours = "", minutes = "", period = ""] = value?.match(/^(\d{2}):(\d{2})$/)?.slice(1) ?? [];
-  const hour24 = Number(hours);
-  const displayHour = hour24 ? ((hour24 + 11) % 12) + 1 : "";
-  const displayPeriod = hour24 ? (hour24 >= 12 ? "PM" : "AM") : "";
-  const emitChange = (nextHour, nextMinute, nextPeriod) => {
-    if (!nextHour || !nextMinute || !nextPeriod) return;
-    let hour = Number(nextHour) % 12;
-    if (nextPeriod === "PM") hour += 12;
-    onChange({ target: { name, value: `${String(hour).padStart(2, "0")}:${nextMinute}` } });
-  };
 
-  const updatePart = (part, nextValue) => {
-    const nextHour = part === "hour" ? nextValue : displayHour;
-    const nextMinute = part === "minute" ? nextValue : minutes;
-    const nextPeriod = part === "period" ? nextValue : displayPeriod;
-    emitChange(nextHour, nextMinute, nextPeriod);
-  };
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="outline" disabled={disabled} className="w-full justify-between font-normal">
-          {value || "Select time"}
-          <span className="text-xs text-muted-foreground">Clock</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto min-w-[18rem] p-3">
-        <div className="grid grid-cols-[1fr_auto_1fr_auto] items-end gap-2">
-          <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
-            Hour
-            <Select value={displayHour ? String(displayHour) : undefined} onValueChange={(next) => updatePart("hour", next)}>
-              <SelectTrigger><SelectValue placeholder="HH" /></SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
-                  <SelectItem key={hour} value={String(hour)}>{String(hour).padStart(2, "0")}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <span className="pb-2 text-muted-foreground">:</span>
-          <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
-            Minute
-            <Select value={minutes || undefined} onValueChange={(next) => updatePart("minute", next)}>
-              <SelectTrigger><SelectValue placeholder="MM" /></SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, "0")).map((minute) => (
-                  <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
-            Period
-            <Select value={displayPeriod || undefined} onValueChange={(next) => updatePart("period", next)}>
-              <SelectTrigger><SelectValue placeholder="AM" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="AM">AM</SelectItem>
-                <SelectItem value="PM">PM</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 function getManualStatus(log) {
   if (!log || log.taskId) {
