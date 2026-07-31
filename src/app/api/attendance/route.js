@@ -160,7 +160,7 @@ export async function GET(request) {
 
   const presenceUserId = requestedUserId ?? context.user.id;
   const presenceNow = presenceUserId
-    ? await getUserPresenceNow(prisma, presenceUserId, getTimeZoneNow())
+    ? await getUserPresenceNow(prisma, presenceUserId)
     : null;
 
   return buildSuccess("Attendance loaded.", {
@@ -267,6 +267,6 @@ export async function POST(request) {
 
   return buildSuccess("Attendance saved.", {
     attendance: attachComputedDurations(attendance),
-    presenceNow: await getUserPresenceNow(prisma, targetUserId, getTimeZoneNow()),
+    presenceNow: await getUserPresenceNow(prisma, targetUserId),
   });
 }

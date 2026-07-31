@@ -99,8 +99,7 @@ export default async function AttendancePage() {
 
       presenceNow = await getUserPresenceNow(
         prisma,
-        currentUser.id,
-        getTimeZoneNow()
+        currentUser.id
       );
     }
   }

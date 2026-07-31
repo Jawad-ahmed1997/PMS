@@ -216,8 +216,7 @@ export async function PATCH(request, { params }) {
       attendance: attachComputedDurations(attendance),
       presenceNow: await getUserPresenceNow(
         prisma,
-        targetUserId,
-        getTimeZoneNow()
+        targetUserId
       ),
     });
   } catch (error) {
