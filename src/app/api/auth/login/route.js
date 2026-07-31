@@ -64,6 +64,6 @@ export async function POST(request) {
     },
   });
 
-  await response.cookies.set(buildSessionCookie(token));
+   response.cookies.set(buildSessionCookie(token));
   return response;
 }
