@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getTimeZoneNow } from "@/lib/attendanceTimes";
+export const dynamic = "force-dynamic";
 import {
   buildSuccess,
   ensureAuthenticated,
