@@ -30,7 +30,7 @@ export async function GET() {
   }
 
   const now = getTimeZoneNow();
-  await normalizeAutoOffForUser(prisma, context.user.id, now);
+  await normalizeAutoOffForUser(prisma, context.user.id, new Date());
 
   const dutyDate = getDutyDate(now);
   const dutyDateValue = dutyDate ? new Date(dutyDate) : null;

@@ -449,6 +449,7 @@ export default function AttendanceDashboard({
     notes: "",
   });
   const [breakSubmitting, setBreakSubmitting] = useState(false);
+  const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
   const [formUserQuery, setFormUserQuery] = useState("");
   const [isFormUserMenuOpen, setIsFormUserMenuOpen] = useState(false);
   const formUserMenuRef = useRef(null);
@@ -559,7 +560,7 @@ export default function AttendanceDashboard({
       if (targetUserId) {
         params.set("userId", targetUserId);
       }
-      const response = await fetch(`/api/attendance?${params.toString()}`);
+      const response = await fetch(`/api/attendance?${params.toString()}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.message ?? "Unable to load attendance.");
@@ -882,6 +883,7 @@ export default function AttendanceDashboard({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setAttendanceSubmitting(true);
     setStatus((prev) => ({ ...prev, loading: true }));
 
     const payload = {
@@ -931,6 +933,7 @@ export default function AttendanceDashboard({
       });
     } finally {
       setStatus((prev) => ({ ...prev, loading: false }));
+      setAttendanceSubmitting(false);
     }
   };
 
@@ -1481,9 +1484,10 @@ export default function AttendanceDashboard({
           </ScrollArea>
           <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] py-4">
             <ActionButton
-              label={modalState.mode === "edit" ? "Save changes" : "Save attendance"}
+              label={attendanceSubmitting ? "Saving..." : (modalState.mode === "edit" ? "Save changes" : "Save attendance")}
               variant="primary"
               type="submit"
+              disabled={attendanceSubmitting}
               className="min-w-[160px]"
             />
           </div>

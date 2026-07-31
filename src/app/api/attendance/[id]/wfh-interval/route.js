@@ -160,6 +160,6 @@ export async function POST(request, { params }) {
   return buildSuccess("WFH interval added.", {
     attendance: attachComputedDurations(updatedAttendance),
     interval: created,
-    presenceNow: await getUserPresenceNow(prisma, attendance.userId, getTimeZoneNow()),
+    presenceNow: await getUserPresenceNow(prisma, attendance.userId),
   });
 }
