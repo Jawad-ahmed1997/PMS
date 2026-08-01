@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import TaskBoard from "@/components/tasks/TaskBoard";
 import PageHeader from "@/components/layout/PageHeader";
-import ActionButton from "@/components/ui/ActionButton";
+import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import ScrollArea from "@/components/ui/ScrollArea";
 import { useToast } from "@/components/ui/ToastProvider";
 import { normalizeRoleId } from "@/lib/roles";
 import { Filter, Briefcase, Calendar, ChevronDown, User, Clock } from "lucide-react";
@@ -18,6 +22,55 @@ const STATUS_OPTIONS = [
   { id: "ON_HOLD", label: "On Hold" },
   { id: "DONE", label: "Done" },
 ];
+
+function FilterPopover({ icon: Icon, label, value, options, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const selectedOption = options.find((option) => option.value === value);
+  const displayLabel = selectedOption?.label ?? label;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 min-w-[9.25rem] justify-between rounded-xl bg-background px-3 text-xs font-semibold"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="truncate">{displayLabel}</span>
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(20rem,calc(100vw-2rem))] p-0">
+        <Command>
+          <CommandInput placeholder={`Search ${label.toLowerCase()}...`} />
+          <CommandEmpty>No matches found.</CommandEmpty>
+          <ScrollArea className="h-52">
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value || "all"}
+                  value={option.label}
+                  onSelect={() => {
+                    onSelect(option.value);
+                    setOpen(false);
+                  }}
+                  className={option.value === value ? "bg-muted font-semibold" : ""}
+                >
+                  <span className="flex-1">{option.label}</span>
+                  {option.value === value ? <span className="text-primary">✓</span> : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </ScrollArea>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function MyTasksView({ role, currentUserId }) {
   const { addToast } = useToast();
@@ -160,114 +213,67 @@ export default function MyTasksView({ role, currentUserId }) {
 
             {/* Scope Toggle Button Group (Only for managers) */}
             {isManager && (
-              <div className="flex border border-[color:var(--color-border)] rounded-xl overflow-hidden bg-[color:var(--color-input)] p-0.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setScope("all")}
-                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition ${
-                    scope === "all"
-                      ? "bg-[color:var(--color-card)] text-[color:var(--color-text)] shadow-sm"
-                      : "text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
-                  }`}
-                >
-                  All Tasks
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setScope("mine")}
-                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition ${
-                    scope === "mine"
-                      ? "bg-[color:var(--color-card)] text-[color:var(--color-text)] shadow-sm"
-                      : "text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)]"
-                  }`}
-                >
-                  My Tasks
-                </button>
-              </div>
+              <ToggleGroup
+                type="single"
+                value={scope}
+                onValueChange={(value) => value && setScope(value)}
+                className="shrink-0 rounded-xl border border-border bg-background p-0.5"
+                aria-label="Task scope"
+              >
+                <ToggleGroupItem value="all" className="h-8 rounded-lg border-0 px-3 text-[11px] font-bold">All Tasks</ToggleGroupItem>
+                <ToggleGroupItem value="mine" className="h-8 rounded-lg border-0 px-3 text-[11px] font-bold">My Tasks</ToggleGroupItem>
+              </ToggleGroup>
             )}
 
             {/* Project Select */}
-            <div className="relative shrink-0">
-              <select
-                value={selectedProjectId}
-                onChange={(e) => handleProjectChange(e.target.value)}
-                className="appearance-none pl-8 pr-8 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs text-[color:var(--color-text)] font-semibold focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)] cursor-pointer hover:border-[color:var(--color-accent)] transition"
-              >
-                <option value="">All Projects</option>
-                {projectsList.map((proj) => (
-                  <option key={proj.id} value={proj.id}>
-                    {proj.name}
-                  </option>
-                ))}
-              </select>
-              <Briefcase className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)] pointer-events-none" />
-              <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)] pointer-events-none" />
-            </div>
+            <FilterPopover
+              icon={Briefcase}
+              label="All Projects"
+              value={selectedProjectId}
+              onSelect={handleProjectChange}
+              options={[{ value: "", label: "All Projects" }, ...projectsList.map((proj) => ({ value: proj.id, label: proj.name }))]}
+            />
 
             {/* Milestone Select */}
-            <div className="relative shrink-0">
-              <select
-                value={selectedMilestoneId}
-                onChange={(e) => setSelectedMilestoneId(e.target.value)}
-                className="appearance-none pl-8 pr-8 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs text-[color:var(--color-text)] font-semibold focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)] cursor-pointer hover:border-[color:var(--color-accent)] transition"
-              >
-                <option value="">All Milestones</option>
-                {milestonesList.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.title}
-                  </option>
-                ))}
-              </select>
-              <Calendar className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)] pointer-events-none" />
-              <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)] pointer-events-none" />
-            </div>
+            <FilterPopover
+              icon={Calendar}
+              label="All Milestones"
+              value={selectedMilestoneId}
+              onSelect={setSelectedMilestoneId}
+              options={[{ value: "", label: "All Milestones" }, ...milestonesList.map((milestone) => ({ value: milestone.id, label: milestone.title }))]}
+            />
 
             {/* Assignee / Owner Select */}
             {isManager && scope === "all" && (
-              <div className="relative shrink-0">
-                <select
-                  value={selectedOwnerId}
-                  onChange={(e) => setSelectedOwnerId(e.target.value)}
-                  className="appearance-none pl-8 pr-8 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs text-[color:var(--color-text)] font-semibold focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)] cursor-pointer hover:border-[color:var(--color-accent)] transition"
-                >
-                  <option value="">All Assignees</option>
-                  {assigneesList.map((owner) => (
-                    <option key={owner.id} value={owner.id}>
-                      {owner.name}
-                    </option>
-                  ))}
-                </select>
-                <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)] pointer-events-none" />
-                <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)] pointer-events-none" />
-              </div>
+              <FilterPopover
+                icon={User}
+                label="All Assignees"
+                value={selectedOwnerId}
+                onSelect={setSelectedOwnerId}
+                options={[{ value: "", label: "All Assignees" }, ...assigneesList.map((owner) => ({ value: owner.id, label: owner.name }))]}
+              />
             )}
 
             {/* Status Select */}
-            <div className="relative shrink-0">
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="appearance-none pl-8 pr-8 py-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs text-[color:var(--color-text)] font-semibold focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)] cursor-pointer hover:border-[color:var(--color-accent)] transition"
-              >
-                <option value="">All Statuses</option>
-                {STATUS_OPTIONS.map((statusOpt) => (
-                  <option key={statusOpt.id} value={statusOpt.id}>
-                    {statusOpt.label}
-                  </option>
-                ))}
-              </select>
-              <Clock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)] pointer-events-none" />
-              <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[color:var(--color-text-muted)] pointer-events-none" />
-            </div>
+            <FilterPopover
+              icon={Clock}
+              label="All Statuses"
+              value={selectedStatus}
+              onSelect={setSelectedStatus}
+              options={[{ value: "", label: "All Statuses" }, ...STATUS_OPTIONS.map((statusOpt) => ({ value: statusOpt.id, label: statusOpt.label }))]}
+            />
 
             {/* Reset Filters */}
             {hasActiveFilters && (
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={handleResetFilters}
-                className="text-xs font-bold text-rose-400 hover:text-rose-300 transition px-2.5 py-1 rounded-xl hover:bg-rose-500/10 shrink-0"
+                className="h-9 shrink-0 px-2.5 text-xs font-bold text-destructive hover:bg-destructive/10 hover:text-destructive"
               >
                 Reset
-              </button>
+              </Button>
             )}
           </div>
 
@@ -287,7 +293,7 @@ export default function MyTasksView({ role, currentUserId }) {
       {!status.loading && status.error && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
           <p>{status.error}</p>
-          <ActionButton label="Retry" variant="secondary" onClick={loadTasks} />
+          <Button type="button" variant="secondary" onClick={loadTasks}>Retry</Button>
         </div>
       )}
 
