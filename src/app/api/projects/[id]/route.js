@@ -215,12 +215,10 @@ export async function DELETE(request, { params }) {
       await ensureTaskUpdatedAt(prisma, { milestoneId: { in: milestoneIds } });
     }
 
-    const tasks = milestoneIds.length
-      ? await prisma.task.findMany({
-          where: { milestoneId: { in: milestoneIds } },
-          select: { id: true },
-        })
-      : [];
+    const tasks = await prisma.task.findMany({
+      where: { projectId },
+      select: { id: true },
+    });
 
     const taskIds = tasks.map((task) => task.id);
 
@@ -229,7 +227,7 @@ export async function DELETE(request, { params }) {
         where: taskIds.length ? { taskId: { in: taskIds } } : {},
       }),
       prisma.task.deleteMany({
-        where: milestoneIds.length ? { milestoneId: { in: milestoneIds } } : {},
+        where: { projectId },
       }),
       prisma.milestone.deleteMany({ where: { projectId } }),
       prisma.projectMember.deleteMany({ where: { projectId } }),

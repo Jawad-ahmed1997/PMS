@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog } from "@/components/ui/dialog";
-import { Check, ChevronDown, Info, Search, X } from "lucide-react";
+import { Check, ChevronDown, Info, Search, X, RefreshCw } from "lucide-react";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
 import PageHeader from "@/components/layout/PageHeader";
@@ -264,6 +264,7 @@ export default function ActivityDashboard({
   const categoryMenuRef = useRef(null);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState("");
+  const [isSavingLog, setIsSavingLog] = useState(false);
 
   const [logForm, setLogForm] = useState({
     categories: ["LEARNING"],
@@ -554,6 +555,7 @@ export default function ActivityDashboard({
     };
     payload.categories = logForm.categories;
 
+    setIsSavingLog(true);
     try {
       const response = await fetch(
         logDialog.mode === "edit" && activeLog
@@ -592,6 +594,8 @@ export default function ActivityDashboard({
             : "Unable to save activity log.",
         variant: "error",
       });
+    } finally {
+      setIsSavingLog(false);
     }
   };
 
@@ -604,11 +608,23 @@ export default function ActivityDashboard({
         title="Activity & comment timeline"
         subtitle="Track daily logs, task auto-activity, and leadership feedback."
         actions={
-          <Button
-            label="Manual Log Activity"
-            variant="default"
-            onClick={openCreateLogModal}
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fetchLogs({ targetUserId: selectedUser?.id ?? "" })}
+              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
+              title="Refresh activity logs"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Refresh</span>
+            </Button>
+            <Button
+              label="Manual Log Activity"
+              variant="default"
+              onClick={openCreateLogModal}
+            />
+          </div>
         }
       />
 
@@ -1090,11 +1106,11 @@ export default function ActivityDashboard({
           </div>
           <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-[color:var(--color-border)] bg-[color:var(--color-card)] pt-4">
             <Button
-              label={logDialog.mode === "edit" ? "Save changes" : "Save log"}
+              label={isSavingLog ? "Saving..." : logDialog.mode === "edit" ? "Save changes" : "Save log"}
               variant="primary"
               type="submit"
               className="min-w-[140px]"
-              disabled={!isManualLogDateAllowed(logForm.date)}
+              disabled={isSavingLog || !isManualLogDateAllowed(logForm.date)}
             />
           </div>
         </form>

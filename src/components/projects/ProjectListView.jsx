@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, MoreHorizontal, Pencil } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -119,7 +119,29 @@ export default function ProjectListView({ canManageProjects }) {
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Projects" title="Portfolio overview" subtitle="Track active initiatives across the organization." actions={canManageProjects ? <Button onClick={openCreateDialog}>Create project</Button> : null} viewToggle={<ViewToggle value={viewMode} onChange={setViewMode} />} />
+      <PageHeader
+        eyebrow="Projects"
+        title="Portfolio overview"
+        subtitle="Track active initiatives across the organization."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={loadProjects}
+              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
+              title="Refresh project list"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Refresh</span>
+            </Button>
+            {canManageProjects && (
+              <Button onClick={openCreateDialog}>Create project</Button>
+            )}
+          </div>
+        }
+        viewToggle={<ViewToggle value={viewMode} onChange={setViewMode} />}
+      />
 
       {status.loading && <div className="rounded-xl border border-border/70 bg-card p-6 text-sm text-muted-foreground">Loading projects...</div>}
       {!status.loading && status.error && <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive"><p>{status.error}</p><Button variant="secondary" onClick={loadProjects}>Retry</Button></div>}

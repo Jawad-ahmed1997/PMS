@@ -58,7 +58,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [editTaskId, setEditTaskId] = useState("");
-  const [viewMode, setViewMode] = useState("edit"); // edit, preview
+  const [viewMode, setViewMode] = useState("preview"); // edit, preview
   const [saving, setSaving] = useState(false);
 
   const textareaRef = useRef(null);
@@ -116,7 +116,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
     setEditTitle(note.title);
     setEditContent(note.content);
     setEditTaskId(note.taskId || "");
-    setViewMode("edit");
+    // Respects current view mode
   };
 
   // Create note
@@ -308,8 +308,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
             </div>
           ) : filteredNotes.length > 0 ? (
             filteredNotes.map((note) => (
-              <Button
-                variant="ghost"
+              <button
                 key={note.id}
                 onClick={() => handleSelectNote(note)}
                 className={`w-full text-left p-2.5 rounded-xl border transition flex flex-col gap-1 ${
@@ -334,7 +333,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
                     <Link2 className="h-2 w-2 shrink-0" /> {note.task.title}
                   </span>
                 )}
-              </Button>
+              </button>
             ))
           ) : (
             <p className="text-center text-xs text-[color:var(--color-text-muted)] py-8">

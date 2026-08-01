@@ -27,16 +27,14 @@ async function canAccessEntity(context, entityType, entityId) {
       where: { id: entityId },
       select: {
         id: true,
-        milestone: {
-          select: {
-            project: { select: { members: { select: { userId: true } } } },
-          },
+        project: {
+          select: { members: { select: { userId: true } } },
         },
       },
     });
 
     return Boolean(
-      task?.milestone?.project?.members?.some(
+      task?.project?.members?.some(
         (member) => member.userId === context.user.id
       )
     );

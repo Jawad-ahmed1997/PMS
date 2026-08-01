@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -20,6 +21,48 @@ const NotificationCountsContext = createContext(null);
 
 export function NotificationCountsProvider({ children }) {
   const [counts, setCounts] = useState(DEFAULT_COUNTS);
+  const prevTotalRef = useRef(0);
+  const isFirstLoad = useRef(true);
+
+  const playBeep = useCallback(() => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const audioCtx = new AudioContext();
+      fetch("/notification.mp3")
+        .then((response) => response.arrayBuffer())
+        .then((arrayBuffer) => audioCtx.decodeAudioData(arrayBuffer))
+        .then((audioBuffer) => {
+          const source = audioCtx.createBufferSource();
+          source.buffer = audioBuffer;
+          // Set playbackRate.value to 0.55 to lower pitch even further and soften the beep
+          source.playbackRate.value = 0.55;
+          source.connect(audioCtx.destination);
+          source.start(0);
+        })
+        .catch((err) => {
+          console.warn("AudioContext play blocked or failed:", err);
+        });
+    } catch (err) {
+      console.error("Failed to play notification beep sound:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const currentTotal = counts.total;
+    if (isFirstLoad.current) {
+      prevTotalRef.current = currentTotal;
+      if (currentTotal > 0) {
+        isFirstLoad.current = false;
+      }
+      return;
+    }
+
+    if (currentTotal > prevTotalRef.current) {
+      playBeep();
+    }
+    prevTotalRef.current = currentTotal;
+  }, [counts.total, playBeep]);
 
   const refreshCounts = useCallback(async () => {
     const response = await fetch("/api/notifications/unread-counts", {

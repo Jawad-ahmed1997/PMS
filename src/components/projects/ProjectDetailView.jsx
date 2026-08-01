@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus } from "lucide-react";
+import { UserPlus, RefreshCw } from "lucide-react";
 
 import {
   Dialog,
@@ -497,15 +497,6 @@ export default function ProjectDetailView({
       return;
     }
 
-    if (!editingTaskId && !taskForm.milestoneId) {
-      addToast({
-        title: "Milestone required",
-        message: "Associate the task with a milestone to continue.",
-        variant: "warning",
-      });
-      return;
-    }
-
     const estimatedHours = parseEstimatedTime(taskForm.estimatedTime);
     if (!Number.isFinite(estimatedHours)) {
       addToast({
@@ -536,11 +527,13 @@ export default function ProjectDetailView({
               ? {
                 ...payload,
                 checklistItems: taskForm.checklistItems,
+                milestoneId: taskForm.milestoneId || null,
               }
               : {
                 ...payload,
                 status: taskForm.status,
-                milestoneId: taskForm.milestoneId,
+                milestoneId: taskForm.milestoneId || null,
+                projectId: projectId,
               }
           ),
         }
@@ -634,9 +627,24 @@ export default function ProjectDetailView({
         backHref="/projects"
         backLabel="Back to projects"
         actions={
-          canManageMilestones ? (
-            <div className="flex items-center gap-2">
-              {activeTab === "milestones" ? (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                if (typeof window !== "undefined") {
+                  sessionStorage.removeItem(`pms-tasks-${projectId}`);
+                }
+                await Promise.all([loadProject(), loadTasks(false)]);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
+              title="Refresh project data"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Refresh</span>
+            </Button>
+            {canManageMilestones && (
+              activeTab === "milestones" ? (
                 <ActionButton
                   label="Create milestone"
                   variant="success"
@@ -645,7 +653,7 @@ export default function ProjectDetailView({
                     setModalOpen(true);
                   }}
                 />
-              ) : milestones.length > 0 ? (
+              ) : (
                 <Button
                   variant="primary"
                   onClick={() => {
@@ -655,9 +663,9 @@ export default function ProjectDetailView({
                 >
                   Create task
                 </Button>
-              ) : null}
-            </div>
-          ) : null
+              )
+            )}
+          </div>
         }
       />
 
@@ -817,9 +825,7 @@ export default function ProjectDetailView({
                 />
               ) : (
                 <div className="rounded-2xl border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-card)] p-8 text-center text-sm text-[color:var(--color-text-muted)]">
-                  {milestones.length === 0
-                    ? "Create a milestone first to add tasks to this project."
-                    : "No tasks yet. Create a task to get started."}
+                  No tasks yet. Create a task to get started.
                 </div>
               )}
             </div>
@@ -938,13 +944,14 @@ export default function ProjectDetailView({
                   <div className="space-y-2">
                     <Label htmlFor="project-task-milestone">Milestone</Label>
                     <Select
-                      value={taskForm.milestoneId}
-                      onValueChange={(value) => setTaskForm((prev) => ({ ...prev, milestoneId: value }))}
+                      value={taskForm.milestoneId || "none"}
+                      onValueChange={(value) => setTaskForm((prev) => ({ ...prev, milestoneId: value === "none" ? "" : value }))}
                     >
                       <SelectTrigger id="project-task-milestone">
                         <SelectValue placeholder="Select milestone" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">General Task (No Milestone)</SelectItem>
                         {milestones.map((milestoneOption) => (
                           <SelectItem key={milestoneOption.id} value={milestoneOption.id}>
                             {milestoneOption.title}
@@ -1102,7 +1109,7 @@ export default function ProjectDetailView({
                               fallbackClassName="text-[10px]"
                             />
                             <span className="min-w-0 truncate">
-                              {user.name}{user.email ? ` · ${user.email}` : ""}{user.role ? ` · ${user.role}` : ""}
+                              {user.name}{user.role ? ` · ${user.role}` : ""}
                             </span>
                           </span>
                         </SelectItem>

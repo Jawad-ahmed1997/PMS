@@ -21,7 +21,7 @@ async function getTask(taskId) {
       lastStartedAt: true,
       estimatedHours: true,
       milestoneId: true,
-      milestone: { select: { projectId: true } },
+      projectId: true,
     },
   });
 }
@@ -148,7 +148,7 @@ export async function POST(request, { params }) {
           ),
           status: updatedTask.status,
           milestoneId: updatedTask.milestoneId,
-          projectId: updatedTask.milestone?.projectId ?? null,
+          projectId: updatedTask.projectId,
         },
         accumulatedSeconds: Math.max(0, Number(updatedTask.totalTimeSpent ?? 0)),
         runningStartedAt: null,

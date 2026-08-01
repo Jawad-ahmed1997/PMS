@@ -10,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "
 import ScrollArea from "@/components/ui/ScrollArea";
 import { useToast } from "@/components/ui/ToastProvider";
 import { normalizeRoleId } from "@/lib/roles";
-import { Filter, Briefcase, Calendar, ChevronDown, User, Clock } from "lucide-react";
+import { Filter, Briefcase, Calendar, ChevronDown, User, Clock, RefreshCw } from "lucide-react";
 
 const buildErrorMessage = (data) =>
   data?.error ?? data?.message ?? "Unable to load tasks.";
@@ -199,6 +199,18 @@ export default function MyTasksView({ role, currentUserId }) {
         eyebrow={isManager ? "Management workspace" : "Personal workspace"}
         title={isManager ? "All Active Tasks" : "My Tasks"}
         subtitle={isManager ? "Oversee all active tasks and execution across all milestones." : "Focus execution on your assigned items across all milestones."}
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={loadTasks}
+            className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
+            title="Refresh tasks list"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Refresh</span>
+          </Button>
+        }
       />
 
       {/* Premium Integrated Filters Bar */}

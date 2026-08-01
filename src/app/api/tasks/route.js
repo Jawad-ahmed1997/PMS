@@ -60,7 +60,7 @@ export async function GET(request) {
       }
     }
 
-    where.milestone = { projectId };
+    where.projectId = projectId;
   } else if (milestoneId) {
     const milestone = await prisma.milestone.findUnique({
       where: { id: milestoneId },
@@ -110,6 +110,14 @@ export async function GET(request) {
       type: true,
       ownerId: true,
       milestoneId: true,
+      projectId: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          members: { select: { userId: true } },
+        },
+      },
       estimatedHours: true,
       blockedReason: true,
       ktLink: true,
@@ -191,13 +199,14 @@ export async function POST(request) {
   const description = body?.description?.trim();
   const status = body?.status;
   const type = body?.type;
-  const milestoneId = body?.milestoneId;
+  const milestoneId = body?.milestoneId || null;
+  const projectId = body?.projectId;
   const estimatedHours = Number(body?.estimatedHours ?? 0);
   const ownerId = body?.ownerId;
 
-  if (!title || !description || !status || !type || !milestoneId) {
+  if (!title || !description || !status || !type || !projectId) {
     return buildError(
-      "Title, description, status, type, and milestone are required.",
+      "Title, description, status, type, and project are required.",
       400
     );
   }
@@ -216,25 +225,43 @@ export async function POST(request) {
     return buildError("Estimated hours must be a valid number.", 400);
   }
 
-  const milestone = await prisma.milestone.findUnique({
-    where: { id: milestoneId },
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
     select: {
       id: true,
-      project: { select: { members: { select: { userId: true } } } },
+      members: { select: { userId: true } },
     },
   });
 
-  if (!milestone) {
-    return buildError("Milestone not found.", 404);
+  if (!project) {
+    return buildError("Project not found.", 404);
   }
 
   if (!isManagementRole(context.role)) {
     if (
-      !milestone.project.members?.some(
+      !project.members?.some(
         (member) => member.userId === context.user.id
       )
     ) {
       return buildError("You do not have permission to add tasks.", 403);
+    }
+  }
+
+  if (milestoneId) {
+    const milestone = await prisma.milestone.findUnique({
+      where: { id: milestoneId },
+      select: {
+        id: true,
+        projectId: true,
+      },
+    });
+
+    if (!milestone) {
+      return buildError("Milestone not found.", 404);
+    }
+
+    if (milestone.projectId !== projectId) {
+      return buildError("Milestone does not belong to this project.", 400);
     }
   }
 
@@ -261,7 +288,7 @@ export async function POST(request) {
     resolvedOwnerId = context.user.id;
   }
 
-  const isOwnerProjectMember = milestone.project?.members?.some(
+  const isOwnerProjectMember = project.members?.some(
     (member) => member.userId === resolvedOwnerId
   );
   if (!isOwnerProjectMember) {
@@ -279,6 +306,7 @@ export async function POST(request) {
         description,
         status,
         type,
+        projectId,
         milestoneId,
         ownerId: resolvedOwnerId,
         estimatedHours,
@@ -287,6 +315,7 @@ export async function POST(request) {
       },
       include: {
         owner: { select: { id: true, name: true, email: true, role: true } },
+        project: { select: { id: true, name: true } },
         milestone: {
           select: { id: true, title: true, projectId: true },
         },
@@ -339,14 +368,14 @@ export async function POST(request) {
     return task;
   });
 
-  const memberIds = await getProjectMemberIds(createdTask.milestone?.projectId);
+  const memberIds = await getProjectMemberIds(createdTask.projectId);
   await createNotification({
     type: "CREATION_ASSIGNMENT",
     actorId: context.user.id,
     message: `${context.user?.name || context.user?.email || "A teammate"} created task ${createdTask.title}.`,
     taskId: createdTask.id,
-    projectId: createdTask.milestone?.projectId ?? null,
-    milestoneId: createdTask.milestone?.id ?? null,
+    projectId: createdTask.projectId,
+    milestoneId: createdTask.milestoneId,
     recipientIds: memberIds.length ? memberIds : [createdTask.ownerId],
   });
 
@@ -360,8 +389,8 @@ export async function POST(request) {
       actorId: context.user.id,
       message: `${context.user?.name || context.user?.email || "A leader"} assigned you task ${createdTask.title}.`,
       taskId: createdTask.id,
-      projectId: createdTask.milestone?.projectId ?? null,
-      milestoneId: createdTask.milestone?.id ?? null,
+      projectId: createdTask.projectId,
+      milestoneId: createdTask.milestoneId,
       recipientIds: [createdTask.ownerId],
     });
   }
@@ -370,6 +399,7 @@ export async function POST(request) {
     where: { id: createdTask.id },
     include: {
       owner: { select: { id: true, name: true, email: true, role: true } },
+      project: { select: { id: true, name: true } },
       milestone: {
         select: { id: true, title: true, projectId: true },
       },

@@ -39,7 +39,7 @@ export async function GET() {
           status: true,
           estimatedHours: true,
           milestoneId: true,
-          milestone: { select: { projectId: true } },
+          projectId: true,
           totalTimeSpent: true,
           lastStartedAt: true,
         },
@@ -75,7 +75,7 @@ export async function GET() {
       estimatedSeconds: toEstimatedSeconds(activeSession.task.estimatedHours),
       status: activeSession.task.status,
       milestoneId: activeSession.task.milestoneId,
-      projectId: activeSession.task.milestone?.projectId ?? null,
+      projectId: activeSession.task.projectId,
     },
     accumulatedSeconds: Math.max(0, Number(activeSession.task.totalTimeSpent ?? 0)),
     runningStartedAt:

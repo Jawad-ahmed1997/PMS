@@ -20,7 +20,12 @@ async function getMilestone(milestoneId) {
         select: {
           id: true,
           name: true,
-          members: { select: { userId: true } },
+          members: {
+            select: {
+              userId: true,
+              user: { select: { id: true, name: true, email: true, role: true, image: true } },
+            },
+          },
         },
       },
     },
@@ -63,7 +68,15 @@ export async function GET(request, { params }) {
     return buildError("You do not have permission to view this milestone.", 403);
   }
 
-  return buildSuccess("Milestone loaded.", { milestone });
+  const responseMilestone = {
+    ...milestone,
+    project: {
+      ...milestone.project,
+      members: milestone.project.members.map((m) => m.user).filter(Boolean),
+    },
+  };
+
+  return buildSuccess("Milestone loaded.", { milestone: responseMilestone });
 }
 
 export async function PATCH(request, { params }) {

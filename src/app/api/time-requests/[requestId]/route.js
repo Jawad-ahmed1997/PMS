@@ -57,7 +57,8 @@ export async function PATCH(request, { params }) {
           title: true,
           estimatedHours: true,
           ownerId: true,
-          milestone: { select: { id: true, projectId: true } },
+          milestoneId: true,
+          projectId: true,
         },
       },
       requestedBy: { select: { id: true, name: true, email: true } },
@@ -109,8 +110,8 @@ export async function PATCH(request, { params }) {
     actorId: context.user.id,
     message,
     taskId: existing.taskId,
-    projectId: existing.task?.milestone?.projectId ?? null,
-    milestoneId: existing.task?.milestone?.id ?? null,
+    projectId: existing.task?.projectId,
+    milestoneId: existing.task?.milestoneId,
     recipientIds: [existing.requestedById, existing.task.ownerId],
   });
 

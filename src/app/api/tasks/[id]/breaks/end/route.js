@@ -114,7 +114,7 @@ export async function POST(request, { params }) {
               estimatedHours: true,
               status: true,
               milestoneId: true,
-              milestone: { select: { projectId: true } },
+              projectId: true,
               totalTimeSpent: true,
             },
           });
@@ -139,7 +139,7 @@ export async function POST(request, { params }) {
             ),
             status: updatedTask.status,
             milestoneId: updatedTask.milestoneId,
-            projectId: updatedTask.milestone?.projectId ?? null,
+            projectId: updatedTask.projectId,
           },
           accumulatedSeconds: Math.max(0, Number(updatedTask.totalTimeSpent ?? 0)),
           runningStartedAt: activeSession ? now.toISOString() : null,

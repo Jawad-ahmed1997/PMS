@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, MoreHorizontal } from "lucide-react";
+import { CalendarDays, MoreHorizontal, RefreshCw } from "lucide-react";
 import ActionButton from "@/components/ui/ActionButton";
 import {
   DialogRoot,
@@ -1001,7 +1001,21 @@ export default function AttendanceDashboard({
         eyebrow="People Ops"
         title="Attendance"
         subtitle="Track check-ins and check-outs across the team."
-        actions={<Button type="button" onClick={openCreateModal}>Add Attendance</Button>}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fetchAttendance({ targetUserId: selectedUser?.id ?? "" })}
+              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
+              title="Refresh attendance records"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Refresh</span>
+            </Button>
+            <Button type="button" onClick={openCreateModal}>Add Attendance</Button>
+          </div>
+        }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-4">
