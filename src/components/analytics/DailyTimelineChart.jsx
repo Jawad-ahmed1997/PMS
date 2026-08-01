@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import Avatar from "@/components/ui/Avatar";
 
 const TIME_ZONE = "Asia/Karachi";
 
@@ -312,17 +313,20 @@ export default function DailyTimelineChart({
               className="relative z-10 hover:z-20 space-y-2 border-b border-[color:var(--color-border)]/30 pb-5 last:border-0 last:pb-0"
             >
               {/* Header Row: User Info on Left, Summary Stats on Right - Static */}
-              <div className="flex items-center justify-between gap-4 px-8">
+              <div className="flex items-center justify-between gap-4 px-3 sm:px-8">
                 {showUserNames ? (
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#253242] text-sm text-white/90">
-                      {(row.user?.name ?? "U").trim().charAt(0).toUpperCase()}
-                    </div>
+                    <Avatar
+                      src={row.user?.image}
+                      name={row.user?.name ?? "Unknown"}
+                      alt={row.user?.name ? `${row.user.name} avatar` : "User avatar"}
+                      className="h-9 w-9"
+                    />
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white leading-tight">
+                      <p className="truncate text-sm font-semibold leading-tight text-foreground">
                         {row.user?.name ?? "Unknown"}
                       </p>
-                      <p className="text-xs text-[#7c9fc4]">Developer</p>
+                      <p className="text-xs text-muted-foreground">{row.user?.role ?? "Team member"}</p>
                     </div>
                   </div>
                 ) : <div />}

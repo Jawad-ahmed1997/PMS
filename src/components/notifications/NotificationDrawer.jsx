@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sheet } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNotificationCounts } from "@/components/notifications/NotificationCountsContext";
 
 const TABS = [
@@ -52,6 +53,22 @@ function formatTimeAgo(value) {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function NotificationListSkeleton() {
+  return (
+    <div className="space-y-2" aria-label="Loading notifications">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="flex items-start gap-3 rounded-lg p-3">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+            <Skeleton className="h-3.5 w-[88%]" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function NotificationSheet({ isOpen, onClose }) {
@@ -196,39 +213,32 @@ export default function NotificationSheet({ isOpen, onClose }) {
                 key={notification.id}
                 onClick={() => handleNotificationClick(notification)}
                 style={{ animationDelay: `${idx * 40}ms` }}
-                className={`group relative flex w-full items-start gap-4 overflow-hidden rounded-2xl border p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${
+                className={`group flex w-full items-start gap-3 rounded-lg border border-transparent p-3 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${
                   isUnread
-                    ? "border-[color:var(--color-accent)]/40 bg-[color:var(--color-card)] shadow-[0_4px_20px_-4px_var(--color-accent-transparent)]"
-                    : "border-[color:var(--color-border)]/50 bg-[color:var(--color-surface)] hover:border-[color:var(--color-border)]"
+                    ? "bg-muted/60"
+                    : "bg-transparent"
                 }`}
               >
-                {/* Unread Indicator Pulse */}
-                {isUnread && (
-                  <div className="absolute left-0 top-0 h-full w-1 bg-[color:var(--color-accent)]">
-                    <div className="absolute -left-1 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-[color:var(--color-accent)] opacity-50 blur-md animate-pulse"></div>
-                  </div>
-                )}
-                
                 {/* Icon Container */}
-                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                  isUnread 
-                  ? "bg-[color:var(--color-accent)] text-white shadow-inner" 
-                  : "bg-[color:var(--color-surface-muted)] text-[color:var(--color-text-muted)] group-hover:bg-[color:var(--color-accent)]/10 group-hover:text-[color:var(--color-accent)]"
+                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                  isUnread
+                    ? "bg-background text-foreground"
+                    : "bg-muted text-muted-foreground"
                 }`}>
                   {ICONS[notification.type] || ICONS.USER_LOG_COMMENT}
                 </div>
                 
                 {/* Content */}
-                <div className="flex-1 space-y-1.5 min-w-0">
-                  <p className={`text-sm leading-snug ${isUnread ? "font-medium text-[color:var(--color-text)]" : "text-[color:var(--color-text-muted)]"}`}>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className={`text-sm leading-snug ${isUnread ? "font-medium text-foreground" : "text-muted-foreground"}`}>
                     {notification.message}
                   </p>
-                  <div className="flex items-center gap-2 text-[11px] font-medium text-[color:var(--color-text-subtle)]">
+                  <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
                     <span>{formatTimeAgo(notification.createdAt)}</span>
                     {notification.actor?.name && (
                       <>
-                        <span className="h-1 w-1 rounded-full bg-[color:var(--color-border)]"></span>
-                        <span className="truncate max-w-[120px]">{notification.actor.name}</span>
+                        <span className="h-1 w-1 rounded-full bg-border"></span>
+                        <span className="max-w-[120px] truncate">{notification.actor.name}</span>
                       </>
                     )}
                   </div>
@@ -284,16 +294,7 @@ export default function NotificationSheet({ isOpen, onClose }) {
 
         {/* Status Bar */}
         <div className="flex items-center justify-between px-1">
-          <p className="text-[11px] font-medium text-[color:var(--color-text-subtle)]">
-            {isLoading ? (
-              <span className="flex items-center gap-2">
-                <svg className="h-3 w-3 animate-spin text-[color:var(--color-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m0 14v1m8-8h1M4 12H3m14.485-6.071l.707-.707M6.343 17.657l.707-.707m12.02 0l-.707-.707M6.343 6.343l-.707-.707" />
-                </svg>
-                Syncing updates...
-              </span>
-            ) : "All caught up"}
-          </p>
+          <p className="text-[11px] font-medium text-muted-foreground">{isLoading ? "" : "All caught up"}</p>
           <div className="flex items-center gap-3">
             <button
               onClick={handleMarkAllRead}
@@ -306,7 +307,9 @@ export default function NotificationSheet({ isOpen, onClose }) {
 
         {/* Notifications List */}
         <div className="flex-1 overflow-y-auto pb-10 pr-1 -mr-1 custom-scrollbar">
-          {notifications.length === 0 ? (
+          {isLoading ? (
+            <NotificationListSkeleton />
+          ) : notifications.length === 0 ? (
             <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[color:var(--color-border)]/60 bg-[color:var(--color-surface-muted)]/30 text-center animate-in fade-in">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-surface)] text-[color:var(--color-text-subtle)] shadow-sm">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -314,7 +317,7 @@ export default function NotificationSheet({ isOpen, onClose }) {
                 </svg>
               </div>
               <p className="text-sm font-medium text-[color:var(--color-text-subtle)]">
-                You're all caught up!
+                You&apos;re all caught up!
               </p>
             </div>
           ) : (
