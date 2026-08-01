@@ -225,6 +225,7 @@ model Project {
   members     ProjectMember[]
   milestones  Milestone[]
   notifications Notification[]
+  tasks       Task[]      @relation("ProjectTasks")
   kt          ProjectKT?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -262,8 +263,10 @@ model Task {
   type           TaskType
   ownerId        String         @db.ObjectId
   owner          User           @relation("TaskOwner", fields: [ownerId], references: [id])
-  milestoneId    String         @db.ObjectId
-  milestone      Milestone      @relation(fields: [milestoneId], references: [id])
+  milestoneId    String?        @db.ObjectId
+  milestone      Milestone?     @relation(fields: [milestoneId], references: [id])
+  projectId      String         @db.ObjectId
+  project        Project        @relation("ProjectTasks", fields: [projectId], references: [id], onDelete: Cascade)
   estimatedHours Float
   reworkCount    Int            @default(0)
   totalTimeSpent Int            @default(0)

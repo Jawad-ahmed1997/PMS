@@ -12,6 +12,8 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { getTodayInPSTDateString } from "@/lib/pstDate";
 import { canCreateMilestones } from "@/lib/roles";
+import { RefreshCw } from "lucide-react";
+import ActionButton from "@/components/ui/ActionButton";
 
 const VIEW_PREFERENCE_KEY = "pms.milestones.view";
 
@@ -222,21 +224,33 @@ export default function MilestonesOverview({ role }) {
         title="Global milestone tracking"
         subtitle="Monitor active checkpoints across every project in the workspace."
         actions={
-          canCreate ? (
-            <ActionButton
-              label="Create milestone"
-              variant="success"
-              onClick={() => {
-                const today = getTodayInPSTDateString();
-                setMilestoneForm((prev) => ({
-                  ...prev,
-                  startDate: today,
-                  endDate: today,
-                }));
-                setIsModalOpen(true);
-              }}
-            />
-          ) : null
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={loadMilestones}
+              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
+              title="Refresh milestones"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Refresh</span>
+            </Button>
+            {canCreate && (
+              <ActionButton
+                label="Create milestone"
+                variant="success"
+                onClick={() => {
+                  const today = getTodayInPSTDateString();
+                  setMilestoneForm((prev) => ({
+                    ...prev,
+                    startDate: today,
+                    endDate: today,
+                  }));
+                  setIsDialogOpen(true);
+                }}
+              />
+            )}
+          </div>
         }
         viewToggle={
           <ViewToggle value={viewMode} onChange={setViewMode} />

@@ -283,7 +283,7 @@ export default function FloatingTaskTimer({ session }) {
     let projectId = activeSession.task.projectId ?? null;
     let milestoneId = activeSession.task.milestoneId ?? null;
 
-    if (!projectId || !milestoneId) {
+    if (!projectId) {
       const response = await fetch(`/api/tasks/${activeSession.task.id}/context`, {
         cache: "no-store",
       });
@@ -294,7 +294,7 @@ export default function FloatingTaskTimer({ session }) {
       }
     }
 
-    if (!projectId || !milestoneId) {
+    if (!projectId) {
       addToast({
         title: "Unable to open task",
         message: "Task context could not be resolved.",
@@ -303,9 +303,15 @@ export default function FloatingTaskTimer({ session }) {
       return;
     }
 
-    router.push(
-      `/projects/${projectId}/milestones/${milestoneId}?taskId=${activeSession.task.id}&tab=overview`
-    );
+    if (milestoneId) {
+      router.push(
+        `/projects/${projectId}/milestones/${milestoneId}?taskId=${activeSession.task.id}&tab=overview`
+      );
+    } else {
+      router.push(
+        `/projects/${projectId}?taskId=${activeSession.task.id}&tab=overview`
+      );
+    }
   }, [activeSession, addToast, router]);
 
   const handlePause = async () => {

@@ -19,6 +19,14 @@ async function getTask(taskId, userId) {
     type: true,
     ownerId: true,
     milestoneId: true,
+    projectId: true,
+    project: {
+      select: {
+        id: true,
+        name: true,
+        members: { select: { userId: true } },
+      },
+    },
     estimatedHours: true,
     blockedReason: true,
     ktLink: true,
@@ -189,7 +197,7 @@ export async function PATCH(request, { params }) {
         return buildError("Task owner not found.", 404);
       }
 
-      const isOwnerProjectMember = task.milestone?.project?.members?.some(
+      const isOwnerProjectMember = task.project?.members?.some(
         (member) => member.userId === body.ownerId
       );
       if (!isOwnerProjectMember) {
@@ -202,6 +210,24 @@ export async function PATCH(request, { params }) {
       return buildError("Task owner is required.", 400);
     }
     updates.ownerId = body.ownerId;
+  }
+
+  if (body?.milestoneId !== undefined) {
+    if (body.milestoneId) {
+      const milestone = await prisma.milestone.findUnique({
+        where: { id: body.milestoneId },
+        select: { id: true, projectId: true },
+      });
+      if (!milestone) {
+        return buildError("Milestone not found.", 404);
+      }
+      if (milestone.projectId !== task.projectId) {
+        return buildError("Milestone does not belong to this project.", 400);
+      }
+      updates.milestoneId = body.milestoneId;
+    } else {
+      updates.milestoneId = null;
+    }
   }
 
   if (body?.ktLink !== undefined) {
@@ -315,8 +341,8 @@ export async function PATCH(request, { params }) {
         actorId: context.user.id,
         message: `${context.user?.name || context.user?.email || "A leader"} assigned you task ${nextTask.title}.`,
         taskId: nextTask.id,
-        projectId: nextTask.milestone?.projectId ?? null,
-        milestoneId: nextTask.milestone?.id ?? null,
+        projectId: nextTask.projectId,
+        milestoneId: nextTask.milestoneId,
         recipientIds: [nextTask.ownerId],
       });
     }

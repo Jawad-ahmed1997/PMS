@@ -33,6 +33,8 @@ import {
   getMilestoneStatus,
   getTaskEstimatedMinutes,
 } from "@/lib/milestoneProgress";
+import { UserPlus, RefreshCw } from "lucide-react";
+import Avatar from "@/components/ui/Avatar";
 
 const buildErrorMessage = (data) =>
   data?.error ?? data?.message ?? "Unable to load milestone.";
@@ -50,6 +52,12 @@ export default function MilestoneDetailView({
   const [savingTask, setSavingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [users, setUsers] = useState([]);
+
+  // Project Members states
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [selectedAddUserId, setSelectedAddUserId] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+  const [systemUsers, setSystemUsers] = useState([]);
   const [taskForm, setTaskForm] = useState({
     title: "",
     description: "",
@@ -83,6 +91,31 @@ export default function MilestoneDetailView({
       [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole),
     [normalizedRole]
   );
+
+  const nonMemberUsers = useMemo(() => {
+    const memberIds = new Set((milestone?.project?.members ?? []).map((m) => m.id));
+    return systemUsers.filter((u) => !memberIds.has(u.id));
+  }, [systemUsers, milestone?.project?.members]);
+
+  const shouldScrollMemberOptions = useMemo(() => nonMemberUsers.length > 8, [nonMemberUsers.length]);
+
+  const loadSystemUsers = useCallback(async () => {
+    try {
+      const response = await fetch("/api/users?isActive=true");
+      const data = await response.json();
+      if (response.ok) {
+        setSystemUsers(data?.users ?? []);
+      }
+    } catch (error) {
+      console.error("Failed to load system users", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAddMemberModalOpen) {
+      loadSystemUsers();
+    }
+  }, [isAddMemberModalOpen, loadSystemUsers]);
 
   const loadMilestone = useCallback(async () => {
     setStatus({ loading: true, error: null });
@@ -133,27 +166,80 @@ export default function MilestoneDetailView({
     };
   }, [loadMilestone]);
 
-  useEffect(() => {
+  const loadUsers = useCallback(async () => {
     if (!canManageAssignments || !milestone?.projectId) {
       return;
     }
+    try {
+      const response = await fetch(
+        `/api/users?isActive=true&projectId=${milestone.projectId}`
+      );
+      const data = await response.json();
+      if (response.ok) {
+        setUsers(data?.users ?? []);
+      }
+    } catch (error) {
+      console.error("Failed to load project users", error);
+      setUsers([]);
+    }
+  }, [canManageAssignments, milestone?.projectId]);
 
-    const loadUsers = async () => {
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  const handleAddMember = async (event) => {
+    event.preventDefault();
+    if (!selectedAddUserId || !milestone?.projectId) return;
+
+    setAddingMember(true);
+    try {
+      const currentMemberIds = (milestone.project.members ?? []).map((m) => m.id);
+      const newMemberIds = [...currentMemberIds, selectedAddUserId];
+
+      const response = await fetch(`/api/projects/${milestone.projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberIds: newMemberIds }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message ?? "Failed to add member.");
+      }
+
+      addToast({
+        title: "Member added",
+        message: "Successfully added the member to the project.",
+        variant: "success",
+      });
+
+      setSelectedAddUserId("");
+      setIsAddMemberModalOpen(false);
+
+      await loadMilestone();
+      // Reload task assignee choices
       try {
-        const response = await fetch(
+        const usersResponse = await fetch(
           `/api/users?isActive=true&projectId=${milestone.projectId}`
         );
-        const data = await response.json();
-        if (response.ok) {
-          setUsers(data?.users ?? []);
+        const usersData = await usersResponse.json();
+        if (usersResponse.ok) {
+          setUsers(usersData?.users ?? []);
         }
-      } catch (error) {
-        setUsers([]);
+      } catch (e) {
+        console.error(e);
       }
-    };
-
-    loadUsers();
-  }, [canManageAssignments, milestone?.projectId]);
+    } catch (error) {
+      addToast({
+        title: "Action failed",
+        message: error instanceof Error ? error.message : "Failed to add member.",
+        variant: "error",
+      });
+    } finally {
+      setAddingMember(false);
+    }
+  };
 
   const resetTaskForm = () => {
     setTaskForm({
@@ -288,6 +374,7 @@ export default function MilestoneDetailView({
                   ...payload,
                   status: taskForm.status,
                   milestoneId,
+                  projectId: milestone?.projectId,
                 }
           ),
         }
@@ -346,16 +433,62 @@ export default function MilestoneDetailView({
         }
         backLabel="Back to milestones"
         actions={
-          canCreateTask ? (
+          <div className="flex items-center gap-4">
             <Button
-              label="Create task"
-              variant="primary"
-              onClick={() => {
-                resetTaskForm();
-                setIsDialogOpen(true);
-              }}
-            />
-          ) : null
+              type="button"
+              variant="outline"
+              onClick={loadMilestone}
+              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
+              title="Refresh milestone data"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Refresh</span>
+            </Button>
+            {/* Members Avatars */}
+            {!status.loading && !status.error && milestone?.project?.members && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-[color:var(--color-text-subtle)]">
+                  Members:
+                </span>
+                <div className="flex items-center -space-x-1.5 overflow-hidden">
+                  {(milestone.project.members ?? []).map((member) => (
+                    <Avatar
+                      key={member.id}
+                      src={member.image}
+                      name={member.name}
+                      alt={`${member.name} avatar`}
+                      className="h-7 w-7 border-2 border-card text-[10px]"
+                      fallbackClassName="text-[10px]"
+                      title={`${member.name} (${member.role})`}
+                    />
+                  ))}
+                  {/* Add Member Button */}
+                  {canManageAssignments && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsAddMemberModalOpen(true)}
+                      className="ml-2 h-7 w-7 rounded-full border-dashed text-muted-foreground hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                      title="Add Member to Project"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            {canCreateTask && (
+              <Button
+                label="Create task"
+                variant="primary"
+                onClick={() => {
+                  resetTaskForm();
+                  setIsDialogOpen(true);
+                }}
+              />
+            )}
+          </div>
         }
       />
 
@@ -675,6 +808,110 @@ export default function MilestoneDetailView({
                   : editingTaskId
                     ? "Save changes"
                     : "Create Task"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </DialogRoot>
+
+      {/* Add Project Member Dialog */}
+      <DialogRoot
+        open={isAddMemberModalOpen}
+        onOpenChange={(open) => {
+          if (!open && !addingMember) {
+            setIsAddMemberModalOpen(false);
+            setSelectedAddUserId("");
+          }
+        }}
+      >
+        <DialogContent className="max-h-[80vh] overflow-hidden sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Member to Project</DialogTitle>
+            <DialogDescription>
+              Search and assign a team member to this project.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddMember} className="mt-6 space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="project-member" className="text-sm font-medium">
+                Select Team Member
+              </Label>
+              <Select
+                value={selectedAddUserId}
+                onValueChange={setSelectedAddUserId}
+                required
+              >
+                <SelectTrigger id="project-member" className="w-full">
+                  <SelectValue placeholder="Choose a member..." />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  side="bottom"
+                  align="start"
+                  sideOffset={6}
+                  avoidCollisions
+                  collisionPadding={8}
+                  className="w-[var(--radix-select-trigger-width)]"
+                >
+                  <ScrollArea
+                    type={shouldScrollMemberOptions ? "always" : "auto"}
+                    className={shouldScrollMemberOptions ? "h-[320px] max-h-[calc(100vh-12rem)] w-full" : "w-full"}
+                    viewportClassName="pr-2"
+                  >
+                    {nonMemberUsers.length ? (
+                      nonMemberUsers.map((user) => (
+                        <SelectItem
+                          key={user.id}
+                          value={user.id}
+                          textValue={`${user.name} ${user.email ?? ""} ${user.role ?? ""}`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Avatar
+                              src={user.image}
+                              name={user.name}
+                              alt=""
+                              className="h-6 w-6 text-[10px]"
+                              fallbackClassName="text-[10px]"
+                            />
+                            <span className="min-w-0 truncate">
+                              {user.name}{user.role ? ` · ${user.role}` : ""}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="__none__" disabled>
+                        No active members available
+                      </SelectItem>
+                    )}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
+              {nonMemberUsers.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  All active system members are already in this project.
+                </p>
+              )}
+            </div>
+
+            <DialogFooter className="flex-row flex-wrap justify-end gap-2 border-t border-border pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsAddMemberModalOpen(false);
+                  setSelectedAddUserId("");
+                }}
+                disabled={addingMember}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={addingMember || !selectedAddUserId}
+              >
+                {addingMember ? "Adding..." : "Add to Project"}
               </Button>
             </DialogFooter>
           </form>

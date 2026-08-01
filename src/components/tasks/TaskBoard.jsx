@@ -731,7 +731,7 @@ export default function TaskBoard({
         prev.map((t) => (t.id === selectedTask.id ? { ...t, ktLink: dodLink } : t))
       );
 
-      const projectId = selectedTask.milestone?.projectId;
+      const projectId = selectedTask.projectId || selectedTask.milestone?.projectId;
       if (pushToProjectDocs && dodLink.trim() && projectId) {
         const ktRes = await fetch(`/api/projects/${projectId}/kt`);
         const ktData = await ktRes.json();
@@ -851,12 +851,19 @@ export default function TaskBoard({
 
   const milestoneOptions = useMemo(() => {
     const map = new Map();
+    let hasNoMilestone = false;
     taskItems.forEach((task) => {
       if (task.milestone) {
         map.set(task.milestone.id, task.milestone.title);
+      } else {
+        hasNoMilestone = true;
       }
     });
-    return Array.from(map.entries()).map(([id, title]) => ({ id, title }));
+    const options = Array.from(map.entries()).map(([id, title]) => ({ id, title }));
+    if (hasNoMilestone) {
+      options.push({ id: "NONE", title: "General Tasks (No Milestone)" });
+    }
+    return options;
   }, [taskItems]);
 
   const filteredTasks = useMemo(() => {
@@ -875,8 +882,12 @@ export default function TaskBoard({
         return false;
       }
 
-      if (milestoneFilter !== "ALL" && task.milestoneId !== milestoneFilter) {
-        return false;
+      if (milestoneFilter !== "ALL") {
+        if (milestoneFilter === "NONE") {
+          if (task.milestoneId) return false;
+        } else if (task.milestoneId !== milestoneFilter) {
+          return false;
+        }
       }
 
       return true;
@@ -1055,7 +1066,7 @@ export default function TaskBoard({
               estimatedSeconds: Math.round((data.task.estimatedHours ?? 0) * 3600),
               status: data.task.status,
               milestoneId: data.task.milestoneId,
-              projectId: data.task.milestone?.projectId ?? null,
+              projectId: data.task.projectId || data.task.milestone?.projectId || null,
             },
             accumulatedSeconds: data.task.spentTimeSeconds ?? 0,
             runningStartedAt: data.task.lastStartedAt,
@@ -1698,8 +1709,25 @@ export default function TaskBoard({
                   </SelectContent>
                 </Select>
 
+                {/* Milestone Filter Dropdown */}
+                {milestoneOptions.length > 0 && (
+                  <Select value={milestoneFilter} onValueChange={setMilestoneFilter}>
+                    <SelectTrigger className="h-8 min-w-[120px] rounded-xl bg-background px-3 text-xs font-semibold">
+                      <SelectValue placeholder="All Milestones" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Milestones</SelectItem>
+                      {milestoneOptions.map((milestoneOpt) => (
+                        <SelectItem key={milestoneOpt.id} value={milestoneOpt.id}>
+                          {milestoneOpt.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
                 {/* Reset Button */}
-                {(ownerFilter !== "ALL" || statusFilter !== "ALL") && (
+                {(ownerFilter !== "ALL" || statusFilter !== "ALL" || milestoneFilter !== "ALL") && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -1707,6 +1735,7 @@ export default function TaskBoard({
                     onClick={() => {
                       setOwnerFilter("ALL");
                       setStatusFilter("ALL");
+                      setMilestoneFilter("ALL");
                     }}
                     className="h-8 px-2 text-xs text-primary"
                   >

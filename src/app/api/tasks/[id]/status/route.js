@@ -49,6 +49,13 @@ async function getTask(taskId) {
       type: true,
       ownerId: true,
       milestoneId: true,
+      projectId: true,
+      project: {
+        select: {
+          id: true,
+          members: { select: { userId: true } },
+        },
+      },
       estimatedHours: true,
       blockedReason: true,
       blockedType: true,
@@ -93,7 +100,7 @@ function canAccessTask(context, task) {
 
   // Other project members (e.g. viewing/managing) must be listed explicitly.
   return (
-    task.milestone?.project?.members?.some(
+    task.project?.members?.some(
       (member) => member.userId === context.user.id
     ) ?? false
   );
@@ -628,8 +635,8 @@ export async function PATCH(request, { params }) {
       actorId: context.user.id,
       message: `${actorName} moved ${task.title} from ${task.status ?? "new"} to ${nextStatus}.`,
       taskId,
-      projectId: task.milestone?.projectId ?? null,
-      milestoneId: task.milestone?.id ?? null,
+      projectId: task.projectId,
+      milestoneId: task.milestoneId,
       recipientIds: [task.ownerId, ...leaderIds],
     });
   } catch (notificationError) {

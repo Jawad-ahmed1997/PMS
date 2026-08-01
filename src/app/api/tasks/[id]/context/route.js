@@ -26,17 +26,13 @@ export async function GET(_request, { params }) {
       id: true,
       ownerId: true,
       milestoneId: true,
-      milestone: {
+      projectId: true,
+      project: {
         select: {
           id: true,
-          projectId: true,
-          project: {
+          members: {
             select: {
-              members: {
-                select: {
-                  userId: true,
-                },
-              },
+              userId: true,
             },
           },
         },
@@ -51,7 +47,7 @@ export async function GET(_request, { params }) {
   const canAccess =
     isManagementRole(context.role) ||
     task.ownerId === context.user.id ||
-    task.milestone?.project?.members?.some(
+    task.project?.members?.some(
       (member) => member.userId === context.user.id
     );
 
@@ -61,7 +57,7 @@ export async function GET(_request, { params }) {
 
   return buildSuccess("Task context loaded.", {
     taskId: task.id,
-    projectId: task.milestone?.projectId ?? null,
-    milestoneId: task.milestone?.id ?? task.milestoneId ?? null,
+    projectId: task.projectId,
+    milestoneId: task.milestoneId,
   });
 }

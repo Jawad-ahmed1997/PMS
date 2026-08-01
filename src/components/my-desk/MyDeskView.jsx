@@ -18,8 +18,8 @@ export default function MyDeskView({ role, currentUserId }) {
   const loadTasks = useCallback(async () => {
     setTasksLoading(true);
     try {
-      const isManager = role && ["pm", "cto", "ceo"].includes(normalizeRoleId(role));
-      const url = isManager ? "/api/tasks?allTasks=true" : "/api/tasks";
+      const isManager = role && ["pm", "cto", "ceo", "team-lead"].includes(normalizeRoleId(role));
+      const url = isManager ? "/api/tasks?allTasks=true" : "/api/tasks?assignedToMe=true";
       const response = await fetch(url);
       const data = await response.json();
       if (!response.ok) {

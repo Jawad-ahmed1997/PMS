@@ -34,16 +34,12 @@ export async function PATCH(request) {
         where: { id: entityId },
         select: {
           id: true,
-          milestone: {
-            select: {
-              project: {
-                select: { members: { select: { userId: true } } },
-              },
-            },
+          project: {
+            select: { members: { select: { userId: true } } },
           },
         },
       });
-      const isMember = task?.milestone?.project?.members?.some(
+      const isMember = task?.project?.members?.some(
         (member) => member.userId === context.user.id
       );
       if (!isMember) {

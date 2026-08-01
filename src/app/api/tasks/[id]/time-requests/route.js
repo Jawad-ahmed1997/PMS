@@ -18,11 +18,12 @@ async function getTask(taskId) {
       id: true,
       title: true,
       ownerId: true,
-      milestone: {
+      milestoneId: true,
+      projectId: true,
+      project: {
         select: {
           id: true,
-          projectId: true,
-          project: { select: { members: { select: { userId: true } } } },
+          members: { select: { userId: true } },
         },
       },
     },
@@ -36,7 +37,7 @@ function canViewRequests(context, task) {
   if (isLeader(context.role)) {
     return true;
   }
-  const isMember = task.milestone?.project?.members?.some(
+  const isMember = task.project?.members?.some(
     (member) => member.userId === context.user.id
   );
   if (!isMember) {
@@ -160,8 +161,8 @@ export async function POST(request, { params }) {
     actorId: context.user.id,
     message: `${actorName} requested +${formatDuration(requestedSeconds)} on Task: ${task.title}.`,
     taskId,
-    projectId: task.milestone?.projectId ?? null,
-    milestoneId: task.milestone?.id ?? null,
+    projectId: task.projectId,
+    milestoneId: task.milestoneId,
     recipientIds: leaderIds,
   });
 

@@ -152,8 +152,8 @@ export async function POST(request) {
       where: { id: taskId },
       select: {
         id: true,
-        milestone: {
-          select: { project: { select: { members: { select: { userId: true } } } } },
+        project: {
+          select: { members: { select: { userId: true } } },
         },
       },
     });
@@ -162,7 +162,7 @@ export async function POST(request) {
       return buildError("Task not found.", 404);
     }
 
-    const isMember = task.milestone?.project?.members?.some(
+    const isMember = task.project?.members?.some(
       (member) => member.userId === context.user.id
     );
     if (!isMember) {

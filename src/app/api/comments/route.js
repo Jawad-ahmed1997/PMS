@@ -155,8 +155,8 @@ export async function POST(request) {
         id: true,
         title: true,
         ownerId: true,
-        milestone: {
-          select: { project: { select: { members: { select: { userId: true } } } } },
+        project: {
+          select: { members: { select: { userId: true } } },
         },
       },
     });
@@ -165,7 +165,7 @@ export async function POST(request) {
       return buildError("Task not found.", 404);
     }
 
-    const isMember = task.milestone?.project?.members?.some(
+    const isMember = task.project?.members?.some(
       (member) => member.userId === context.user.id
     );
     if (!isMember && !isAdminRole(context.role)) {
