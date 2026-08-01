@@ -85,7 +85,7 @@ function AppShellContent({ children, session }) {
     <div
       className="h-screen bg-[color:var(--color-bg)] text-[color:var(--color-text)]"
       style={{
-        "--sidebar-width": isCollapsed ? "5.25rem" : "15rem",
+        "--sidebar-width": isCollapsed ? "6rem" : "15rem",
         "--header-height": "4.5rem",
       }}
     >

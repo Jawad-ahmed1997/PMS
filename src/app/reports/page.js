@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageHeader from "@/components/layout/PageHeader";
 import PlaceholderUpload from "@/components/ui/PlaceholderUpload";
 import { prisma } from "@/lib/prisma";
@@ -99,7 +101,7 @@ export default async function ReportsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         eyebrow="Reports"
         title="Stakeholder-ready reporting"
@@ -108,6 +110,7 @@ export default async function ReportsPage() {
           <Button
             label="Generate report"
             variant="success"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             toast={{
               title: "Report queued",
               message: "Report outputs are formatted for email delivery.",
@@ -117,33 +120,34 @@ export default async function ReportsPage() {
         }
       />
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         {reports.map((report) => (
-          <div
+          <Card
             key={report.title}
-            className="flex flex-col gap-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5 lg:flex-row lg:items-center lg:justify-between"
+            className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between"
           >
             <div>
-              <p className="text-sm font-semibold text-[color:var(--color-text)]">
+              <h2 className="text-sm font-semibold text-foreground">
                 {report.title}
-              </p>
-              <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
                 {report.cadence}
               </p>
-              <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Audience: {report.audience}
               </p>
-              <p className="mt-1 text-xs text-emerald-300">
+              <p className="mt-1 text-xs font-medium text-primary">
                 {report.delivery}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {report.sections.map((section) => (
-                  <span
+                  <Badge
                     key={section}
-                    className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] px-2 py-1 text-[11px] text-[color:var(--color-text-muted)]"
+                    variant="outline"
+                    className="bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground"
                   >
                     {section}
-                  </span>
+                  </Badge>
                 ))}
               </div>
             </div>
@@ -157,19 +161,23 @@ export default async function ReportsPage() {
                 variant: "info",
               }}
             />
-          </div>
+          </Card>
         ))}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5 lg:col-span-2">
-          <p className="text-sm font-semibold text-[color:var(--color-text)]">Email preview</p>
-          <div className="mt-4 space-y-3 text-xs text-[color:var(--color-text-muted)]">
+        <Card className="lg:col-span-2">
+          <CardHeader className="p-5 pb-0">
+            <CardTitle className="text-sm">Email preview</CardTitle>
+            <CardDescription>Preview the tone and structure of the generated stakeholder update.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-5 text-xs text-muted-foreground">
+            <div className="space-y-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Subject
               </p>
-              <p className="mt-1 text-sm font-semibold text-[color:var(--color-text)]">
+              <p className="mt-1 text-sm font-semibold text-foreground">
                 {emailPreview.subject}
               </p>
             </div>
@@ -181,52 +189,59 @@ export default async function ReportsPage() {
               ))}
             </ul>
             <p>{emailPreview.footer}</p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
-          <p className="text-sm font-semibold text-[color:var(--color-text)]">
-            Metrics included
-          </p>
-          <ul className="mt-3 space-y-2 text-xs text-[color:var(--color-text-muted)]">
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="p-5 pb-0">
+            <CardTitle className="text-sm">Metrics included</CardTitle>
+            <CardDescription>Signals covered by the reporting templates.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-5 pt-4">
+          <ul className="space-y-2 text-xs text-muted-foreground">
             {metricsChecklist.map((metric) => (
               <li
                 key={metric}
-                className="flex items-center justify-between rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-muted-bg)] px-3 py-2"
+                className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/40 px-3 py-2"
               >
                 <span>{metric}</span>
-                <span className="text-emerald-300">Ready</span>
+                <Badge variant="secondary" className="px-2 py-0.5 text-[10px] text-primary">Ready</Badge>
               </li>
             ))}
           </ul>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {activitySummary && (
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5">
-          <p className="text-sm font-semibold text-[color:var(--color-text)]">
-            Accountability coverage (last 7 days)
-          </p>
-          <div className="mt-4 grid gap-3 text-xs text-[color:var(--color-text-muted)] md:grid-cols-3">
-            <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] p-3">
-              <p className="text-[color:var(--color-text-subtle)]">Activity logs</p>
-              <p className="mt-2 text-lg font-semibold text-[color:var(--color-text)]">
+        <Card>
+          <CardHeader className="p-5 pb-0">
+            <CardTitle className="text-sm">Accountability coverage</CardTitle>
+            <CardDescription>Last 7 days of operational reporting activity.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-5 pt-4">
+          <div className="grid gap-3 text-xs text-muted-foreground md:grid-cols-3">
+            <div className="rounded-xl border border-border/70 bg-muted/40 p-3">
+              <p className="text-muted-foreground">Activity logs</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
                 {activitySummary.activityCount}
               </p>
             </div>
-            <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] p-3">
-              <p className="text-[color:var(--color-text-subtle)]">Manager comments</p>
-              <p className="mt-2 text-lg font-semibold text-[color:var(--color-text)]">
+            <div className="rounded-xl border border-border/70 bg-muted/40 p-3">
+              <p className="text-muted-foreground">Manager comments</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
                 {activitySummary.commentCount}
               </p>
             </div>
-            <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] p-3">
-              <p className="text-[color:var(--color-text-subtle)]">Hours logged</p>
-              <p className="mt-2 text-lg font-semibold text-[color:var(--color-text)]">
+            <div className="rounded-xl border border-border/70 bg-muted/40 p-3">
+              <p className="text-muted-foreground">Hours logged</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
                 {activitySummary.hoursTotal}
               </p>
             </div>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       <PlaceholderUpload
