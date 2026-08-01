@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { CalendarDays, MoreHorizontal } from "lucide-react";
 import ActionButton from "@/components/ui/ActionButton";
 import {
   DialogRoot,
@@ -17,9 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Calendar } from "@/components/ui/calendar";
 import { TimePicker } from "@/components/ui/time-picker";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
 import PageHeader from "@/components/layout/PageHeader";
@@ -54,6 +55,63 @@ const breakTypeOptions = [
 
 function formatDateForInput(value) {
   return formatDateInPSTDateString(value);
+}
+
+function DateRangeFilter({ from, to, onChange }) {
+  const selected = {
+    from: from ? new Date(`${from}T00:00:00`) : undefined,
+    to: to ? new Date(`${to}T00:00:00`) : undefined,
+  };
+  const label = from && to ? `${from} – ${to}` : from || to || "Select date range";
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-w-[220px] justify-start gap-2 font-normal"
+          aria-label="Select attendance date range"
+        >
+          <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="truncate">{label}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto max-w-[calc(100vw-2rem)] overflow-x-auto p-2" align="start">
+        <Calendar
+          mode="range"
+          numberOfMonths={2}
+          selected={selected}
+          onSelect={(nextRange) => {
+            onChange("from", nextRange?.from ? formatDateForInput(nextRange.from) : "");
+            onChange("to", nextRange?.to ? formatDateForInput(nextRange.to) : "");
+          }}
+          classNames={{
+            months: "flex flex-row gap-6",
+            month: "space-y-3",
+            caption: "relative flex min-h-12 items-center justify-center px-10",
+            caption_label: "text-sm font-semibold text-foreground",
+            nav: "absolute inset-x-1 top-2 flex items-center justify-end gap-2",
+            button_previous: "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            button_next: "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            weekdays: "flex",
+            weekday: "w-9 rounded-md text-center text-[0.8rem] font-medium text-muted-foreground",
+            week: "mt-2 flex w-full",
+            day: "relative h-9 w-9 p-0 text-center text-sm text-foreground",
+            day_button: "inline-flex h-9 w-9 items-center justify-center rounded-md font-normal text-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground",
+            selected: "bg-primary text-primary-foreground",
+            range_start: "rounded-l-md bg-primary text-primary-foreground [&>button]:rounded-l-md [&>button]:bg-primary [&>button]:text-primary-foreground",
+            range_end: "rounded-r-md bg-primary text-primary-foreground [&>button]:rounded-r-md [&>button]:bg-primary [&>button]:text-primary-foreground",
+            range_middle: "bg-primary/15 text-foreground [&>button]:rounded-none [&>button]:bg-primary/15 [&>button]:text-foreground",
+            today: "border border-primary/60 bg-primary/5 text-primary font-semibold",
+            outside: "text-muted-foreground/50",
+            disabled: "text-muted-foreground/35 opacity-60",
+          }}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function formatDisplayDate(value) {
@@ -953,7 +1011,7 @@ export default function AttendanceDashboard({
               key={badge.id}
               type="button"
               onClick={() => setActiveBadge(badge.id)}
-              variant={activeBadge === badge.id ? "default" : "outline"}
+              variant="outline"
               size="sm"
               className={`flex items-center gap-2 rounded-lg border px-3 py-1 text-xs font-semibold transition ${activeBadge === badge.id
                 ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
@@ -972,7 +1030,7 @@ export default function AttendanceDashboard({
                 key={preset.id}
                 type="button"
                 onClick={() => handlePresetClick(preset.id)}
-                variant={activePreset === preset.id ? "default" : "outline"}
+                variant="outline"
                 size="sm"
                 className={`rounded-lg border px-3 py-1 text-xs font-semibold transition ${activePreset === preset.id
                   ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-muted)] text-[color:var(--color-accent)]"
@@ -983,24 +1041,11 @@ export default function AttendanceDashboard({
               </Button>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-xs text-[color:var(--color-text-subtle)]">
-              From
-              <DatePicker
-                name="from"
-                value={range.from}
-                onChange={(event) => handleRangeChange("from", event.target.value)}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs text-[color:var(--color-text-subtle)]">
-              To
-              <DatePicker
-                name="to"
-                value={range.to}
-                onChange={(event) => handleRangeChange("to", event.target.value)}
-              />
-            </label>
-          </div>
+          <DateRangeFilter
+            from={range.from}
+            to={range.to}
+            onChange={handleRangeChange}
+          />
           <div className="flex items-center gap-2 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] px-3 py-3 text-xs font-semibold text-[color:var(--color-text-muted)]">
             <span>Presence</span>
             <span className="text-[color:var(--color-text)]">

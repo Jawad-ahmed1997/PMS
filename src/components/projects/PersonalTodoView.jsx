@@ -422,9 +422,9 @@ export default function PersonalTodoView({ tasks = [] }) {
         </h3>
         <Button
           type="button"
+          variant="default"
           size="md"
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white transition  shadow-sm"
         >
           <span>+ Add To-Do</span>
         </Button>
