@@ -44,7 +44,7 @@ export async function POST(request) {
     }
 
     const inviteToken = crypto.randomBytes(32).toString("hex");
-    const inviteTokenExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes for testing, will later be 24 hours
+    const inviteTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Valid for 24 hours
     const host = request.headers.get("host") || "localhost:3000";
     const protocol = request.headers.get("x-forwarded-proto") || "http";
     const base = `${protocol}://${host}`;

@@ -19,8 +19,7 @@ function generateInviteToken() {
 }
 
 function getInviteExpiry() {
-  // Configured to 5 minutes for testing, will later be updated to 24 hours
-  return new Date(Date.now() + 5 * 60 * 1000);
+  return new Date(Date.now() + 24 * 60 * 60 * 1000); // Valid for 24 hours
 }
 
 function buildInviteUrl(request, token) {

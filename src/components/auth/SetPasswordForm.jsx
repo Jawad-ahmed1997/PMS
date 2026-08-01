@@ -75,13 +75,6 @@ export default function SetPasswordForm() {
             <p className="font-semibold">Link Expired or Invalid</p>
             <p className="mt-1 text-red-400/70">{validationError}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => router.push("/login")}
-            className="w-full rounded-xl bg-[color:var(--color-input)] border border-[color:var(--color-border)] px-4 py-2.5 text-sm font-semibold text-[color:var(--color-text)] transition hover:bg-muted"
-          >
-            Go to Sign In
-          </button>
         </div>
 
         <DialogRoot open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -99,19 +92,6 @@ export default function SetPasswordForm() {
                   {validationError}
                 </DialogDescription>
               </DialogHeader>
-              <DialogFooter className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-                <Button
-                  type="button"
-                  variant="default"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    router.push("/login");
-                  }}
-                  className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-indigo-400 hover:from-indigo-600 hover:to-indigo-500 text-white font-semibold rounded-xl px-6 py-2.5 shadow-lg shadow-indigo-500/20"
-                >
-                  Go to Sign In
-                </Button>
-              </DialogFooter>
             </DialogContent>
           </DialogPortal>
         </DialogRoot>
@@ -218,7 +198,7 @@ export default function SetPasswordForm() {
       />
 
       <p className="text-center text-xs text-[color:var(--color-text-subtle)]">
-        This link expires 5 minutes after it was sent.
+        This link expires 24 hours after it was sent.
       </p>
     </form>
   );
