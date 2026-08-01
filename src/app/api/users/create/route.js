@@ -19,11 +19,14 @@ function generateInviteToken() {
 }
 
 function getInviteExpiry() {
-  return new Date(Date.now() + 48 * 60 * 60 * 1000);
+  // Configured to 5 minutes for testing, will later be updated to 24 hours
+  return new Date(Date.now() + 5 * 60 * 1000);
 }
 
-function buildInviteUrl(token) {
-  const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+function buildInviteUrl(request, token) {
+  const host = request.headers.get("host") || "localhost:3000";
+  const protocol = request.headers.get("x-forwarded-proto") || "http";
+  const base = `${protocol}://${host}`;
   return `${base}/auth/set-password?token=${token}`;
 }
 
@@ -64,7 +67,7 @@ export async function POST(request) {
 
     const inviteToken = generateInviteToken();
     const inviteTokenExpiresAt = getInviteExpiry();
-    const inviteUrl = buildInviteUrl(inviteToken);
+    const inviteUrl = buildInviteUrl(request, inviteToken);
 
     let user;
 
