@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
 import EventCreationModal from "./EventCreationModal";
 import EventDetailsModal from "./EventDetailsModal";
+import DeleteConfirmationDialog from "@/components/ui/DeleteConfirmationDialog";
 
 const LEADERSHIP_ROLES = ["CEO", "PM", "CTO", "TEAM_LEAD"];
 
@@ -462,40 +463,11 @@ export default function GlobalPlanner({ role, currentUser }) {
         onSaved={loadEvents}
       />
 
-      {/* Delete Confirmation Modal */}
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] shadow-2xl p-6 space-y-6 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 text-red-400">
-              <svg className="h-6 w-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <h3 className="text-lg font-bold text-[color:var(--color-text)]">Delete Event</h3>
-            </div>
-            
-            <p className="text-sm text-[color:var(--color-text-muted)] leading-relaxed">
-              Are you sure you want to delete this event? This action will permanently remove this meeting/notice and cancel all its scheduled notifications. This cannot be undone.
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteId(null)}
-                className="rounded-xl border border-[color:var(--color-border)] px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-surface-muted)] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="rounded-xl bg-red-500 px-4 py-2 text-xs font-bold text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/10"
-              >
-                Yes, Delete Event
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmationDialog
+        open={Boolean(confirmDeleteId)}
+        onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}
+        onConfirm={confirmDelete}
+      />
 
     </div>
   );

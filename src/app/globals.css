@@ -26,6 +26,7 @@
   --color-card: #ffffff;
   --color-input: #ffffff;
   --color-muted-bg: #f8fafc;
+  --color-skeleton: rgba(97, 107, 105, 0.14);
   --sidebar-active-surface: #d6f1e8;
   --color-accent: #0F0F0F;
   --color-accent-muted: rgba(100, 204, 178, 0.18);
@@ -79,6 +80,7 @@
   --color-card: #121a17;
   --color-input: #090e0c;
   --color-muted-bg: rgba(100, 204, 178, 0.05);
+  --color-skeleton: rgba(226, 232, 240, 0.14);
   --color-accent: #64ccb2;
   --color-accent-muted: rgba(100, 204, 178, 0.18);
   --color-overlay: rgba(9, 14, 12, 0.8);

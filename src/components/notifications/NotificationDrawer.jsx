@@ -57,13 +57,15 @@ function formatTimeAgo(value) {
 
 function NotificationListSkeleton() {
   return (
-    <div className="space-y-2" aria-label="Loading notifications">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="flex items-start gap-3 rounded-lg p-3">
-          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+    <div className="space-y-2.5" aria-label="Loading notifications">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="flex items-start gap-3 rounded-lg border border-border/40 bg-muted/35 p-3">
+          <Skeleton className="mt-0.5 h-8 w-8 shrink-0 rounded-full" />
           <div className="min-w-0 flex-1 space-y-2 pt-0.5">
-            <Skeleton className="h-3.5 w-[88%]" />
-            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3.5 w-[72%]" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-[58%]" />
+            <Skeleton className="h-2.5 w-14" />
           </div>
         </div>
       ))}
@@ -306,7 +308,7 @@ export default function NotificationSheet({ isOpen, onClose }) {
         </div>
 
         {/* Notifications List */}
-        <div className="flex-1 overflow-y-auto pb-10 pr-1 -mr-1 custom-scrollbar">
+        <div className={`-mr-1 flex-1 pb-10 pr-1 ${isLoading ? "overflow-hidden" : "overflow-y-auto custom-scrollbar"}`}>
           {isLoading ? (
             <NotificationListSkeleton />
           ) : notifications.length === 0 ? (

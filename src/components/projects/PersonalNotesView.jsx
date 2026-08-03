@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Plus, Search, Trash2, Link2, Eye, Edit3, BookOpen, Bold, Italic, Heading, List, Code } from "lucide-react";
 import SearchableTaskSelector from "@/components/ui/SearchableTaskSelector";
+import DeleteConfirmationDialog from "@/components/ui/DeleteConfirmationDialog";
 
 // A simple, safe client-side Markdown parser for the preview mode
 function parseMarkdown(text) {
@@ -60,6 +61,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
   const [editTaskId, setEditTaskId] = useState("");
   const [viewMode, setViewMode] = useState("preview"); // edit, preview
   const [saving, setSaving] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState(null);
 
   const textareaRef = useRef(null);
 
@@ -199,9 +201,6 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
 
   // Delete active note
   const handleDeleteNote = async (noteId) => {
-    const isConfirm = window.confirm("Are you sure you want to delete this note?");
-    if (!isConfirm) return;
-
     try {
       const response = await fetch(`/api/notes/${noteId}`, {
         method: "DELETE",
@@ -386,7 +385,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
                 <Button
                   variant="destructive"
                   size="icon"
-                  onClick={() => handleDeleteNote(activeNote.id)}
+                  onClick={() => setNoteToDelete(activeNote.id)}
                   className="flex items-center justify-center p-2 rounded-xl border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500 hover:text-white transition text-rose-300"
                   title="Delete Note"
                 >
@@ -520,6 +519,11 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
           </div>
         )}
       </div>
+      <DeleteConfirmationDialog
+        open={Boolean(noteToDelete)}
+        onOpenChange={(open) => { if (!open) setNoteToDelete(null); }}
+        onConfirm={() => handleDeleteNote(noteToDelete)}
+      />
     </div>
   );
 }

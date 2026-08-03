@@ -349,7 +349,7 @@ export default function DailyTimelineChart({
               <div className="px-8">
                 <div className="overflow-x-auto md:overflow-x-visible hide-scrollbar" style={{ overflowY: "visible" }}>
                   <div style={{ minWidth }} className="h-12">
-                    <ChartContainer config={timelineChart.config} className="h-full min-h-0 aspect-auto rounded-xl border border-border/60 bg-muted/20 px-2 py-1">
+                    <ChartContainer config={timelineChart.config} className="relative z-10 h-full min-h-0 aspect-auto overflow-visible rounded-xl border border-border/60 bg-muted/20 px-2 py-1">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={timelineChart.data} layout="vertical" margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
                           <CartesianGrid vertical={false} stroke="var(--color-border)" strokeOpacity={0.45} strokeDasharray="3 5" />
@@ -357,6 +357,9 @@ export default function DailyTimelineChart({
                           <YAxis type="category" dataKey="label" hide />
                           <ChartTooltip
                             cursor={{ fill: "var(--color-muted-bg)" }}
+                            reverseDirection={{ x: false, y: true }}
+                            allowEscapeViewBox={{ x: true, y: true }}
+                            wrapperStyle={{ zIndex: 50 }}
                             content={<ChartTooltipContent labelFormatter={() => row.user?.name ?? "Activity"} formatter={(value, name, entry) => {
                               const segment = timelineChart.config?.[entry.dataKey]?.segment;
                               return segment ? `${formatDuration(segment.startAt, segment.endAt)}${segment.isWFH ? " · WFH" : ""}` : value;

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import RefreshButton from "@/components/ui/RefreshButton";
 import {
   DialogRoot,
   DialogContent,
@@ -33,7 +34,7 @@ import {
   getMilestoneStatus,
   getTaskEstimatedMinutes,
 } from "@/lib/milestoneProgress";
-import { UserPlus, RefreshCw } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 
 const buildErrorMessage = (data) =>
@@ -434,16 +435,7 @@ export default function MilestoneDetailView({
         backLabel="Back to milestones"
         actions={
           <div className="flex items-center gap-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={loadMilestone}
-              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
-              title="Refresh milestone data"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>Refresh</span>
-            </Button>
+            <RefreshButton onClick={loadMilestone} ariaLabel="Refresh milestone data" />
             {/* Members Avatars */}
             {!status.loading && !status.error && milestone?.project?.members && (
               <div className="flex items-center gap-2">

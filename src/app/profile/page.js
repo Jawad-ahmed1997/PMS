@@ -1,12 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session-server";
 import { getRoleById } from "@/lib/roles";
-
-function getInitials(name, email) {
-  const value = name?.trim() || email?.trim() || "U";
-  const parts = value.split(/\s+/).filter(Boolean);
-  return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : value.slice(0, 2)).toUpperCase();
-}
+import Avatar from "@/components/ui/Avatar";
 
 export default async function ProfilePage() {
   const session = await getSession();
@@ -24,9 +19,7 @@ export default async function ProfilePage() {
       </div>
       <div className="max-w-xl rounded-2xl border border-border/80 bg-card p-6 shadow-sm">
         <div className="flex items-center gap-4">
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-lg font-semibold text-foreground">
-            {session.image ? <img src={session.image} alt="" className="h-full w-full object-cover" /> : getInitials(session.name, session.email)}
-          </span>
+          <Avatar src={session.image} name={name} alt={`${name} avatar`} className="h-16 w-16 border border-border text-lg shadow-sm" />
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold text-foreground">{name}</h2>
             <p className="truncate text-sm text-muted-foreground">{session.email}</p>

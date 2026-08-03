@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, MoreHorizontal, Pencil, RefreshCw } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import RefreshButton from "@/components/ui/RefreshButton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +31,31 @@ const normalizeProject = (project) => ({
   status: project.status ?? "Active",
   members: project.members ?? [],
 });
+
+const ProjectListSkeleton = () => (
+  <div className="grid auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" aria-label="Loading projects" aria-busy="true">
+    {Array.from({ length: 6 }).map((_, index) => (
+      <div key={index} className="flex h-full min-w-0 flex-col justify-between rounded-xl border border-border/70 bg-card p-5">
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-5 w-14 shrink-0 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+        <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-4">
+          <div className="flex -space-x-2">
+            <Skeleton className="h-8 w-8 rounded-full" />
+            <Skeleton className="h-8 w-8 rounded-full" />
+            <Skeleton className="h-8 w-8 rounded-full" />
+          </div>
+          <Skeleton className="h-8 w-8 rounded-lg" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 const ProjectMembers = ({ members }) => {
   const visibleMembers = members.slice(0, 3);
@@ -125,16 +152,7 @@ export default function ProjectListView({ canManageProjects }) {
         subtitle="Track active initiatives across the organization."
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={loadProjects}
-              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
-              title="Refresh project list"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>Refresh</span>
-            </Button>
+            <RefreshButton onClick={loadProjects} ariaLabel="Refresh project list" />
             {canManageProjects && (
               <Button onClick={openCreateDialog}>Create project</Button>
             )}
@@ -143,12 +161,12 @@ export default function ProjectListView({ canManageProjects }) {
         viewToggle={<ViewToggle value={viewMode} onChange={setViewMode} />}
       />
 
-      {status.loading && <div className="rounded-xl border border-border/70 bg-card p-6 text-sm text-muted-foreground">Loading projects...</div>}
+      {status.loading && <ProjectListSkeleton />}
       {!status.loading && status.error && <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive"><p>{status.error}</p><Button variant="secondary" onClick={loadProjects}>Retry</Button></div>}
       {!status.loading && !status.error && !projects.length && <div className="rounded-xl border border-dashed border-border bg-card p-8 text-sm text-muted-foreground">No projects yet. Create one to begin planning milestones.</div>}
 
       {!status.loading && !status.error && projects.length ? viewMode === "grid" ? (
-        <div className="grid auto-rows-fr gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project, index) => (
             <div key={project.id} role="button" tabIndex={0} onClick={() => router.push(`/projects/${project.id}`)} onKeyDown={(event) => { if (event.key === "Enter") router.push(`/projects/${project.id}`); }} style={{ animationDelay: `${index * 50}ms` }} className="group flex h-full cursor-pointer flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card p-5 transition-colors duration-200 ease-out hover:border-foreground/25 hover:bg-muted/20 animate-in fade-in slide-in-from-bottom-4 fill-mode-both">
               <div className="flex items-start justify-between gap-4">

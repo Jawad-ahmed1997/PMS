@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, RefreshCw } from "lucide-react";
+import { UserPlus } from "lucide-react";
 
 import {
   Dialog,
@@ -26,6 +26,7 @@ import { canCreateTasks, normalizeRoleId, roles } from "@/lib/roles";
 import { getTodayInPSTDateString } from "@/lib/pstDate";
 import ActionButton from "../ui/ActionButton";
 import { Button } from "@/components/ui/button";
+import RefreshButton from "@/components/ui/RefreshButton";
 import {
   Select,
   SelectContent,
@@ -628,21 +629,15 @@ export default function ProjectDetailView({
         backLabel="Back to projects"
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
+            <RefreshButton
               onClick={async () => {
                 if (typeof window !== "undefined") {
                   sessionStorage.removeItem(`pms-tasks-${projectId}`);
                 }
                 await Promise.all([loadProject(), loadTasks(false)]);
               }}
-              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
-              title="Refresh project data"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>Refresh</span>
-            </Button>
+              ariaLabel="Refresh project data"
+            />
             {canManageMilestones && (
               activeTab === "milestones" ? (
                 <ActionButton

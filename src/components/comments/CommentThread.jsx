@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Textarea } from "@/components/ui/textarea";
 import useOutsideClick from "@/hooks/useOutsideClick";
+import DeleteConfirmationDialog from "@/components/ui/DeleteConfirmationDialog";
+import Avatar from "@/components/ui/Avatar";
 
 const buildErrorMessage = (data, fallback) =>
   data?.error ?? data?.message ?? fallback;
@@ -27,6 +29,7 @@ export default function CommentThread({
     submitting: false,
   });
   const [message, setMessage] = useState("");
+  const [commentToDelete, setCommentToDelete] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [mentionState, setMentionState] = useState({
     open: false,
@@ -46,16 +49,6 @@ export default function CommentThread({
     () => setMentionState((prev) => ({ ...prev, open: false })),
     mentionState.open
   );
-
-  const getInitials = (name) => {
-    if (!name) return "U";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-  };
 
   const filteredUsers = useMemo(() => {
     if (!mentionState.query) {
@@ -266,8 +259,6 @@ export default function CommentThread({
   };
 
   const handleDeleteComment = async (commentId) => {
-    if (!confirm("Are you sure you want to delete this comment?")) return;
-
     try {
       const response = await fetch(`/api/comments/${commentId}`, {
         method: "DELETE",
@@ -291,6 +282,8 @@ export default function CommentThread({
       });
     }
   };
+
+  const requestCommentDelete = (commentId) => setCommentToDelete(commentId);
 
   return (
     <div className="flex flex-col h-full space-y-4">
@@ -364,14 +357,19 @@ export default function CommentThread({
             if (item.type === "comment") {
               const comment = item.data;
               const isCurrentUser = comment.createdBy?.id === currentUser?.id;
-              const initials = getInitials(comment.createdBy?.name);
+              const commentAuthor = comment.createdBy ?? {};
+              const commentProfile = users.find((user) => user.id === commentAuthor.id)
+                ?? (isCurrentUser ? currentUser : null);
               const isEditing = editingCommentId === comment.id;
 
               return (
                 <div key={comment.id} className="flex gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 font-bold text-xs text-white shadow-sm">
-                    {initials}
-                  </div>
+                  <Avatar
+                    src={commentAuthor.image ?? commentProfile?.image}
+                    name={commentAuthor.name ?? commentAuthor.email ?? "Teammate"}
+                    alt={`${commentAuthor.name ?? "Teammate"} avatar`}
+                    className="h-8 w-8 text-xs"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
                       <span className="font-semibold text-xs text-[color:var(--color-text)]">
@@ -446,7 +444,7 @@ export default function CommentThread({
                               <span>•</span>
                               <button
                                 type="button"
-                                onClick={() => handleDeleteComment(comment.id)}
+                                onClick={() => requestCommentDelete(comment.id)}
                                 className="hover:text-rose-400 hover:underline"
                               >
                                 Delete
@@ -464,13 +462,15 @@ export default function CommentThread({
               const activity = item.data;
               const userObj = users.find((u) => u.id === activity.userId);
               const userName = userObj?.name || "Teammate";
-              const initials = getInitials(userName);
 
               return (
                 <div key={activity.id} className="flex gap-3 items-start opacity-85">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600/70 font-semibold text-xs text-white/90 shadow-sm">
-                    {initials}
-                  </div>
+                  <Avatar
+                    src={userObj?.image}
+                    name={userObj?.name ?? userObj?.email ?? "Teammate"}
+                    alt={`${userName} avatar`}
+                    className="h-8 w-8 text-xs"
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[color:var(--color-text-muted)]">
                       <span className="font-semibold text-[color:var(--color-text)]">
@@ -497,6 +497,11 @@ export default function CommentThread({
           })
         )}
       </div>
+      <DeleteConfirmationDialog
+        open={Boolean(commentToDelete)}
+        onOpenChange={(open) => { if (!open) setCommentToDelete(null); }}
+        onConfirm={() => handleDeleteComment(commentToDelete)}
+      />
     </div>
   );
 }

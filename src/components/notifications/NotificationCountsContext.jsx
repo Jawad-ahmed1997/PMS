@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { isNotificationSoundMuted } from "@/lib/notificationPreferences";
 
 const DEFAULT_COUNTS = {
   total: 0,
@@ -25,6 +26,7 @@ export function NotificationCountsProvider({ children }) {
   const isFirstLoad = useRef(true);
 
   const playBeep = useCallback(() => {
+    if (isNotificationSoundMuted()) return;
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
