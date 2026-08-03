@@ -70,6 +70,12 @@ export function NotificationCountsProvider({ children }) {
     const response = await fetch("/api/notifications/unread-counts", {
       cache: "no-store",
     });
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login?denied=1&reason=Session%20expired.%20Please%20sign%20in%20again.";
+      }
+      return;
+    }
     if (!response.ok) {
       return;
     }

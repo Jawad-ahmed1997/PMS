@@ -369,15 +369,22 @@ export async function POST(request) {
   });
 
   const memberIds = await getProjectMemberIds(createdTask.projectId);
-  await createNotification({
-    type: "CREATION_ASSIGNMENT",
-    actorId: context.user.id,
-    message: `${context.user?.name || context.user?.email || "A teammate"} created task ${createdTask.title}.`,
-    taskId: createdTask.id,
-    projectId: createdTask.projectId,
-    milestoneId: createdTask.milestoneId,
-    recipientIds: memberIds.length ? memberIds : [createdTask.ownerId],
-  });
+  // Exclude the assignee from the general project members notification list to prevent duplicate notifications
+  const creationRecipientIds = createdTask.ownerId
+    ? memberIds.filter((id) => id !== createdTask.ownerId)
+    : memberIds;
+
+  if (creationRecipientIds.length > 0) {
+    await createNotification({
+      type: "CREATION_ASSIGNMENT",
+      actorId: context.user.id,
+      message: `${context.user?.name || context.user?.email || "A teammate"} created task ${createdTask.title}.`,
+      taskId: createdTask.id,
+      projectId: createdTask.projectId,
+      milestoneId: createdTask.milestoneId,
+      recipientIds: creationRecipientIds,
+    });
+  }
 
   if (
     ["PM", "CTO", "TEAM_LEAD"].includes(context.role) &&
