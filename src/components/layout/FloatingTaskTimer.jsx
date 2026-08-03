@@ -128,6 +128,16 @@ export default function FloatingTaskTimer({ session }) {
       fetch("/api/tasks/active-session", { cache: "no-store" }),
     ]);
 
+    if (
+      (attendanceResult.status === "fulfilled" && attendanceResult.value.status === 401) ||
+      (sessionResult.status === "fulfilled" && sessionResult.value.status === 401)
+    ) {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login?denied=1&reason=Session%20expired.%20Please%20sign%20in%20again.";
+      }
+      return;
+    }
+
     let resolvedOnDuty = false;
     if (
       attendanceResult.status === "fulfilled" &&
