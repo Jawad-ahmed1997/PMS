@@ -38,16 +38,16 @@ export function normalizeRole(role) {
 export async function getAuthContext() {
   const session = await auth();
 
-  if (!session) {
+  if (!session || !session.user) {
     return { session: null, user: null, role: null };
   }
 
   const role = normalizeRole(session.user.role);
-  const user = session?.user?.id
+  const user = session.user.id
     ? await prisma.user.findUnique({ where: { id: session.user.id } })
     : null;
 
-  return { session: session?.user ? session : null, user, role };
+  return { session, user, role };
 }
 
 export function buildError(message, status = 400, details = null) {

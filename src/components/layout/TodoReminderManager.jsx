@@ -13,6 +13,12 @@ export default function TodoReminderManager({ session }) {
 
     try {
       const response = await fetch("/api/todos/reminders", { cache: "no-store" });
+      if (response.status === 401) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/login?denied=1&reason=Session%20expired.%20Please%20sign%20in%20again.";
+        }
+        return;
+      }
       const data = await response.json();
       if (!response.ok) {
         return;

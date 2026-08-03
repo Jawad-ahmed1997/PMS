@@ -141,17 +141,8 @@ export function combineDateAndTime(dateValue, timeValue) {
   if (!dateString || !timeParts) {
     return null;
   }
-  const base = new Date(`${dateString}T00:00:00`);
-  if (Number.isNaN(base.getTime())) {
-    return null;
-  }
-  base.setHours(
-    timeParts.hours,
-    timeParts.minutes,
-    timeParts.seconds,
-    timeParts.milliseconds
-  );
-  return base;
+  const timeString = `${timeParts.hours.toString().padStart(2, "0")}:${timeParts.minutes.toString().padStart(2, "0")}:${timeParts.seconds.toString().padStart(2, "0")}`;
+  return zonedTimeToUtc({ date: dateString, time: timeString });
 }
 
 export function combineShiftDateAndTime(dateValue, timeValue) {
@@ -160,18 +151,15 @@ export function combineShiftDateAndTime(dateValue, timeValue) {
   if (!dateString || !timeParts) {
     return null;
   }
-  const base = new Date(`${dateString}T00:00:00`);
-  if (Number.isNaN(base.getTime())) {
-    return null;
+  let hours = timeParts.hours;
+  let dayOffset = 0;
+  if (hours < SHIFT_DAY_START_HOUR) {
+    dayOffset = 1;
   }
-  base.setHours(
-    timeParts.hours,
-    timeParts.minutes,
-    timeParts.seconds,
-    timeParts.milliseconds
-  );
-  if (timeParts.hours < SHIFT_DAY_START_HOUR) {
-    base.setDate(base.getDate() + 1);
+  const timeString = `${hours.toString().padStart(2, "0")}:${timeParts.minutes.toString().padStart(2, "0")}:${timeParts.seconds.toString().padStart(2, "0")}`;
+  const base = zonedTimeToUtc({ date: dateString, time: timeString });
+  if (base && dayOffset > 0) {
+    base.setDate(base.getDate() + dayOffset);
   }
   return base;
 }
