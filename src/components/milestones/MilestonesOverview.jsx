@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MilestoneCard from "@/components/milestones/MilestoneCard";
 import { Button } from "@/components/ui/button";
+import RefreshButton from "@/components/ui/RefreshButton";
 import { useToast } from "@/components/ui/ToastProvider";
 import { getMilestoneStatus } from "@/lib/milestoneProgress";
 import PageHeader from "@/components/layout/PageHeader";
@@ -12,7 +13,6 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { getTodayInPSTDateString } from "@/lib/pstDate";
 import { canCreateMilestones } from "@/lib/roles";
-import { RefreshCw } from "lucide-react";
 import ActionButton from "@/components/ui/ActionButton";
 
 const VIEW_PREFERENCE_KEY = "pms.milestones.view";
@@ -225,16 +225,7 @@ export default function MilestonesOverview({ role }) {
         subtitle="Monitor active checkpoints across every project in the workspace."
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={loadMilestones}
-              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
-              title="Refresh milestones"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>Refresh</span>
-            </Button>
+            <RefreshButton onClick={loadMilestones} ariaLabel="Refresh milestones" />
             {canCreate && (
               <ActionButton
                 label="Create milestone"

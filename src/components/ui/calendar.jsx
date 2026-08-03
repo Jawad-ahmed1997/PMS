@@ -23,16 +23,17 @@ export function Calendar({ className, classNames, ...props }) {
         month_grid: "w-full border-collapse",
         weekdays: "flex",
         weekday:
-          "w-9 rounded-md text-center text-[0.8rem] font-normal text-muted-foreground",
+          "w-9 rounded-lg text-center text-[0.8rem] font-normal text-muted-foreground",
         week: "mt-2 flex w-full",
-        day: "relative h-9 w-9 p-0 text-center text-sm",
+        day: "relative h-9 w-9 rounded-lg p-0 text-center text-sm [&[aria-selected=true]>button]:rounded-lg [&[aria-selected=true]>button]:bg-primary [&[aria-selected=true]>button]:text-primary-foreground [&[aria-selected=true]>button:hover]:bg-primary [&[aria-selected=true]>button:hover]:text-primary-foreground",
         day_button:
-          "inline-flex h-9 w-9 items-center justify-center rounded-md font-normal transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "inline-flex h-9 w-9 items-center justify-center rounded-lg font-normal transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-disabled:text-muted-foreground/40",
         selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        today: "border border-primary/50 text-primary",
-        outside: "text-muted-foreground/50",
-        disabled: "text-muted-foreground/30",
+          "rounded-lg bg-primary text-primary-foreground",
+        today: "rounded-lg border border-primary/50 bg-primary/5 text-primary",
+        outside:
+          "text-muted-foreground/50 [&[aria-selected=true]>button]:rounded-lg [&[aria-selected=true]>button]:bg-primary [&[aria-selected=true]>button]:text-primary-foreground [&[aria-selected=true]>button:hover]:bg-primary [&[aria-selected=true]>button:hover]:text-primary-foreground",
+        disabled: "text-muted-foreground/40",
         hidden: "invisible",
         ...classNames,
       }}

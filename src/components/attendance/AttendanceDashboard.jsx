@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, MoreHorizontal, RefreshCw } from "lucide-react";
+import { CalendarDays, MoreHorizontal } from "lucide-react";
 import ActionButton from "@/components/ui/ActionButton";
 import {
   DialogRoot,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import ScrollArea from "@/components/ui/ScrollArea";
 import { Button } from "@/components/ui/button";
+import RefreshButton from "@/components/ui/RefreshButton";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -23,6 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
+import DeleteConfirmationDialog from "@/components/ui/DeleteConfirmationDialog";
 import PageHeader from "@/components/layout/PageHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import useOutsideClick from "@/hooks/useOutsideClick";
@@ -507,6 +509,7 @@ export default function AttendanceDashboard({
     notes: "",
   });
   const [breakSubmitting, setBreakSubmitting] = useState(false);
+  const [breakToDelete, setBreakToDelete] = useState(null);
   const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
   const [formUserQuery, setFormUserQuery] = useState("");
   const [isFormUserMenuOpen, setIsFormUserMenuOpen] = useState(false);
@@ -894,13 +897,6 @@ export default function AttendanceDashboard({
     if (!breakItem?.id) {
       return;
     }
-    const confirmed =
-      typeof window !== "undefined"
-        ? window.confirm("Delete this break?")
-        : false;
-    if (!confirmed) {
-      return;
-    }
     setBreakSubmitting(true);
     try {
       const response = await fetch(`/api/attendance/breaks/${breakItem.id}`, {
@@ -938,6 +934,8 @@ export default function AttendanceDashboard({
       setBreakSubmitting(false);
     }
   };
+
+  const requestBreakDelete = (breakItem) => setBreakToDelete(breakItem);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -1003,16 +1001,7 @@ export default function AttendanceDashboard({
         subtitle="Track check-ins and check-outs across the team."
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fetchAttendance({ targetUserId: selectedUser?.id ?? "" })}
-              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
-              title="Refresh attendance records"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>Refresh</span>
-            </Button>
+            <RefreshButton onClick={() => fetchAttendance({ targetUserId: selectedUser?.id ?? "" })} ariaLabel="Refresh attendance records" />
             <Button type="button" onClick={openCreateModal}>Add Attendance</Button>
           </div>
         }
@@ -1182,7 +1171,7 @@ export default function AttendanceDashboard({
                   </div>
                   <BreakMenuShadcn
                     onEdit={() => openBreakModalForm({ mode: "edit", breakItem: item })}
-                    onDelete={() => handleBreakDelete(item)}
+                    onDelete={() => requestBreakDelete(item)}
                     disabled={!canManageBreaks}
                     tooltip="Breaks can only be edited while duty is running."
                   />
@@ -1521,7 +1510,7 @@ export default function AttendanceDashboard({
                             onEdit={() =>
                               openBreakModalForm({ mode: "edit", breakItem: item })
                             }
-                            onDelete={() => handleBreakDelete(item)}
+                            onDelete={() => requestBreakDelete(item)}
                             disabled={false}
                           />
                         ) : null}
@@ -1623,6 +1612,11 @@ export default function AttendanceDashboard({
       </DialogContent>
           </DialogPortal>
         </DialogRoot>
+      <DeleteConfirmationDialog
+        open={Boolean(breakToDelete)}
+        onOpenChange={(open) => { if (!open) setBreakToDelete(null); }}
+        onConfirm={() => handleBreakDelete(breakToDelete)}
+      />
     </div>
   );
 }

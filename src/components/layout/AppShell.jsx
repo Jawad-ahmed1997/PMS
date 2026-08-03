@@ -26,6 +26,13 @@ function normalizeTitle(value) {
   return value.replace(/^\(\d+\)\s*/, "").replace(/^●\s*/, "");
 }
 
+function getTimeGreeting(date) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good Morning,";
+  if (hour < 18) return "Good Afternoon,";
+  return "Good Evening,";
+}
+
 function AppShellContent({ children, session }) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(
@@ -35,6 +42,7 @@ function AppShellContent({ children, session }) {
   );
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isNavbarScrolled, setIsNavbarScrolled] = useState(false);
+  const [timeGreeting, setTimeGreeting] = useState(() => getTimeGreeting(new Date()));
   const baseTitleRef = useRef(null);
   const mainRef = useRef(null);
   const { counts } = useNotificationCounts();
@@ -75,6 +83,12 @@ function AppShellContent({ children, session }) {
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    const updateGreeting = () => setTimeGreeting(getTimeGreeting(new Date()));
+    const interval = setInterval(updateGreeting, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleLogout = async () => {
     await logoutAction();
     // A full navigation discards the RSC cache, providers, and browser history entry.
@@ -106,17 +120,27 @@ function AppShellContent({ children, session }) {
         }`}
       >
         {/* <Logo alt="PMS Cloud" priority className="h-auto w-[118px]" /> */}
+        <div className="mr-auto hidden min-w-0 max-w-[min(34rem,45vw)] sm:block" aria-live="polite">
+          <div key={`${timeGreeting}-${session?.name ?? session?.email ?? "User"}`} className="min-w-0 animate-in fade-in slide-in-from-left-2 duration-500 motion-reduce:animate-none">
+            <p className="truncate text-xs font-medium tracking-wide text-muted-foreground sm:text-sm">
+              {timeGreeting}
+            </p>
+            <p className="truncate text-sm font-semibold tracking-tight text-primary sm:text-base">
+              {session?.name || session?.email || "User"}
+            </p>
+          </div>
+        </div>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <ThemeToggle className="h-9 min-w-0 rounded-lg px-2.5 sm:min-w-[7.5rem] sm:px-4" />
           <Button
             type="button"
-            variant="ghost"
-            size="icon"
-            className="relative h-9 w-9 rounded-full border-0 text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            variant="outline"
+            size="sm"
+            className="relative"
             aria-label="Notifications"
             onClick={() => setIsNotificationsOpen(true)}
           >
-            <Bell className="h-4 w-4 " aria-hidden="true" />
+            <Bell className="h-4 w-4" aria-hidden="true" />
             {counts.total > 0 ? (
               <span className="absolute -right-1 -top-1 inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                 {counts.total}

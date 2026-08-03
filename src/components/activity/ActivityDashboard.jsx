@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import RefreshButton from "@/components/ui/RefreshButton";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog } from "@/components/ui/dialog";
-import { Check, ChevronDown, Info, Search, X, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, Info, Search, X } from "lucide-react";
 import CommentThread from "@/components/comments/CommentThread";
 import { useToast } from "@/components/ui/ToastProvider";
 import PageHeader from "@/components/layout/PageHeader";
@@ -12,6 +13,7 @@ import useOutsideClick from "@/hooks/useOutsideClick";
 import AnalyticsResults from "@/components/analytics/AnalyticsResults";
 import DailyTimelineChart from "@/components/analytics/DailyTimelineChart";
 import ClientOnly from "@/components/ui/ClientOnly";
+import Avatar from "@/components/ui/Avatar";
 import { TimePicker } from "@/components/ui/time-picker";
 import {
   Select,
@@ -151,11 +153,6 @@ function normalizeRole(role) {
     .replace(/\s+/g, "_")
     .replace(/-/g, "_")
     .toUpperCase();
-}
-
-function getAvatarLetter(user) {
-  const raw = user?.avatarLetter || user?.name || user?.email || "";
-  return raw.toString().trim().charAt(0).toUpperCase() || "?";
 }
 
 const ActivityMenu = ({ items }) => {
@@ -609,16 +606,7 @@ export default function ActivityDashboard({
         subtitle="Track daily logs, task auto-activity, and leadership feedback."
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fetchLogs({ targetUserId: selectedUser?.id ?? "" })}
-              className="inline-flex items-center gap-1.5 rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-white transition-colors"
-              title="Refresh activity logs"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>Refresh</span>
-            </Button>
+            <RefreshButton onClick={() => fetchLogs({ targetUserId: selectedUser?.id ?? "" })} ariaLabel="Refresh activity logs" />
             <Button
               label="Manual Log Activity"
               variant="default"
@@ -791,7 +779,6 @@ export default function ActivityDashboard({
               const runningDurationLabel = isRunningManual
                 ? getRunningDurationLabel(log.startAt)
                 : null;
-              const avatarLetter = getAvatarLetter(log.user);
               return (
                 <div
                   key={log.id}
@@ -799,9 +786,12 @@ export default function ActivityDashboard({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-muted-bg)] text-sm font-semibold text-[color:var(--color-text)]">
-                        {avatarLetter}
-                      </div>
+                      <Avatar
+                        src={log.user?.image}
+                        name={log.user?.name ?? log.user?.email ?? "Unknown user"}
+                        alt={`${log.user?.name ?? "Unknown user"} avatar`}
+                        className="h-10 w-10 text-sm"
+                      />
                       <div>
                         <p className="text-sm font-semibold text-[color:var(--color-text)]">
                           {log.user?.name ?? "Unknown user"}

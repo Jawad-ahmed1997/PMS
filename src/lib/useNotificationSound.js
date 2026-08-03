@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useRef } from "react";
+import { isNotificationSoundMuted } from "@/lib/notificationPreferences";
 
 export function useNotificationSound() {
   const audioContextRef = useRef(null);
 
   return useCallback(() => {
     if (typeof window === "undefined") {
+      return;
+    }
+    if (isNotificationSoundMuted()) {
       return;
     }
 
