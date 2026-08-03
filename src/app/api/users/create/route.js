@@ -1,8 +1,8 @@
-import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, isPasswordInput } from "@/lib/auth/password";
 import { sendInviteEmail } from "@/lib/email";
+import { generateInvitationToken, getInvitationExpiry, invitationUrl } from "@/lib/invitation";
 import {
   ALL_ROLES,
   USER_CREATION_ROLES,
@@ -14,19 +14,11 @@ import {
   normalizeRole,
 } from "@/lib/api";
 
-function generateInviteToken() {
-  return crypto.randomBytes(32).toString("hex");
-}
-
-function getInviteExpiry() {
-  return new Date(Date.now() + 24 * 60 * 60 * 1000); // Valid for 24 hours
-}
-
 function buildInviteUrl(request, token) {
   const host = request.headers.get("host") || "localhost:3000";
   const protocol = request.headers.get("x-forwarded-proto") || "http";
   const base = `${protocol}://${host}`;
-  return `${base}/auth/set-password?token=${token}`;
+  return invitationUrl(base, token);
 }
 
 export async function POST(request) {
@@ -64,8 +56,8 @@ export async function POST(request) {
       return buildError("A user with this email already exists and is active.", 409);
     }
 
-    const inviteToken = generateInviteToken();
-    const inviteTokenExpiresAt = getInviteExpiry();
+    const inviteToken = generateInvitationToken();
+    const inviteTokenExpiresAt = getInvitationExpiry();
     const inviteUrl = buildInviteUrl(request, inviteToken);
 
     let user;

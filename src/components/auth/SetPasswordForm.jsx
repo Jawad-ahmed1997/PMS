@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Clock } from "lucide-react";
+import { Clock, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DialogRoot,
@@ -25,45 +25,68 @@ export default function SetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isValidating, setIsValidating] = useState(true);
+  const [validatedToken, setValidatedToken] = useState(null);
   const [validationError, setValidationError] = useState("");
+  const [validationCode, setValidationCode] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    setIsValidating(true);
+    setValidatedToken(null);
+    setValidationError("");
+    setValidationCode("");
+
     if (!token) {
-      setValidationError("Invalid invitation link.");
+      setValidationError("This invitation link is invalid.");
+      setValidationCode("INVALID");
+      setValidatedToken(token);
       setIsModalOpen(true);
       setIsValidating(false);
-      return;
+      return () => controller.abort();
     }
 
     const validateToken = async () => {
       try {
-        const response = await fetch(`/api/auth/validate-token?token=${token}`, { cache: "no-store" });
+        const response = await fetch(`/api/auth/validate-token?token=${encodeURIComponent(token)}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || "Invitation link has expired.");
+          const validationFailure = new Error(data.error || "This invitation link is invalid.");
+          validationFailure.code = data.code || "INVALID";
+          throw validationFailure;
         }
+        if (!cancelled) setValidatedToken(token);
       } catch (err) {
-        setValidationError(err instanceof Error ? err.message : "Invitation link is invalid or expired.");
-        setIsModalOpen(true);
+        if (!cancelled && err?.name !== "AbortError") {
+          setValidationCode(err?.code || "INVALID");
+          setValidationError(err instanceof Error ? err.message : "This invitation link is invalid.");
+          setValidatedToken(token);
+          setIsModalOpen(true);
+        }
       } finally {
-        setIsValidating(false);
+        if (!cancelled) setIsValidating(false);
       }
     };
 
     validateToken();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [token]);
 
-  if (isValidating) {
+  if (isValidating || validatedToken !== token) {
     return (
-      <div className="mt-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
-        <p className="font-semibold">Invalid invitation link</p>
-        <p className="mt-1 text-destructive/70">
-          Please check your email for the correct invitation link, or ask your admin to resend the invitation.
-        </p>
+      <div className="flex min-h-64 items-center justify-center" role="status" aria-live="polite" aria-label="Validating invitation">
+        <LoaderCircle className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
       </div>
     );
   }
@@ -87,7 +110,7 @@ export default function SetPasswordForm() {
                   <Clock className="h-6 w-6 animate-pulse" />
                 </div>
                 <DialogTitle className="mt-4 text-xl font-semibold text-[color:var(--color-text)]">
-                  Invitation Link Expired
+                  {validationCode === "EXPIRED" ? "Invitation Link Expired" : "Invitation Link Unavailable"}
                 </DialogTitle>
                 <DialogDescription className="mt-2 text-sm text-[color:var(--color-text-muted)] leading-relaxed">
                   {validationError}
@@ -202,7 +225,7 @@ export default function SetPasswordForm() {
       </Button>
 
       <p className="text-center text-xs text-[color:var(--color-text-subtle)]">
-        This link expires 24 hours after it was sent.
+        This link expires 48 hours after it was sent.
       </p>
     </form>
   );

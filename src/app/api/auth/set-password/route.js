@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { isInvitationExpired, normalizeInvitationToken } from "@/lib/invitation";
 
 export async function POST(request) {
   try {
-    const { token, password } = await request.json();
+    const body = await request.json();
+    const token = normalizeInvitationToken(body?.token);
+    const password = body?.password;
 
     if (!token || !password) {
       return NextResponse.json(
-        { error: "Token and password are required." },
+        { code: "INVALID", error: "Token and password are required." },
         { status: 400 }
       );
     }
@@ -22,34 +25,50 @@ export async function POST(request) {
 
     const user = await prisma.user.findFirst({
       where: { inviteToken: token },
-      select: { id: true, inviteTokenExpiresAt: true },
+      select: { id: true, isActive: true, status: true, inviteTokenExpiresAt: true },
     });
 
     if (!user) {
       return NextResponse.json(
-        { error: "Invalid or expired invitation link." },
+        { code: "INVALID", error: "This invitation link is invalid." },
         { status: 400 }
       );
     }
 
-    if (user.inviteTokenExpiresAt && new Date() > user.inviteTokenExpiresAt) {
+    if (user.isActive || user.status === "DISABLED") {
       return NextResponse.json(
-        { error: "Invitation link has expired. Please ask your admin to resend the invitation." },
-        { status: 400 }
+        { code: "UNAVAILABLE", error: "This invitation has already been used or revoked." },
+        { status: 409 }
+      );
+    }
+
+    const now = new Date();
+    if (isInvitationExpired(user.inviteTokenExpiresAt, now.getTime())) {
+      return NextResponse.json(
+        { code: "EXPIRED", error: "Invitation link has expired. Please ask your admin to resend the invitation." },
+        { status: 410 }
       );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        isActive: true,
-        inviteToken: null,
-        inviteTokenExpiresAt: null,
+    const claimed = await prisma.user.updateMany({
+      where: {
+        id: user.id,
+        inviteToken: token,
+        isActive: false,
+        status: { not: "DISABLED" },
+        inviteTokenExpiresAt: { gt: now },
       },
+      data: { password: hashedPassword, isActive: true, inviteToken: null, inviteTokenExpiresAt: null },
     });
+
+    if (claimed.count !== 1) {
+      return NextResponse.json(
+        { code: "UNAVAILABLE", error: "This invitation has already been used or revoked." },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json({
       ok: true,

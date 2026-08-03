@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import SetPasswordForm from "@/components/auth/SetPasswordForm";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import Logo from "@/components/ui/Logo";
@@ -14,7 +15,7 @@ export default function SetPasswordPage() {
             <p className="mt-2 text-sm leading-6 text-muted-foreground">Create a password to activate your PMS Cloud account.</p>
           </div>
         </div>
-        <div className="mt-8"><SetPasswordForm /></div>
+        <div className="mt-8"><Suspense fallback={<div className="h-64" />}><SetPasswordForm /></Suspense></div>
       </section>
       <div className="absolute bottom-7 flex w-full justify-center text-xs">
         <div><span className="font-medium text-muted-foreground">Powered By</span>{" "}<a href="https://www.gatekod.com/" target="_blank"><span className="font-bold text-primary hover:underline">GatKod Solution</span></a></div>

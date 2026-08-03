@@ -1,9 +1,7 @@
 import { DM_Sans } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
-import AppShell from "@/components/layout/AppShell";
 import { ToastProvider } from "@/components/ui/ToastProvider";
-import { getSession } from "@/lib/session-server";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -19,8 +17,6 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children }) {
-  const session = await getSession();
-
   return (
     <html
       lang="en"
@@ -33,7 +29,7 @@ export default async function RootLayout({ children }) {
           {`(function(){try{var t=localStorage.getItem("pms.theme")||"system";var d=t==="dark"||t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=d;}catch(e){}})();`}
         </Script>
         <ToastProvider>
-          <AppShell session={session}>{children}</AppShell>
+          {children}
         </ToastProvider>
       </body>
     </html>

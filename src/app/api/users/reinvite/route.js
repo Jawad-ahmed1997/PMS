@@ -1,6 +1,6 @@
-import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendInviteEmail } from "@/lib/email";
+import { generateInvitationToken, getInvitationExpiry, invitationUrl } from "@/lib/invitation";
 import {
   USER_CREATION_ROLES,
   buildError,
@@ -43,12 +43,12 @@ export async function POST(request) {
       return buildError("Cannot resend invitation to an active user.", 400);
     }
 
-    const inviteToken = crypto.randomBytes(32).toString("hex");
-    const inviteTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Valid for 24 hours
+    const inviteToken = generateInvitationToken();
+    const inviteTokenExpiresAt = getInvitationExpiry();
     const host = request.headers.get("host") || "localhost:3000";
     const protocol = request.headers.get("x-forwarded-proto") || "http";
     const base = `${protocol}://${host}`;
-    const inviteUrl = `${base}/auth/set-password?token=${inviteToken}`;
+    const inviteUrl = invitationUrl(base, inviteToken);
 
     await prisma.user.update({
       where: { id: userId },
