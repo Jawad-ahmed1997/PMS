@@ -39,7 +39,7 @@ export async function getAuthContext() {
   const session = await auth();
 
   if (!session || !session.user) {
-    return { session: null, user: null, role: null };
+    return { session: null, user: null, role: null, timezone: "Asia/Karachi" };
   }
 
   const role = normalizeRole(session.user.role);
@@ -47,7 +47,9 @@ export async function getAuthContext() {
     ? await prisma.user.findUnique({ where: { id: session.user.id } })
     : null;
 
-  return { session, user, role };
+  const timezone = user?.timezone ?? session.user.timezone ?? "Asia/Karachi";
+
+  return { session, user, role, timezone };
 }
 
 export function buildError(message, status = 400, details = null) {

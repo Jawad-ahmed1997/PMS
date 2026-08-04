@@ -76,16 +76,16 @@ const manualCategoryLabelMap = new Map(
   manualCategories.map((category) => [category.id, category.label])
 );
 
-function formatDateTime(value) {
-  return formatDateTimeInTimeZone(value, DEFAULT_TIME_ZONE) ?? "-";
+function formatDateTime(value, timeZone = DEFAULT_TIME_ZONE) {
+  return formatDateTimeInTimeZone(value, timeZone) ?? "-";
 }
 
-function formatDateOnly(value) {
-  return formatDateInTimeZone(value, DEFAULT_TIME_ZONE) ?? "";
+function formatDateOnly(value, timeZone = DEFAULT_TIME_ZONE) {
+  return formatDateInTimeZone(value, timeZone) ?? "";
 }
 
-function formatTimeOnly(value) {
-  return formatTimeInTimeZone(value, DEFAULT_TIME_ZONE) ?? "";
+function formatTimeOnly(value, timeZone = DEFAULT_TIME_ZONE) {
+  return formatTimeInTimeZone(value, timeZone) ?? "";
 }
 
 function formatDateInputValue(date) {
@@ -244,6 +244,7 @@ export default function ActivityDashboard({
   currentUser,
 }) {
   const { addToast } = useToast();
+  const userTimeZone = currentUser?.timezone || DEFAULT_TIME_ZONE;
   const isManager = MANAGEMENT_ROLES.includes(normalizeRole(currentUser?.role));
   const [period, setPeriod] = useState("daily");
   const [selectedDate, setSelectedDate] = useState("");
@@ -419,7 +420,7 @@ export default function ActivityDashboard({
   };
 
   const openCreateLogModal = () => {
-    const today = getManualTodayDateKey();
+    const today = getManualTodayDateKey(new Date(), userTimeZone);
     setLogForm({
       categories: ["LEARNING"],
       date: today,
@@ -440,9 +441,9 @@ export default function ActivityDashboard({
         Array.isArray(log.categories) && log.categories.length
           ? log.categories
           : ["OTHER"],
-      date: formatDateOnly(log.date),
-      startTime: formatTimeOnly(log.startAt),
-      endTime: formatTimeOnly(log.endAt),
+      date: formatDateOnly(log.date, userTimeZone),
+      startTime: formatTimeOnly(log.startAt, userTimeZone),
+      endTime: formatTimeOnly(log.endAt, userTimeZone),
       description: log.description ?? "",
       taskId: log.taskId ?? "",
     });
@@ -865,7 +866,7 @@ export default function ActivityDashboard({
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[color:var(--color-text-subtle)]">
                     <span suppressHydrationWarning>
-                      {isHydrated ? formatDateTime(log.date) : ""}
+                      {isHydrated ? formatDateTime(log.date, userTimeZone) : ""}
                     </span>
                   </div>
                   <p className="mt-2 text-sm text-[color:var(--color-text)]">
@@ -878,13 +879,13 @@ export default function ActivityDashboard({
                   ) : null}
                   {isManualLog && log.startAt && log.endAt ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                      Time: {formatTimeOnly(log.startAt)} -{" "}
-                      {formatTimeOnly(log.endAt)}
+                      Time: {formatTimeOnly(log.startAt, userTimeZone)} -{" "}
+                      {formatTimeOnly(log.endAt, userTimeZone)}
                     </p>
                   ) : null}
                   {isRunningManual && log.startAt ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                      Time: {formatTimeOnly(log.startAt)} • Running
+                      Time: {formatTimeOnly(log.startAt, userTimeZone)} • Running
                       {runningDurationLabel ? ` • ${runningDurationLabel}` : ""}
                     </p>
                   ) : null}

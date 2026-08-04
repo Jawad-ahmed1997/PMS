@@ -105,8 +105,8 @@ export function buildManualLogDate(dateValue, timeZone = MANUAL_LOG_TIME_ZONE) {
   return makeZonedDateTime({ dateKey: normalized, timeStr: "00:00", tz: timeZone });
 }
 
-export function buildManualLogTimes({ date, startTime, endTime }) {
-  const normalized = normalizeManualDate(date, MANUAL_LOG_TIME_ZONE);
+export function buildManualLogTimes({ date, startTime, endTime, timeZone = MANUAL_LOG_TIME_ZONE }) {
+  const normalized = normalizeManualDate(date, timeZone);
   if (!normalized) {
     return { error: "Date must be valid." };
   }
@@ -117,7 +117,7 @@ export function buildManualLogTimes({ date, startTime, endTime }) {
   const startAt = makeZonedDateTime({
     dateKey: normalized,
     timeStr: normalizedStartTime,
-    tz: MANUAL_LOG_TIME_ZONE,
+    tz: timeZone,
   });
   if (!startAt) {
     return { error: "Start time is required." };
@@ -135,7 +135,7 @@ export function buildManualLogTimes({ date, startTime, endTime }) {
   const endAt = makeZonedDateTime({
     dateKey: normalized,
     timeStr: normalizedEndTime,
-    tz: MANUAL_LOG_TIME_ZONE,
+    tz: timeZone,
   });
   if (!endAt) {
     return { error: "End time must be valid." };
