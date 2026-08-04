@@ -63,7 +63,8 @@ export default function FloatingActivityTimer({ session }) {
         accumulatedSeconds: 0, 
         description: "",
         currentBreak: null, // { type, notes, startAt }
-        breaks: [] // array of completed breaks { type, notes, durationSeconds, startAt, endAt }
+        breaks: [], // array of completed breaks { type, notes, durationSeconds, startAt, endAt }
+        customStartTimestamp: null
       };
     }
     try {
@@ -74,7 +75,7 @@ export default function FloatingActivityTimer({ session }) {
     } catch (e) {
       console.error("Error reading activity timer state", e);
     }
-    return { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [] };
+    return { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [], customStartTimestamp: null };
   });
 
   const [position, setPosition] = useState(() => {
@@ -106,7 +107,11 @@ export default function FloatingActivityTimer({ session }) {
   const [selectingBreak, setSelectingBreak] = useState(false);
 
   // Form States
-  const [startForm, setStartForm] = useState({ description: "" });
+  const [startForm, setStartForm] = useState({
+    description: "",
+    isCustomStart: false,
+    customStartTime: ""
+  });
   const [stopForm, setStopForm] = useState({
     category: "LEARNING",
   });
@@ -299,7 +304,16 @@ export default function FloatingActivityTimer({ session }) {
       console.error(e);
     }
 
-    setStartForm({ description: "" });
+    const format24hTime = (d) => {
+      const pad = (v) => String(v).padStart(2, "0");
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    setStartForm({
+      description: "",
+      isCustomStart: false,
+      customStartTime: format24hTime(new Date())
+    });
     setShowStartModal(true);
   };
 
@@ -310,14 +324,47 @@ export default function FloatingActivityTimer({ session }) {
       return;
     }
 
+    let initialElapsedSeconds = 0;
+    let customStartTimestamp = null;
+
+    if (startForm.isCustomStart) {
+      if (!startForm.customStartTime) {
+        addToast({ title: "Time Required", message: "Please select a custom start time.", variant: "error" });
+        return;
+      }
+      const [hoursStr, minutesStr] = startForm.customStartTime.split(":");
+      const hours = parseInt(hoursStr, 10);
+      const minutes = parseInt(minutesStr, 10);
+
+      const now = new Date();
+      const customStartDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        hours,
+        minutes,
+        0,
+        0
+      );
+
+      if (customStartDate.getTime() > Date.now()) {
+        addToast({ title: "Invalid Time", message: "Start time cannot be in the future.", variant: "error" });
+        return;
+      }
+
+      initialElapsedSeconds = Math.max(0, Math.floor((Date.now() - customStartDate.getTime()) / 1000));
+      customStartTimestamp = customStartDate.getTime();
+    }
+
     const state = {
       running: true,
       paused: false,
       startTime: Date.now(),
-      accumulatedSeconds: 0,
+      accumulatedSeconds: initialElapsedSeconds,
       description: startForm.description.trim(),
       currentBreak: null,
-      breaks: []
+      breaks: [],
+      customStartTimestamp
     };
     saveState(state);
     setShowStartModal(false);
@@ -421,6 +468,22 @@ export default function FloatingActivityTimer({ session }) {
         }
       }
 
+      const totalBreakTimeSeconds = finalBreaks.reduce((acc, b) => acc + b.durationSeconds, 0);
+
+      // Save overall Work Log boundaries
+      const now = new Date();
+      let startMs = null;
+      let totalElapsedSeconds = 0;
+
+      if (timerState.customStartTimestamp) {
+        startMs = timerState.customStartTimestamp;
+        totalElapsedSeconds = Math.max(0, Math.floor((now.getTime() - startMs) / 1000));
+        finalWorkSeconds = totalElapsedSeconds - totalBreakTimeSeconds;
+      } else {
+        totalElapsedSeconds = finalWorkSeconds + totalBreakTimeSeconds;
+        startMs = now.getTime() - (totalElapsedSeconds * 1000);
+      }
+
       // Activity duration must be at least 30 seconds
       if (finalWorkSeconds < 30) {
         addToast({
@@ -432,12 +495,6 @@ export default function FloatingActivityTimer({ session }) {
         return;
       }
 
-      const totalBreakTimeSeconds = finalBreaks.reduce((acc, b) => acc + b.durationSeconds, 0);
-
-      // Save overall Work Log
-      const now = new Date();
-      const totalElapsedSeconds = finalWorkSeconds + totalBreakTimeSeconds;
-      const startMs = now.getTime() - (totalElapsedSeconds * 1000);
       const startDate = new Date(startMs);
 
       const formatTimeStr = (d) => {
@@ -495,7 +552,7 @@ export default function FloatingActivityTimer({ session }) {
       });
 
       // Clear timer state
-      const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [] };
+      const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [], customStartTimestamp: null };
       saveState(state);
       setActiveSeconds(0);
       setBreakSeconds(0);
@@ -524,7 +581,7 @@ export default function FloatingActivityTimer({ session }) {
   };
 
   const handleConfirmDiscard = () => {
-    const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [] };
+    const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [], customStartTimestamp: null };
     saveState(state);
     setActiveSeconds(0);
     setBreakSeconds(0);
@@ -759,13 +816,40 @@ export default function FloatingActivityTimer({ session }) {
               <label className="text-xs font-semibold text-[color:var(--color-text-muted)]">Description</label>
               <Textarea
                 value={startForm.description}
-                onChange={(e) => setStartForm({ description: e.target.value })}
+                onChange={(e) => setStartForm({ ...startForm, description: e.target.value })}
                 placeholder="e.g. Researching architectural patterns for layout providers..."
                 required
                 rows={3}
                 className="rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text)] text-sm"
               />
             </div>
+
+            {/* Custom Start Time selector for Today */}
+            <div className="space-y-3 border-t pt-3" style={{ borderColor: "var(--color-border)" }}>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={startForm.isCustomStart || false}
+                  onChange={(e) => setStartForm({ ...startForm, isCustomStart: e.target.checked })}
+                  className="rounded border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-accent)] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                />
+                <span className="text-xs font-medium text-[color:var(--color-text)]">Start from a custom time today</span>
+              </label>
+
+              {startForm.isCustomStart && (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="text-[11px] font-semibold text-[color:var(--color-text-subtle)] uppercase">Select Start Time</label>
+                  <Input
+                    type="time"
+                    value={startForm.customStartTime || ""}
+                    onChange={(e) => setStartForm({ ...startForm, customStartTime: e.target.value })}
+                    required={startForm.isCustomStart}
+                    className="rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text)] text-sm h-9"
+                  />
+                </div>
+              )}
+            </div>
+
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setShowStartModal(false)} className="rounded-xl border-[color:var(--color-border)]">
                 Cancel
