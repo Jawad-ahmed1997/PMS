@@ -538,6 +538,21 @@ export default function TaskBoard({
   }, [searchParams]);
 
   useEffect(() => {
+    const handleManualSaved = (e) => {
+      if (e.detail?.action === "move-task" && e.detail?.taskId && e.detail?.statusId) {
+        const task = taskItems.find((item) => item.id === e.detail.taskId);
+        if (task) {
+          handleStatusChange(task, e.detail.statusId);
+        }
+      }
+    };
+    window.addEventListener("pms:manual-activity-saved", handleManualSaved);
+    return () => {
+      window.removeEventListener("pms:manual-activity-saved", handleManualSaved);
+    };
+  }, [taskItems]);
+
+  useEffect(() => {
     setDodLink(selectedTask?.ktLink ?? "");
     setPushToProjectDocs(true);
   }, [selectedTask]);
@@ -911,6 +926,17 @@ export default function TaskBoard({
   const handleStatusChange = async (task, nextStatus) => {
     if (!nextStatus) {
       return;
+    }
+
+    if (nextStatus === "IN_PROGRESS") {
+      const stored = typeof window !== "undefined" ? localStorage.getItem("activity_timer_state") : null;
+      const parsed = stored ? JSON.parse(stored) : null;
+      if (parsed && parsed.running) {
+        window.dispatchEvent(new CustomEvent("pms:show-manual-warning", { 
+          detail: { action: "move-task", taskId: task.id, statusId: nextStatus } 
+        }));
+        return;
+      }
     }
 
     if (!canMoveTaskForTask(task, nextStatus)) {

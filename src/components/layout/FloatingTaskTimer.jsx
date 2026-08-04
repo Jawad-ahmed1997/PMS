@@ -115,6 +115,11 @@ export default function FloatingTaskTimer({ session }) {
     return { x: 24, y: 96 };
   });
 
+  const canControl =
+    Boolean(activeSession?.active) &&
+    session &&
+    !["PM", "CTO", "TEAM_LEAD"].includes(String(session.role ?? "").toUpperCase());
+
   const syncFromServer = useCallback(async () => {
     if (!session) {
       setLoading(false);
@@ -215,6 +220,18 @@ export default function FloatingTaskTimer({ session }) {
     };
   }, [syncFromServer]);
 
+  useEffect(() => {
+    const handleManualSaved = (e) => {
+      if (e.detail?.action === "resume-task") {
+        handleResume();
+      }
+    };
+    window.addEventListener("pms:manual-activity-saved", handleManualSaved);
+    return () => {
+      window.removeEventListener("pms:manual-activity-saved", handleManualSaved);
+    };
+  }, [activeSession, canControl]);
+
   const clampPosition = useCallback((nextX, nextY) => {
     const el = containerRef.current;
     const width = el?.offsetWidth ?? 320;
@@ -280,11 +297,6 @@ export default function FloatingTaskTimer({ session }) {
   const progress = estimatedSeconds > 0 ? Math.min(1, spentSeconds / estimatedSeconds) : 0;
   const colorState = getTimerColor(estimatedSeconds, spentSeconds);
   const palette = COLOR_MAP[colorState];
-
-  const canControl =
-    Boolean(activeSession?.active) &&
-    session &&
-    !["PM", "CTO", "TEAM_LEAD"].includes(String(session.role ?? "").toUpperCase());
 
   const moveToTask = useCallback(async () => {
     if (!activeSession?.task?.id) {
@@ -365,6 +377,14 @@ export default function FloatingTaskTimer({ session }) {
 
   const handleResume = async () => {
     if (!activeSession?.task?.id || !canControl) {
+      return;
+    }
+    const stored = typeof window !== "undefined" ? localStorage.getItem("activity_timer_state") : null;
+    const parsed = stored ? JSON.parse(stored) : null;
+    if (parsed && parsed.running) {
+      window.dispatchEvent(new CustomEvent("pms:show-manual-warning", { 
+        detail: { action: "resume-task" } 
+      }));
       return;
     }
     setSubmitting(true);
