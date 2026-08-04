@@ -19,8 +19,8 @@ function isLeader(role) {
   return PROJECT_MANAGEMENT_ROLES.includes(role);
 }
 
-function normalizeDateOnly(value) {
-  const dateKey = toDateKey(value);
+function normalizeDateOnly(value, timeZone = "Asia/Karachi") {
+  const dateKey = toDateKey(value, timeZone);
   if (!dateKey) {
     return null;
   }
@@ -125,7 +125,8 @@ export async function PATCH(request, { params }) {
   }
 
   const body = await request.json();
-  const nextDate = body?.date ? normalizeDateOnly(body.date) : existing.date;
+  const userTimeZone = context.timezone;
+  const nextDate = body?.date ? normalizeDateOnly(body.date, userTimeZone) : existing.date;
   if (body?.date && !nextDate) {
     return buildError("Date must be valid.", 400);
   }
@@ -134,6 +135,7 @@ export async function PATCH(request, { params }) {
     shiftDate: nextDate,
     inTime: body?.inTime !== undefined ? body.inTime : existing.inTime,
     outTime: body?.outTime !== undefined ? body.outTime : existing.outTime,
+    timeZone: userTimeZone,
   });
   const inTime =
     normalized.inAt ??
