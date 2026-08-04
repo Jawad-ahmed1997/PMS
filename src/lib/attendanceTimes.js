@@ -39,7 +39,7 @@ export function parseTimeString(value) {
   return { hours, minutes, seconds, milliseconds: 0 };
 }
 
-function extractTimeParts(value) {
+function extractTimeParts(value, timeZone = DEFAULT_TIME_ZONE) {
   if (!value) {
     return null;
   }
@@ -51,11 +51,20 @@ function extractTimeParts(value) {
   if (Number.isNaN(date.getTime())) {
     return null;
   }
+  const parts = getTimeZoneParts(date, timeZone);
+  if (!parts) {
+    return {
+      hours: date.getHours(),
+      minutes: date.getMinutes(),
+      seconds: date.getSeconds(),
+      milliseconds: date.getMilliseconds(),
+    };
+  }
   return {
-    hours: date.getHours(),
-    minutes: date.getMinutes(),
-    seconds: date.getSeconds(),
-    milliseconds: date.getMilliseconds(),
+    hours: Number(parts.hour),
+    minutes: Number(parts.minute),
+    seconds: Number(parts.second),
+    milliseconds: 0,
   };
 }
 
@@ -137,7 +146,7 @@ function getTimeZoneOffset(date, timeZone) {
 
 export function combineDateAndTime(dateValue, timeValue, timeZone = DEFAULT_TIME_ZONE) {
   const dateString = formatDateInput(dateValue);
-  const timeParts = extractTimeParts(timeValue);
+  const timeParts = extractTimeParts(timeValue, timeZone);
   if (!dateString || !timeParts) {
     return null;
   }
@@ -147,7 +156,7 @@ export function combineDateAndTime(dateValue, timeValue, timeZone = DEFAULT_TIME
 
 export function combineShiftDateAndTime(dateValue, timeValue, timeZone = DEFAULT_TIME_ZONE) {
   const dateString = formatDateInput(dateValue);
-  const timeParts = extractTimeParts(timeValue);
+  const timeParts = extractTimeParts(timeValue, timeZone);
   if (!dateString || !timeParts) {
     return null;
   }
