@@ -568,7 +568,7 @@ export default function FloatingActivityTimer({ session }) {
           <button 
             type="button" 
             onClick={() => setHistoryOpen(!historyOpen)}
-            className="rounded p-0.5 hover:bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] transition-colors"
+            className="border-none border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none rounded p-0.5 hover:bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] transition-colors bg-transparent"
           >
             {historyOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>

@@ -5,6 +5,7 @@ import {
   getAuthContext,
 } from "@/lib/api";
 import { withManualLogStatus } from "@/lib/manualLogMutations";
+import { makeZonedDateTime } from "@/lib/manualLogDateTime";
 
 export async function GET(request) {
   const context = await getAuthContext();
@@ -47,15 +48,16 @@ export async function GET(request) {
 
   if (startDate || endDate) {
     where.date = {};
+    const tz = context.timezone || "Asia/Karachi";
     if (startDate) {
-      const parsedStart = new Date(startDate);
-      if (!Number.isNaN(parsedStart.getTime())) {
+      const parsedStart = makeZonedDateTime({ dateKey: startDate, timeStr: "00:00", tz });
+      if (parsedStart) {
         where.date.gte = parsedStart;
       }
     }
     if (endDate) {
-      const parsedEnd = new Date(endDate);
-      if (!Number.isNaN(parsedEnd.getTime())) {
+      const parsedEnd = makeZonedDateTime({ dateKey: endDate, timeStr: "23:59", tz });
+      if (parsedEnd) {
         where.date.lte = parsedEnd;
       }
     }
