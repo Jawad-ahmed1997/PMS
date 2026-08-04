@@ -40,20 +40,22 @@ export async function POST(request) {
   const startTime = body?.startTime;
   const endTime = body?.endTime;
 
+  const userTimeZone = context.timezone;
+
   if (!description) {
     return buildError("Description is required.", 400);
   }
 
-  const date = buildManualLogDate(dateInput);
+  const date = buildManualLogDate(dateInput, userTimeZone);
   if (!date) {
     return buildError("Date must be valid.", 400);
   }
 
-  if (isManualLogInFuture({ date: dateInput, startTime, endTime })) {
+  if (isManualLogInFuture({ date: dateInput, startTime, endTime }, new Date(), userTimeZone)) {
     return buildError("Manual logs cannot be in the future.", 400);
   }
 
-  if (!isManualLogDateAllowed(dateInput)) {
+  if (!isManualLogDateAllowed(dateInput, new Date(), userTimeZone)) {
     return buildError(
       "Manual logs can only be added/edited for today or last 2 days.",
       403
@@ -71,7 +73,7 @@ export async function POST(request) {
   }
 
   const { startAt, endAt, durationSeconds, error: timeError } =
-    buildManualLogTimes({ date: dateInput, startTime, endTime });
+    buildManualLogTimes({ date: dateInput, startTime, endTime, timeZone: userTimeZone });
   if (timeError) {
     return buildError(timeError, 400);
   }

@@ -60,10 +60,11 @@ export async function PATCH(request, { params }) {
   }
 
   const body = await request.json();
+  const userTimeZone = context.timezone;
   const updates = {};
   const targetDateInput = log.date;
   const existingStartTime = log.startAt
-    ? formatManualLogTime(log.startAt)
+    ? formatManualLogTime(log.startAt, userTimeZone)
     : null;
 
   if (body?.description) {
@@ -71,8 +72,8 @@ export async function PATCH(request, { params }) {
   }
 
   if (body?.date) {
-    const existingDateKey = toDateKeyInTZ(log.date, MANUAL_LOG_TIME_ZONE);
-    const newDateKey = toDateKeyInTZ(body.date, MANUAL_LOG_TIME_ZONE);
+    const existingDateKey = toDateKeyInTZ(log.date, userTimeZone);
+    const newDateKey = toDateKeyInTZ(body.date, userTimeZone);
     if (existingDateKey !== newDateKey) {
       return buildError("Date cannot be changed for manual activity logs.", 400);
     }
@@ -93,12 +94,12 @@ export async function PATCH(request, { params }) {
       date: targetDateInput,
       startTime: existingStartTime,
       endTime: body.endTime,
-    })
+    }, new Date(), userTimeZone)
   ) {
     return buildError("Manual logs cannot be in the future.", 400);
   }
 
-  if (!isManualLogDateAllowed(log.date)) {
+  if (!isManualLogDateAllowed(log.date, new Date(), userTimeZone)) {
     return buildError(
       "Manual logs can only be added/edited for today or last 2 days.",
       403
@@ -127,6 +128,7 @@ export async function PATCH(request, { params }) {
         date: targetDateInput,
         startTime: existingStartTime,
         endTime: body.endTime,
+        timeZone: userTimeZone,
       });
     if (timeError) {
       return buildError(timeError, 400);

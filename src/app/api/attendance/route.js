@@ -20,17 +20,17 @@ function isLeader(role) {
   return PROJECT_MANAGEMENT_ROLES.includes(role);
 }
 
-function normalizeDateOnly(value) {
-  const dateKey = toDateKey(value);
+function normalizeDateOnly(value, timeZone = APP_DATE_TIME_ZONE) {
+  const dateKey = toDateKey(value, timeZone);
   if (!dateKey) {
     return null;
   }
   return dateKeyToUtcDate(dateKey);
 }
 
-function normalizeDateRange(from, to) {
-  const start = normalizeDateOnly(from);
-  const end = normalizeDateOnly(to);
+function normalizeDateRange(from, to, timeZone = APP_DATE_TIME_ZONE) {
+  const start = normalizeDateOnly(from, timeZone);
+  const end = normalizeDateOnly(to, timeZone);
   if (!start && !end) {
     return null;
   }
@@ -46,8 +46,8 @@ function normalizeDateRange(from, to) {
   return range;
 }
 
-function getEditWindow() {
-  const today = toDateKey(new Date());
+function getEditWindow(timeZone = APP_DATE_TIME_ZONE) {
+  const today = toDateKey(new Date(), timeZone);
   if (!today) {
     return null;
   }
@@ -58,15 +58,15 @@ function getEditWindow() {
   return { earliest, today };
 }
 
-function isDateEditable(date) {
-  const window = getEditWindow();
+function isDateEditable(date, timeZone = APP_DATE_TIME_ZONE) {
+  const window = getEditWindow(timeZone);
   let targetKey;
   if (date instanceof Date) {
     targetKey = date.toISOString().slice(0, 10);
   } else if (typeof date === "string") {
     targetKey = date.slice(0, 10);
   } else {
-    targetKey = toDateKey(date);
+    targetKey = toDateKey(date, timeZone);
   }
   if (!window || !targetKey) {
     return false;
@@ -131,7 +131,8 @@ export async function GET(request) {
     where.userId = context.user.id;
   }
 
-  const range = normalizeDateRange(from, to);
+  const userTimeZone = context.timezone;
+  const range = normalizeDateRange(from, to, userTimeZone);
   if (range) {
     where.date = range;
   }
@@ -177,7 +178,8 @@ export async function POST(request) {
   }
 
   const body = await request.json();
-  const date = normalizeDateOnly(body?.date);
+  const userTimeZone = context.timezone;
+  const date = normalizeDateOnly(body?.date, userTimeZone);
   if (!date) {
     return buildError("Date is required.", 400);
   }
@@ -189,6 +191,7 @@ export async function POST(request) {
     shiftDate: date,
     inTime: body?.inTime,
     outTime: body?.outTime,
+    timeZone: userTimeZone,
   });
   const inTime = inAt ?? (body?.inTime ? parseDateTime(body?.inTime) : null);
   const outTime = outAt ?? (body?.outTime ? parseDateTime(body?.outTime) : null);
@@ -205,7 +208,7 @@ export async function POST(request) {
     return buildError("Out time must be valid.", 400);
   }
 
-  const now = getTimeZoneNow();
+  const now = getTimeZoneNow(userTimeZone);
   if (inTime && inTime > now) {
     return buildError("In time cannot be in the future.", 422);
   }

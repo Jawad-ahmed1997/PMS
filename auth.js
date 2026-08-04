@@ -67,19 +67,20 @@ export const nodeAuthConfig = {
     async jwt({ token, user }) {
       if (user) token.sub = user.id;
       if (!token.sub) return token;
-      const current = await prisma.user.findUnique({ where: { id: token.sub }, select: { id: true, name: true, email: true, role: true, image: true, isActive: true, status: true, sessionVersion: true } });
+      const current = await prisma.user.findUnique({ where: { id: token.sub }, select: { id: true, name: true, email: true, role: true, image: true, isActive: true, status: true, sessionVersion: true, timezone: true } });
       if (!current || !current.isActive || current.status === "DISABLED") return { ...token, invalidated: true };
       if (token.sessionVersion !== undefined && token.sessionVersion !== current.sessionVersion) return { ...token, invalidated: true };
       token.name = current.name;
       token.email = current.email;
       token.picture = current.image;
       token.role = current.role;
+      token.timezone = current.timezone;
       token.sessionVersion = current.sessionVersion;
       return token;
     },
     async session({ session, token }) {
       if (token.invalidated || !token.sub) return { ...session, user: undefined, expires: new Date(0).toISOString() };
-      session.user = { id: token.sub, name: token.name, email: token.email, image: token.picture, role: token.role };
+      session.user = { id: token.sub, name: token.name, email: token.email, image: token.picture, role: token.role, timezone: token.timezone };
       return session;
     },
   },

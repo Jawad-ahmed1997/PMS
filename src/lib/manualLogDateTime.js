@@ -189,6 +189,23 @@ export function formatTimeInTZ(value, tz = MANUAL_LOG_TIME_ZONE) {
   if (Number.isNaN(date.getTime())) {
     return null;
   }
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const formatted = formatter.format(date);
+    const match = formatted.match(/(\d{2}):(\d{2})/);
+    if (match) {
+      let hour = match[1];
+      if (hour === "24") hour = "00";
+      return `${hour}:${match[2]}`;
+    }
+  } catch (e) {
+    console.error("formatTimeInTZ error:", e);
+  }
   const parts = getTimeZoneParts(date, tz);
   if (!parts?.hour || !parts?.minute) {
     return null;

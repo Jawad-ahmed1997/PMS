@@ -16,7 +16,7 @@ export default async function ActivityPage() {
   if (hasDatabase && session?.email) {
     currentUser = await prisma.user.findUnique({
       where: { email: session.email },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, timezone: true },
     });
 
     if (currentUser) {

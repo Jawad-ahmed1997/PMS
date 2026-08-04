@@ -39,7 +39,7 @@ export function parseTimeString(value) {
   return { hours, minutes, seconds, milliseconds: 0 };
 }
 
-function extractTimeParts(value) {
+function extractTimeParts(value, timeZone = DEFAULT_TIME_ZONE) {
   if (!value) {
     return null;
   }
@@ -51,11 +51,20 @@ function extractTimeParts(value) {
   if (Number.isNaN(date.getTime())) {
     return null;
   }
+  const parts = getTimeZoneParts(date, timeZone);
+  if (!parts) {
+    return {
+      hours: date.getHours(),
+      minutes: date.getMinutes(),
+      seconds: date.getSeconds(),
+      milliseconds: date.getMilliseconds(),
+    };
+  }
   return {
-    hours: date.getHours(),
-    minutes: date.getMinutes(),
-    seconds: date.getSeconds(),
-    milliseconds: date.getMilliseconds(),
+    hours: Number(parts.hour),
+    minutes: Number(parts.minute),
+    seconds: Number(parts.second),
+    milliseconds: 0,
   };
 }
 
@@ -135,19 +144,19 @@ function getTimeZoneOffset(date, timeZone) {
   return asUtc - date.getTime();
 }
 
-export function combineDateAndTime(dateValue, timeValue) {
+export function combineDateAndTime(dateValue, timeValue, timeZone = DEFAULT_TIME_ZONE) {
   const dateString = formatDateInput(dateValue);
-  const timeParts = extractTimeParts(timeValue);
+  const timeParts = extractTimeParts(timeValue, timeZone);
   if (!dateString || !timeParts) {
     return null;
   }
   const timeString = `${timeParts.hours.toString().padStart(2, "0")}:${timeParts.minutes.toString().padStart(2, "0")}:${timeParts.seconds.toString().padStart(2, "0")}`;
-  return zonedTimeToUtc({ date: dateString, time: timeString });
+  return zonedTimeToUtc({ date: dateString, time: timeString, timeZone });
 }
 
-export function combineShiftDateAndTime(dateValue, timeValue) {
+export function combineShiftDateAndTime(dateValue, timeValue, timeZone = DEFAULT_TIME_ZONE) {
   const dateString = formatDateInput(dateValue);
-  const timeParts = extractTimeParts(timeValue);
+  const timeParts = extractTimeParts(timeValue, timeZone);
   if (!dateString || !timeParts) {
     return null;
   }
@@ -157,16 +166,16 @@ export function combineShiftDateAndTime(dateValue, timeValue) {
     dayOffset = 1;
   }
   const timeString = `${hours.toString().padStart(2, "0")}:${timeParts.minutes.toString().padStart(2, "0")}:${timeParts.seconds.toString().padStart(2, "0")}`;
-  const base = zonedTimeToUtc({ date: dateString, time: timeString });
+  const base = zonedTimeToUtc({ date: dateString, time: timeString, timeZone });
   if (base && dayOffset > 0) {
     base.setDate(base.getDate() + dayOffset);
   }
   return base;
 }
 
-export function normalizeAttendanceTimes({ shiftDate, inTime, outTime }) {
-  const inAt = inTime ? combineDateAndTime(shiftDate, inTime) : null;
-  let outAt = outTime ? combineDateAndTime(shiftDate, outTime) : null;
+export function normalizeAttendanceTimes({ shiftDate, inTime, outTime, timeZone = DEFAULT_TIME_ZONE }) {
+  const inAt = inTime ? combineDateAndTime(shiftDate, inTime, timeZone) : null;
+  let outAt = outTime ? combineDateAndTime(shiftDate, outTime, timeZone) : null;
   if (inAt && outAt && outAt <= inAt) {
     outAt = new Date(outAt);
     outAt.setDate(outAt.getDate() + 1);
@@ -174,9 +183,9 @@ export function normalizeAttendanceTimes({ shiftDate, inTime, outTime }) {
   return { inAt, outAt };
 }
 
-export function normalizeWfhInterval({ shiftDate, startTime, endTime }) {
-  const startAt = startTime ? combineDateAndTime(shiftDate, startTime) : null;
-  let endAt = endTime ? combineDateAndTime(shiftDate, endTime) : null;
+export function normalizeWfhInterval({ shiftDate, startTime, endTime, timeZone = DEFAULT_TIME_ZONE }) {
+  const startAt = startTime ? combineDateAndTime(shiftDate, startTime, timeZone) : null;
+  let endAt = endTime ? combineDateAndTime(shiftDate, endTime, timeZone) : null;
   if (startAt && endAt && endAt <= startAt) {
     endAt = new Date(endAt);
     endAt.setDate(endAt.getDate() + 1);
@@ -194,7 +203,18 @@ export function formatDateInTimeZone(value, timeZone = DEFAULT_TIME_ZONE) {
   if (Number.isNaN(date.getTime())) {
     return null;
   }
-  return formatDateParts(getTimeZoneParts(date, timeZone));
+  try {
+    const formatter = new Intl.DateTimeFormat("fr-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    return formatter.format(date);
+  } catch (e) {
+    console.error("formatDateInTimeZone error:", e);
+    return formatDateParts(getTimeZoneParts(date, timeZone));
+  }
 }
 
 export function formatTimeInTimeZone(value, timeZone = DEFAULT_TIME_ZONE) {
@@ -204,6 +224,23 @@ export function formatTimeInTimeZone(value, timeZone = DEFAULT_TIME_ZONE) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;
+  }
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const formatted = formatter.format(date);
+    const match = formatted.match(/(\d{2}):(\d{2})/);
+    if (match) {
+      let hour = match[1];
+      if (hour === "24") hour = "00";
+      return `${hour}:${match[2]}`;
+    }
+  } catch (e) {
+    console.error("formatTimeInTimeZone error:", e);
   }
   const parts = getTimeZoneParts(date, timeZone);
   if (!parts) {
@@ -219,6 +256,16 @@ export function formatDateTimeInTimeZone(value, timeZone = DEFAULT_TIME_ZONE) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;
+  }
+  try {
+    const dStr = formatDateInTimeZone(date, timeZone);
+    const tStr = formatTimeInTimeZone(date, timeZone);
+    if (dStr && tStr) {
+      const seconds = String(date.getSeconds()).padStart(2, "0");
+      return `${dStr} ${tStr}:${seconds}`;
+    }
+  } catch (e) {
+    console.error("formatDateTimeInTimeZone error:", e);
   }
   const parts = getTimeZoneParts(date, timeZone);
   if (!parts) {

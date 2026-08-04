@@ -43,6 +43,7 @@ export async function GET(request, { params }) {
       email: true,
       role: true,
       isActive: true,
+      timezone: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -75,6 +76,10 @@ export async function PATCH(request, { params }) {
   const name = body?.name?.trim();
   const password = body?.password;
   const updates = {};
+
+  if (body?.timezone) {
+    updates.timezone = body.timezone.trim();
+  }
 
   if (name) {
     updates.name = name;
@@ -116,6 +121,7 @@ export async function PATCH(request, { params }) {
         email: true,
         role: true,
         isActive: true,
+        timezone: true,
         createdAt: true,
         updatedAt: true,
       },

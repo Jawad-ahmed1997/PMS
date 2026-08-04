@@ -117,6 +117,7 @@ model User {
   isActive         Boolean       @default(false)
   inviteToken          String?
   inviteTokenExpiresAt DateTime?
+  timezone         String        @default("Asia/Karachi")
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   createdProjects  Project[]     @relation("ProjectCreator")

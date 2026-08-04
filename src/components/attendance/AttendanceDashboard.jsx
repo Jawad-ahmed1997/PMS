@@ -116,38 +116,85 @@ function DateRangeFilter({ from, to, onChange }) {
   );
 }
 
-function formatDisplayDate(value) {
+function formatDisplayDate(value, timeZone = "Asia/Karachi") {
+  if (!value) {
+    return "-";
+  }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+  try {
+    const formatter = new Intl.DateTimeFormat("fr-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const formatted = formatter.format(date); // YYYY-MM-DD
+    const parts = formatted.split("-");
+    return `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
+  } catch (e) {
+    console.error(e);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
 }
 
-function formatDisplayTime(value) {
+function formatDisplayTime(value, timeZone = "Asia/Karachi") {
+  if (!value) {
+    return "-";
+  }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
-  let hours = date.getHours();
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const ampm = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  const hoursStr = String(hours).padStart(2, "0");
-  return `${hoursStr}:${minutes} ${ampm}`;
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return formatter.format(date); // e.g. "03:15 PM"
+  } catch (e) {
+    console.error(e);
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const hoursStr = String(hours).padStart(2, "0");
+    return `${hoursStr}:${minutes} ${ampm}`;
+  }
 }
 
-function formatTimeInput(value) {
+function formatTimeInput(value, timeZone = "Asia/Karachi") {
   if (!value) {
     return "";
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "";
+  }
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const formatted = formatter.format(date);
+    const match = formatted.match(/(\d{2}):(\d{2})/);
+    if (match) {
+      let hour = match[1];
+      if (hour === "24") hour = "00";
+      return `${hour}:${match[2]}`;
+    }
+  } catch (e) {
+    console.error(e);
   }
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
@@ -468,6 +515,81 @@ export default function AttendanceDashboard({
   initialRange,
 }) {
   const { addToast } = useToast();
+  const userTimeZone = currentUser?.timezone || "Asia/Karachi";
+
+  const formatDisplayDate = (value) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    try {
+      const formatter = new Intl.DateTimeFormat("fr-CA", {
+        timeZone: userTimeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const formatted = formatter.format(date);
+      const parts = formatted.split("-");
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    } catch (e) {
+      console.error(e);
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  };
+
+  const formatDisplayTime = (value) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    try {
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: userTimeZone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+      return formatter.format(date);
+    } catch (e) {
+      console.error(e);
+      let hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const ampm = hours >= 12 ? "PM" : "AM";
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const hoursStr = String(hours).padStart(2, "0");
+      return `${hoursStr}:${minutes} ${ampm}`;
+    }
+  };
+
+  const formatTimeInput = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    try {
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: userTimeZone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const formatted = formatter.format(date);
+      const match = formatted.match(/(\d{2}):(\d{2})/);
+      if (match) {
+        let hour = match[1];
+        if (hour === "24") hour = "00";
+        return `${hour}:${match[2]}`;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
   const [attendance, setAttendance] = useState(initialAttendance ?? []);
   const [presenceNow, setPresenceNow] = useState(initialPresenceNow ?? null);
   const [status, setStatus] = useState({ loading: false, error: null });
