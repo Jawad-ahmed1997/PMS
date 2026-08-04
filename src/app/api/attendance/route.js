@@ -5,7 +5,7 @@ import {
 } from "@/lib/dutyHours";
 export const dynamic = "force-dynamic";
 import { getTimeZoneNow, normalizeAttendanceTimes } from "@/lib/attendanceTimes";
-import { dateKeyToUtcDate, isDateKeyInRange, shiftDateKey, toDateKey } from "@/lib/dateKeys";
+import { APP_DATE_TIME_ZONE, dateKeyToUtcDate, isDateKeyInRange, shiftDateKey, toDateKey } from "@/lib/dateKeys";
 import { normalizeAutoOffForAttendances } from "@/lib/attendanceAutoOff";
 import { endActiveSessionsAtTime } from "@/lib/taskWorkSessions";
 import {
