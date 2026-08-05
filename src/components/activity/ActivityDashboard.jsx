@@ -791,7 +791,10 @@ export default function ActivityDashboard({
                 : 0;
               const manualStatus = getManualStatus(log);
               const isRunningManual = isManualLog && manualStatus === "RUNNING";
-              const runningDurationLabel = isRunningManual
+              const isRunningTask = !isManualLog && log.startAt !== undefined && log.startAt !== null && log.endAt === null;
+              const isPausedTask = isRunningTask && log.isPaused;
+              const isRunning = isRunningManual || (isRunningTask && !isPausedTask);
+              const runningDurationLabel = (isRunningManual || isRunningTask)
                 ? getRunningDurationLabel(log.startAt)
                 : null;
               return (
@@ -842,9 +845,14 @@ export default function ActivityDashboard({
                       <span className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
                         {badgeLabel}
                       </span>
-                      {isRunningManual ? (
+                      {isRunning ? (
                         <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
                           Running
+                        </span>
+                      ) : null}
+                      {isPausedTask ? (
+                        <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+                          On Break
                         </span>
                       ) : null}
                       <ActivityActionMenu
@@ -897,9 +905,9 @@ export default function ActivityDashboard({
                       {formatTimeOnly(log.endAt, userTimeZone)}
                     </p>
                   ) : null}
-                  {isRunningManual && log.startAt ? (
+                  {(isRunningManual || isRunningTask) && log.startAt ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                      Time: {formatTimeOnly(log.startAt, userTimeZone)} • Running
+                      Time: {formatTimeOnly(log.startAt, userTimeZone)} • {isPausedTask ? "Paused" : "Running"}
                       {runningDurationLabel ? ` • ${runningDurationLabel}` : ""}
                     </p>
                   ) : null}

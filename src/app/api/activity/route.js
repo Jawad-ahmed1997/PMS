@@ -79,8 +79,78 @@ export async function GET(request) {
     },
   });
 
+  let virtualTaskLogs = [];
+  const isFilteringOtherCategory = category && category.toString().trim().toUpperCase() !== "TASK";
+
+  if (!isFilteringOtherCategory) {
+    const taskSessionWhere = {
+      endedAt: null,
+      ...(where.userId ? { userId: where.userId } : {}),
+      ...(where.taskId ? { taskId: where.taskId } : {}),
+    };
+    if (where.date) {
+      taskSessionWhere.startedAt = {};
+      if (where.date.gte) {
+        taskSessionWhere.startedAt.gte = where.date.gte;
+      }
+      if (where.date.lte) {
+        taskSessionWhere.startedAt.lte = where.date.lte;
+      }
+    }
+
+    const activeTaskSessions = await prisma.taskWorkSession.findMany({
+      where: taskSessionWhere,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        task: { select: { id: true, title: true, ownerId: true } },
+      },
+    });
+
+    const activeTaskBreaks = await prisma.taskBreak.findMany({
+      where: {
+        endedAt: null,
+        ...(where.userId ? { userId: where.userId } : {}),
+        ...(where.taskId ? { taskId: where.taskId } : {}),
+      },
+      select: { taskId: true, userId: true },
+    });
+
+    const pausedTaskSet = new Set(
+      activeTaskBreaks.map((b) => `${b.userId}-${b.taskId}`)
+    );
+
+    virtualTaskLogs = activeTaskSessions.map((session) => {
+      const isPaused = pausedTaskSet.has(`${session.userId}-${session.taskId}`);
+      return {
+        id: `running-task-${session.id}`,
+        type: "TASK",
+        userId: session.userId,
+        taskId: session.taskId,
+        description: `Working on task: ${session.task.title}`,
+        date: session.startedAt,
+        startAt: session.startedAt,
+        endAt: null,
+        isPaused,
+        user: session.user,
+        task: session.task,
+        isVirtual: true,
+      };
+    });
+  }
+
+  const mappedLogs = activityLogs.map((log) => (log.taskId ? log : withManualLogStatus(log)));
+  const combinedLogs = [...virtualTaskLogs, ...mappedLogs];
+  combinedLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   return buildSuccess("Activity logs loaded.", {
-    activityLogs: activityLogs.map((log) => (log.taskId ? log : withManualLogStatus(log))),
+    activityLogs: combinedLogs,
   });
 }
 
