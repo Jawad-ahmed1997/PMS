@@ -154,6 +154,7 @@ export default function DailyTimelineChart({
   userId,
   showNames,
   title = "Daily timeline",
+  refreshTrigger,
 }) {
   const [state, setState] = useState({
     status: "idle",
@@ -195,7 +196,7 @@ export default function DailyTimelineChart({
     };
     load();
     return () => controller.abort();
-  }, [date, userId]);
+  }, [date, userId, refreshTrigger]);
 
   const payload = state.payload;
   const rows = useMemo(() => payload?.rows ?? [], [payload]);

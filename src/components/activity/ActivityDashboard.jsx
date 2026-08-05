@@ -258,6 +258,7 @@ export default function ActivityDashboard({
   const [logDialog, setLogDialog] = useState({ open: false, mode: "create" });
   const [activeLog, setActiveLog] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const categoryMenuRef = useRef(null);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState("");
@@ -615,7 +616,10 @@ export default function ActivityDashboard({
         subtitle="Track daily logs, task auto-activity, and leadership feedback."
         actions={
           <div className="flex items-center gap-2">
-            <RefreshButton onClick={() => refetchLogs()} ariaLabel="Refresh activity logs" />
+            <RefreshButton onClick={() => {
+              refetchLogs();
+              setRefreshTrigger((prev) => prev + 1);
+            }} ariaLabel="Refresh activity logs" />
             <Button
               label="Manual Log Activity"
               variant="default"
@@ -755,6 +759,7 @@ export default function ActivityDashboard({
               period={period}
               date={selectedDate}
               userId={selectedUser?.id ?? null}
+              refreshTrigger={refreshTrigger}
             />
             {period === "daily" ? (
               <DailyTimelineChart
@@ -762,6 +767,7 @@ export default function ActivityDashboard({
                 userId={selectedUser?.id ?? null}
                 showNames={isManager}
                 title="Daily working timeline"
+                refreshTrigger={refreshTrigger}
               />
             ) : null}
           </ClientOnly>

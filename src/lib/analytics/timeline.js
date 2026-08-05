@@ -503,7 +503,7 @@ export async function getUserDailyTimeline(prismaClient, userId, date, now = new
     .flatMap((attendance) => attendance.breaks ?? [])
     .map((brk) => {
       const start = normalizeDate(brk.startAt);
-      const end = normalizeDate(brk.endAt);
+      const end = normalizeDate(brk.endAt) ?? now;
       if (!start || !end || end <= start) {
         return null;
       }

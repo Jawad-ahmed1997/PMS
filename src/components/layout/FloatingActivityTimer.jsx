@@ -49,6 +49,34 @@ function formatHHMMSS(totalSeconds = 0) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
+function getDateStrInTZ(date, timeZone) {
+  try {
+    return new Intl.DateTimeFormat("fr-CA", { timeZone }).format(date);
+  } catch (e) {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
+function getTimeStrInTZ(date, timeZone) {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const formatted = formatter.format(date);
+    const match = formatted.match(/(\d{2}):(\d{2})/);
+    if (match) {
+      let hour = match[1];
+      if (hour === "24") hour = "00";
+      return `${hour}:${match[2]}`;
+    }
+  } catch (e) {}
+  const pad = (v) => String(v).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export default function FloatingActivityTimer({ session }) {
   const { addToast } = useToast();
   const userTimeZone = session?.user?.timezone || "Asia/Karachi";
@@ -186,158 +214,8 @@ export default function FloatingActivityTimer({ session }) {
     event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
-  // Sync log summary for the day
   const fetchTodayData = useCallback(async () => {
     if (!session) return;
-
-    const autoSaveAutoOffTimer = async (dutyEndMs, currentState) => {
-      try {
-        const endDate = new Date(dutyEndMs);
-        let finalWorkSeconds = currentState.accumulatedSeconds;
-        let finalBreaks = [...(currentState.breaks || [])];
-
-        // If actively working when auto-off occurred
-        if (!currentState.paused && currentState.startTime) {
-          finalWorkSeconds += Math.max(0, Math.floor((dutyEndMs - currentState.startTime) / 1000));
-        }
-
-        // If on break when auto-off occurred
-        if (currentState.paused && currentState.currentBreak) {
-          const breakStart = currentState.currentBreak.startAt;
-          if (breakStart < dutyEndMs) {
-            const breakDurationSeconds = Math.max(0, Math.floor((dutyEndMs - breakStart) / 1000));
-            if (breakDurationSeconds >= 30) {
-              finalBreaks.push({
-                type: currentState.currentBreak.type,
-                notes: currentState.currentBreak.notes,
-                startAt: breakStart,
-                endAt: dutyEndMs,
-                durationSeconds: breakDurationSeconds
-              });
-            }
-          }
-        }
-
-        // Clear the running timer state immediately to prevent infinite loop
-        const clearedState = {
-          running: false,
-          paused: false,
-          startTime: null,
-          accumulatedSeconds: 0,
-          description: "",
-          currentBreak: null,
-          breaks: []
-        };
-        saveState(clearedState);
-        setActiveSeconds(0);
-        setBreakSeconds(0);
-
-        if (finalWorkSeconds >= 30) {
-          const totalBreakTimeSeconds = finalBreaks.reduce((acc, b) => acc + b.durationSeconds, 0);
-          const totalElapsedSeconds = finalWorkSeconds + totalBreakTimeSeconds;
-          const startDate = new Date(dutyEndMs - (totalElapsedSeconds * 1000));
-
-          const getDateStrInTZ = (date) => {
-            try {
-              return new Intl.DateTimeFormat("fr-CA", { timeZone: userTimeZone }).format(date);
-            } catch (e) {
-              return date.toISOString().slice(0, 10);
-            }
-          };
-
-          const getTimeStrInTZ = (date) => {
-            try {
-              const formatter = new Intl.DateTimeFormat("en-US", {
-                timeZone: userTimeZone,
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              });
-              const formatted = formatter.format(date);
-              const match = formatted.match(/(\d{2}):(\d{2})/);
-              if (match) {
-                let hour = match[1];
-                if (hour === "24") hour = "00";
-                return `${hour}:${match[2]}`;
-              }
-            } catch (e) {}
-            const pad = (v) => String(v).padStart(2, "0");
-            return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-          };
-
-          const startTimeStr = getTimeStrInTZ(startDate);
-          const endTimeStr = getTimeStrInTZ(endDate);
-          const logDateStr = getDateStrInTZ(startDate);
-
-          const res = await fetch("/api/activity/manual", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              description: currentState.description.trim() || "Forgot to stop activity timer",
-              categories: ["OTHER"],
-              startTime: startTimeStr,
-              endTime: endTimeStr,
-              date: logDateStr,
-            }),
-          });
-
-          const data = await res.json();
-          if (!res.ok) {
-            throw new Error(data.error || "Failed to auto-save activity log.");
-          }
-
-          // Post breaks if attendance record exists for that date
-          if (finalBreaks.length > 0) {
-            const attRes = await fetch(`/api/attendance?from=${logDateStr}&to=${logDateStr}`, { cache: "no-store" });
-            if (attRes.ok) {
-              const attData = await attRes.json();
-              const records = attData?.attendance || [];
-              if (records.length > 0) {
-                const targetAttendanceId = records[0].id;
-                for (const brk of finalBreaks) {
-                  const brkStart = new Date(brk.startAt);
-                  const brkEnd = new Date(brk.endAt);
-                  const minutes = Math.max(1, Math.round(brk.durationSeconds / 60));
-
-                  await fetch(`/api/attendance/${targetAttendanceId}/breaks`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      types: [brk.type],
-                      type: brk.type === "OTHER" && brk.notes ? `OTHER: ${brk.notes}` : brk.type,
-                      startTime: getTimeStrInTZ(brkStart),
-                      endTime: getTimeStrInTZ(brkEnd),
-                      notes: currentState.description.trim() || "Forgot to stop break timer",
-                      durationMinutes: minutes
-                    }),
-                  });
-                }
-              }
-            }
-          }
-
-          addToast({
-            title: "Timer Auto-Saved",
-            message: "Your running activity timer has been automatically saved up to your check-out time.",
-            variant: "success",
-          });
-        } else {
-          addToast({
-            title: "Timer Cleared",
-            message: "Your running activity timer was cleared as it did not have sufficient work time before check-out.",
-            variant: "warning",
-          });
-        }
-
-        // Trigger a fresh reload of logs on the next tick
-        setTimeout(() => {
-          fetchTodayData();
-        }, 100);
-
-      } catch (err) {
-        console.error("Error auto-saving auto-off timer:", err);
-      }
-    };
 
     try {
       const todayDateStr = getTodayDateStr();
@@ -376,17 +254,119 @@ export default function FloatingActivityTimer({ session }) {
       // Auto-off check
       const currentState = timerStateRef.current;
       if (currentStatus?.autoOff && currentState?.running) {
-        const dutyEndMs = currentStatus.dutyEndAt ? new Date(currentStatus.dutyEndAt).getTime() : null;
-        if (dutyEndMs && currentState.startTime && currentState.startTime < dutyEndMs) {
-          await autoSaveAutoOffTimer(dutyEndMs, currentState);
-        }
+        // Clear local running timer state immediately
+        const clearedState = {
+          running: false,
+          paused: false,
+          startTime: null,
+          accumulatedSeconds: 0,
+          description: "",
+          currentBreak: null,
+          breaks: []
+        };
+        saveState(clearedState);
+        setActiveSeconds(0);
+        setBreakSeconds(0);
+
+        addToast({
+          title: "Timer Auto-Saved",
+          message: "Your running activity timer was automatically stopped by auto-checkout.",
+          variant: "info",
+        });
+
+        // Trigger a fresh reload of logs on the next tick
+        setTimeout(() => {
+          fetchTodayData();
+        }, 100);
       }
     } catch (e) {
       console.error("Error fetching today summary data", e);
     } finally {
       setStatusLoaded(true);
     }
-  }, [session, getTodayDateStr, userTimeZone, addToast, saveState]);
+  }, [session, getTodayDateStr, addToast, saveState]);
+
+  const [isSynced, setIsSynced] = useState(false);
+
+  // Synchronize timer state with the database on mount/duty loaded
+  useEffect(() => {
+    const syncWithServer = async () => {
+      try {
+        const res = await fetch("/api/activity/manual/running");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.runningLog) {
+            const runningLog = data.runningLog;
+            const startAtMs = new Date(runningLog.startAt).getTime();
+            
+            // Check if there's also a running break
+            const breakRes = await fetch("/api/attendance/breaks/running");
+            let runningBreak = null;
+            if (breakRes.ok) {
+              const breakData = await breakRes.json();
+              runningBreak = breakData.runningBreak;
+            }
+
+            const activeBreakObj = runningBreak ? {
+              type: runningBreak.types?.[0] || "OTHER",
+              notes: runningBreak.notes || "",
+              startAt: new Date(runningBreak.startAt).getTime(),
+              dbBreakId: runningBreak.id
+            } : null;
+
+            let accumulatedSeconds = 0;
+            if (runningBreak) {
+              accumulatedSeconds = Math.max(0, Math.floor((new Date(runningBreak.startAt).getTime() - startAtMs) / 1000));
+            }
+
+            const state = {
+              running: true,
+              paused: Boolean(runningBreak),
+              startTime: runningBreak ? null : startAtMs,
+              accumulatedSeconds,
+              description: runningLog.description || "Active manual activity",
+              currentBreak: activeBreakObj,
+              breaks: [],
+              dbLogId: runningLog.id
+            };
+            saveState(state);
+          } else {
+            // No running log on server. If frontend thinks it is running, clear it!
+            if (timerStateRef.current?.running) {
+              const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [] };
+              saveState(state);
+              setActiveSeconds(0);
+              setBreakSeconds(0);
+              addToast({
+                title: "Timer Stopped",
+                message: "Your manual activity timer was stopped or auto-saved.",
+                variant: "info",
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to sync timer with server:", e);
+      } finally {
+        setIsSynced(true);
+      }
+    };
+
+    if (session && statusLoaded && !isSynced) {
+      if (onDuty) {
+        syncWithServer();
+      } else {
+        // If not on duty, timer shouldn't be running
+        if (timerStateRef.current?.running) {
+          const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [] };
+          saveState(state);
+          setActiveSeconds(0);
+          setBreakSeconds(0);
+        }
+        setIsSynced(true);
+      }
+    }
+  }, [session, statusLoaded, onDuty, isSynced, saveState, addToast]);
 
   // Load and tick timer
   useEffect(() => {
@@ -482,25 +462,55 @@ export default function FloatingActivityTimer({ session }) {
     setShowStartModal(true);
   };
 
-  const handleConfirmStart = (e) => {
+  const handleConfirmStart = async (e) => {
     e.preventDefault();
     if (!startForm.description.trim()) {
       addToast({ title: "Input Required", message: "Please provide a description of the activity.", variant: "error" });
       return;
     }
 
-    const state = {
-      running: true,
-      paused: false,
-      startTime: Date.now(),
-      accumulatedSeconds: 0,
-      description: startForm.description.trim(),
-      currentBreak: null,
-      breaks: []
-    };
-    saveState(state);
-    setShowStartModal(false);
-    addToast({ title: "Activity Started", message: "Manual activity timer is running.", variant: "success" });
+    try {
+      const now = new Date();
+      const startTimeStr = getTimeStrInTZ(now, userTimeZone);
+      const dateStr = getDateStrInTZ(now, userTimeZone);
+
+      const res = await fetch("/api/activity/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: startForm.description.trim(),
+          categories: ["OTHER"],
+          startTime: startTimeStr,
+          date: dateStr,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to start activity on server.");
+      }
+
+      const state = {
+        running: true,
+        paused: false,
+        startTime: now.getTime(),
+        accumulatedSeconds: 0,
+        description: startForm.description.trim(),
+        currentBreak: null,
+        breaks: [],
+        dbLogId: data.activityLog.id
+      };
+      saveState(state);
+      setShowStartModal(false);
+      addToast({ title: "Activity Started", message: "Manual activity timer is running.", variant: "success" });
+      fetchTodayData();
+    } catch (err) {
+      addToast({
+        title: "Start Failed",
+        message: err instanceof Error ? err.message : "Unable to start activity timer.",
+        variant: "error",
+      });
+    }
   };
 
   // Pause Work -> Start Break
@@ -509,36 +519,88 @@ export default function FloatingActivityTimer({ session }) {
     setSelectingBreak(true);
   };
 
-  const handleConfirmPauseBreak = () => {
-    const elapsed = Math.floor((Date.now() - timerState.startTime) / 1000);
-    const state = {
-      ...timerState,
-      paused: true,
-      accumulatedSeconds: timerState.accumulatedSeconds + elapsed,
-      startTime: null,
-      currentBreak: {
-        type: breakForm.breakType,
-        notes: breakForm.breakType === "OTHER" ? breakForm.otherText.trim() : "",
-        startAt: Date.now()
+  const handleConfirmPauseBreak = async () => {
+    try {
+      const notes = breakForm.breakType === "OTHER" ? breakForm.otherText.trim() : "";
+      const res = await fetch("/api/attendance/breaks/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          types: [breakForm.breakType],
+          type: breakForm.breakType,
+          notes
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to start break in database.");
       }
-    };
-    saveState(state);
-    setSelectingBreak(false);
+
+      const elapsed = Math.floor((Date.now() - timerState.startTime) / 1000);
+      const state = {
+        ...timerState,
+        paused: true,
+        accumulatedSeconds: timerState.accumulatedSeconds + elapsed,
+        startTime: null,
+        currentBreak: {
+          type: breakForm.breakType,
+          notes,
+          startAt: Date.now(),
+          dbBreakId: data.break.id
+        }
+      };
+      saveState(state);
+      setSelectingBreak(false);
+      fetchTodayData();
+    } catch (err) {
+      addToast({
+        title: "Break Failed",
+        message: err instanceof Error ? err.message : "Unable to pause and start break.",
+        variant: "error",
+      });
+    }
   };
 
   // Resume Work -> End Break
-  const handleResumeWork = () => {
+  const handleResumeWork = async () => {
     if (!timerState.running || !timerState.paused || !timerState.currentBreak) return;
 
     const breakDurationSeconds = Math.max(0, Math.floor((Date.now() - timerState.currentBreak.startAt) / 1000));
-    
-    // Discard break interval if less than 30 seconds
-    if (breakDurationSeconds < 30) {
-      addToast({
-        title: "Break Discarded",
-        message: "Breaks must be at least 30 seconds long to be recorded.",
-        variant: "warning"
-      });
+    const dbBreakId = timerState.currentBreak.dbBreakId;
+
+    try {
+      // Discard break interval if less than 30 seconds
+      if (breakDurationSeconds < 30) {
+        if (dbBreakId) {
+          await fetch(`/api/attendance/breaks/${dbBreakId}`, { method: "DELETE" });
+        }
+
+        addToast({
+          title: "Break Discarded",
+          message: "Breaks must be at least 30 seconds long to be recorded.",
+          variant: "warning"
+        });
+
+        const state = {
+          ...timerState,
+          paused: false,
+          startTime: Date.now(),
+          currentBreak: null
+        };
+        saveState(state);
+        setBreakSeconds(0);
+        fetchTodayData();
+        return;
+      }
+
+      // End active break in database
+      const res = await fetch("/api/attendance/breaks/end", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to end break in database.");
+      }
+
       const state = {
         ...timerState,
         paused: false,
@@ -547,26 +609,14 @@ export default function FloatingActivityTimer({ session }) {
       };
       saveState(state);
       setBreakSeconds(0);
-      return;
+      fetchTodayData();
+    } catch (err) {
+      addToast({
+        title: "Resume Failed",
+        message: err instanceof Error ? err.message : "Unable to resume work.",
+        variant: "error",
+      });
     }
-
-    const completedBreak = {
-      type: timerState.currentBreak.type,
-      notes: timerState.currentBreak.notes,
-      startAt: timerState.currentBreak.startAt,
-      endAt: Date.now(),
-      durationSeconds: breakDurationSeconds
-    };
-
-    const state = {
-      ...timerState,
-      paused: false,
-      startTime: Date.now(),
-      currentBreak: null,
-      breaks: [...(timerState.breaks || []), completedBreak]
-    };
-    saveState(state);
-    setBreakSeconds(0);
   };
 
   // Stop Timer
@@ -579,25 +629,10 @@ export default function FloatingActivityTimer({ session }) {
 
     try {
       let finalWorkSeconds = timerState.accumulatedSeconds;
-      let finalBreaks = [...(timerState.breaks || [])];
 
       // If active working when stopped
       if (!timerState.paused && timerState.startTime) {
         finalWorkSeconds += Math.floor((Date.now() - timerState.startTime) / 1000);
-      }
-
-      // If on break when stopped, evaluate break interval first
-      if (timerState.paused && timerState.currentBreak) {
-        const breakDurationSeconds = Math.max(0, Math.floor((Date.now() - timerState.currentBreak.startAt) / 1000));
-        if (breakDurationSeconds >= 30) {
-          finalBreaks.push({
-            type: timerState.currentBreak.type,
-            notes: timerState.currentBreak.notes,
-            startAt: timerState.currentBreak.startAt,
-            endAt: Date.now(),
-            durationSeconds: breakDurationSeconds
-          });
-        }
       }
 
       // Activity duration must be at least 30 seconds
@@ -611,60 +646,35 @@ export default function FloatingActivityTimer({ session }) {
         return;
       }
 
-      const totalBreakTimeSeconds = finalBreaks.reduce((acc, b) => acc + b.durationSeconds, 0);
+      // If on break when stopped, close the break first
+      if (timerState.paused && timerState.currentBreak) {
+        const breakDurationSeconds = Math.max(0, Math.floor((Date.now() - timerState.currentBreak.startAt) / 1000));
+        const dbBreakId = timerState.currentBreak.dbBreakId;
+        if (breakDurationSeconds < 30) {
+          if (dbBreakId) {
+            await fetch(`/api/attendance/breaks/${dbBreakId}`, { method: "DELETE" });
+          }
+        } else {
+          await fetch("/api/attendance/breaks/end", { method: "POST" });
+        }
+      }
 
-      // Save overall Work Log boundaries
+      // Save/PATCH manual activity log
       const now = new Date();
-      const totalElapsedSeconds = finalWorkSeconds + totalBreakTimeSeconds;
-      const startMs = now.getTime() - (totalElapsedSeconds * 1000);
-      const startDate = new Date(startMs);
-
-      const formatTimeStr = (d) => {
-        const pad = (v) => String(v).padStart(2, "0");
-        return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      };
-
-      const startTimeStr = formatTimeStr(startDate);
-      const endTimeStr = formatTimeStr(now);
-
-      // Create manual activity log (excluding breaks)
-      const res = await fetch("/api/activity/manual", {
-        method: "POST",
+      const endTimeStr = getTimeStrInTZ(now, userTimeZone);
+      const res = await fetch(`/api/activity/manual/${timerState.dbLogId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description: timerState.description.trim(),
           categories: [stopForm.category],
-          startTime: startTimeStr,
           endTime: endTimeStr,
-          date: now.toISOString().slice(0, 10),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to save activity log.");
-      }
-
-      // Automatically post breaks to attendance
-      if (finalBreaks.length > 0 && activeAttendanceId) {
-        for (const brk of finalBreaks) {
-          const brkStart = new Date(brk.startAt);
-          const brkEnd = new Date(brk.endAt);
-          const minutes = Math.max(1, Math.round(brk.durationSeconds / 60));
-
-          await fetch(`/api/attendance/${activeAttendanceId}/breaks`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              types: [brk.type],
-              type: brk.type === "OTHER" && brk.notes ? `OTHER: ${brk.notes}` : brk.type,
-              startTime: formatTimeStr(brkStart),
-              endTime: formatTimeStr(brkEnd),
-              notes: timerState.description.trim(),
-              durationMinutes: minutes
-            }),
-          });
-        }
       }
 
       addToast({
@@ -702,7 +712,18 @@ export default function FloatingActivityTimer({ session }) {
     setShowDiscardModal(true);
   };
 
-  const handleConfirmDiscard = () => {
+  const handleConfirmDiscard = async () => {
+    try {
+      if (timerState.dbLogId) {
+        await fetch(`/api/activity-logs/${timerState.dbLogId}`, { method: "DELETE" });
+      }
+      if (timerState.paused && timerState.currentBreak?.dbBreakId) {
+        await fetch(`/api/attendance/breaks/${timerState.currentBreak.dbBreakId}`, { method: "DELETE" });
+      }
+    } catch (e) {
+      console.error("Failed to delete discarded log/breaks:", e);
+    }
+
     const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [] };
     saveState(state);
     setActiveSeconds(0);
@@ -710,6 +731,7 @@ export default function FloatingActivityTimer({ session }) {
     setShowDiscardModal(false);
     setShowStopModal(false);
     setShowWarningModal(false); // Close warning modal if open
+    fetchTodayData();
 
     if (warningAction) {
       window.dispatchEvent(new CustomEvent("pms:manual-activity-saved", { detail: warningAction }));
