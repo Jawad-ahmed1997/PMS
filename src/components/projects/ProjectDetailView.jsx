@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 
 import {
@@ -58,18 +59,31 @@ export default function ProjectDetailView({
   const { addToast } = useToast();
   const [project, setProject] = useState(null);
   const [milestones, setMilestones] = useState([]);
-  const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [activeTab, setActiveTab] = useState("board");
 
   // Loading statuses
   const [status, setStatus] = useState({ loading: true, error: null });
-  const [tasksLoading, setTasksLoading] = useState(false);
   const [savingMilestone, setSavingMilestone] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
-  const refreshIntervalRef = useRef(null);
-  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  // Query for tasks loading
+  const { data: tasks = [], isLoading: tasksLoading, error: tasksError, refetch: refetchTasks, dataUpdatedAt } = useQuery({
+    queryKey: ["tasks", "project", projectId],
+    queryFn: async () => {
+      const response = await fetch(`/api/tasks?projectId=${projectId}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message ?? "Failed to load tasks");
+      }
+      return data?.tasks ?? [];
+    },
+    enabled: activeTab === "board" && !status.loading && !status.error,
+    staleTime: 1000 * 10,
+    refetchInterval: 300000,
+  });
+
+  const lastUpdatedAt = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
   // Modals state
   const [modalOpen, setModalOpen] = useState(false); // Milestone modal
@@ -158,84 +172,19 @@ export default function ProjectDetailView({
     }
   }, [addToast, projectId]);
 
-  // Load project tasks with sessionStorage cache (stale-while-revalidate)
-  const loadTasks = useCallback(async (silent = false) => {
-    const cacheKey = `pms-tasks-${projectId}`;
-
-    // On non-silent load, try to serve from cache immediately for instant render
-    if (!silent && typeof window !== "undefined") {
-      try {
-        const cached = sessionStorage.getItem(cacheKey);
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_TTL && Array.isArray(data) && data.length > 0) {
-            setTasks(data);
-            setLastUpdatedAt(new Date(timestamp));
-            // Continue to fetch fresh data in the background (don't show spinner)
-          }
-        }
-      } catch { /* ignore parse errors */ }
+  useEffect(() => {
+    if (tasksError) {
+      addToast({
+        title: "Tasks unavailable",
+        message: tasksError.message || "Failed to load tasks.",
+        variant: "error",
+      });
     }
-
-    if (!silent) setTasksLoading(true);
-    try {
-      const response = await fetch(`/api/tasks?projectId=${projectId}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.message ?? "Failed to load tasks");
-      }
-      const freshTasks = data?.tasks ?? [];
-      setTasks(freshTasks);
-      const now = Date.now();
-      setLastUpdatedAt(new Date(now));
-      // Save to cache
-      if (typeof window !== "undefined") {
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify({ data: freshTasks, timestamp: now }));
-        } catch { /* quota errors */ }
-      }
-    } catch (error) {
-      if (!silent) {
-        addToast({
-          title: "Tasks unavailable",
-          message: error instanceof Error ? error.message : "Failed to load tasks.",
-          variant: "error",
-        });
-      }
-    } finally {
-      if (!silent) setTasksLoading(false);
-    }
-  }, [addToast, projectId, CACHE_TTL]);
+  }, [tasksError, addToast]);
 
   useEffect(() => {
     loadProject();
   }, [loadProject]);
-
-  useEffect(() => {
-    if (activeTab === "board" && !status.loading && !status.error) {
-      loadTasks();
-    }
-  }, [activeTab, loadTasks, status.loading, status.error]);
-
-  // 5-minute background auto-refresh when the board tab is active
-  useEffect(() => {
-    if (activeTab !== "board") {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-      return;
-    }
-    refreshIntervalRef.current = setInterval(() => {
-      loadTasks(true); // silent refresh
-    }, CACHE_TTL);
-    return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-    };
-  }, [activeTab, loadTasks, CACHE_TTL]);
 
   // Load project members for task assignee dropdown
   useEffect(() => {
@@ -559,7 +508,7 @@ export default function ProjectDetailView({
 
       resetTaskForm();
       setIsTaskModalOpen(false);
-      loadTasks();
+      refetchTasks();
     } catch (error) {
       const message =
         error instanceof Error
@@ -631,10 +580,7 @@ export default function ProjectDetailView({
           <div className="flex items-center gap-2">
             <RefreshButton
               onClick={async () => {
-                if (typeof window !== "undefined") {
-                  sessionStorage.removeItem(`pms-tasks-${projectId}`);
-                }
-                await Promise.all([loadProject(), loadTasks(false)]);
+                await Promise.all([loadProject(), refetchTasks()]);
               }}
               ariaLabel="Refresh project data"
             />

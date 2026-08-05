@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,8 +50,8 @@ function parseMarkdown(text) {
 export default function PersonalNotesView({ projectId, tasks = [] }) {
   const { addToast } = useToast();
   const [notes, setNotes] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [activeNoteId, setActiveNoteId] = useState(null);
+  const queryClient = useQueryClient();
   
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,48 +66,49 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
 
   const textareaRef = useRef(null);
 
-  const loadNotes = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: queryNotes = [], isLoading: loading, error: notesError } = useQuery({
+    queryKey: ["notes"],
+    queryFn: async () => {
       const response = await fetch("/api/notes");
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message ?? "Failed to load notes.");
       }
-
-      // Filter notes that are either not linked to a task OR linked to a task belonging to the active project
-      const projectTasksMap = new Map(tasks.map((t) => [t.id, t]));
-      const filtered = (data.notes ?? []).filter((note) => {
-        if (!note.taskId) {
-          return true; // General note
-        }
-        return projectTasksMap.has(note.taskId); // Linked to task in this project
-      });
-
-      setNotes(filtered);
-
-      // Select first note by default if none active
-      if (filtered.length > 0 && !activeNoteId) {
-        const first = filtered[0];
-        setActiveNoteId(first.id);
-        setEditTitle(first.title);
-        setEditContent(first.content);
-        setEditTaskId(first.taskId || "");
-      }
-    } catch (error) {
-      addToast({
-        title: "Notes unavailable",
-        message: error instanceof Error ? error.message : "Failed to load notes.",
-        variant: "error",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [addToast, tasks, activeNoteId]);
+      return data.notes ?? [];
+    },
+    staleTime: 1000 * 15,
+  });
 
   useEffect(() => {
-    loadNotes();
-  }, [loadNotes]);
+    if (notesError) {
+      addToast({
+        title: "Notes unavailable",
+        message: notesError.message || "Failed to load notes.",
+        variant: "error",
+      });
+    }
+  }, [notesError, addToast]);
+
+  useEffect(() => {
+    const projectTasksMap = new Map(tasks.map((t) => [t.id, t]));
+    const filtered = queryNotes.filter((note) => {
+      if (!note.taskId) {
+        return true; // General note
+      }
+      return projectTasksMap.has(note.taskId); // Linked to task in this project
+    });
+
+    setNotes(filtered);
+
+    // Select first note by default if none active
+    if (filtered.length > 0 && !activeNoteId) {
+      const first = filtered[0];
+      setActiveNoteId(first.id);
+      setEditTitle(first.title);
+      setEditContent(first.content);
+      setEditTaskId(first.taskId || "");
+    }
+  }, [queryNotes, tasks, activeNoteId]);
 
   const activeNote = useMemo(() => {
     return notes.find((n) => n.id === activeNoteId) ?? null;
@@ -150,6 +152,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
         message: "A new private note has been started.",
         variant: "success",
       });
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
     } catch (error) {
       addToast({
         title: "Action failed",
@@ -188,6 +191,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
         message: "Your private note has been updated.",
         variant: "success",
       });
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
     } catch (error) {
       addToast({
         title: "Action failed",
@@ -220,9 +224,10 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
 
       addToast({
         title: "Note deleted",
-        message: "Your note has been removed.",
+        message: "Your private note has been deleted.",
         variant: "info",
       });
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
     } catch (error) {
       addToast({
         title: "Action failed",

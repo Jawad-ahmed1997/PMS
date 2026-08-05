@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import QueryProvider from "@/components/providers/QueryProvider";
 import { getSession } from "@/lib/session-server";
 
 const dmSans = DM_Sans({
@@ -33,7 +34,9 @@ export default async function RootLayout({ children }) {
           {`(function(){try{var t=localStorage.getItem("pms.theme")||"system";var d=t==="dark"||t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=d;}catch(e){}})();`}
         </Script>
         <ToastProvider>
-          <AppShell session={session}>{children}</AppShell>
+          <QueryProvider>
+            <AppShell session={session}>{children}</AppShell>
+          </QueryProvider>
         </ToastProvider>
       </body>
     </html>

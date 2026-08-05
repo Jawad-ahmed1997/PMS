@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import ActionButton from "@/components/ui/ActionButton";
 import { Sheet } from "@/components/ui/sheet";
@@ -131,6 +132,11 @@ export default function TaskBoard({
   const searchParams = useSearchParams();
 
   const [taskItems, setTaskItems] = useState(tasks);
+  const queryClient = useQueryClient();
+  const invalidateAllTaskQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["milestone"] });
+  }, [queryClient]);
   const [pendingTaskId, setPendingTaskId] = useState(null);
   const [pendingChecklistId, setPendingChecklistId] = useState(null);
   const [draggingTaskId, setDraggingTaskId] = useState(null);
@@ -680,6 +686,7 @@ export default function TaskBoard({
         message: "Custom subtask added successfully.",
         variant: "success",
       });
+      invalidateAllTaskQueries();
     } catch (err) {
       addToast({
         title: "Error",
@@ -718,9 +725,10 @@ export default function TaskBoard({
 
       addToast({
         title: "Subtask deleted",
-        message: "Custom subtask removed successfully.",
+        message: "Custom subtask deleted successfully.",
         variant: "info",
       });
+      invalidateAllTaskQueries();
     } catch (err) {
       addToast({
         title: "Error",
@@ -1079,6 +1087,8 @@ export default function TaskBoard({
         };
       });
 
+      invalidateAllTaskQueries();
+
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
         
@@ -1229,6 +1239,7 @@ export default function TaskBoard({
     setTimeRequestForm({ hours: "", minutes: "", reason: "" });
     setTimeRequestOpen(false);
     setRequestSubmitting(false);
+    invalidateAllTaskQueries();
   };
 
   const handleReviewTimeRequest = async (request, nextStatus) => {
@@ -1273,6 +1284,7 @@ export default function TaskBoard({
       variant: "success",
     });
     setTimeRequestActionId(null);
+    invalidateAllTaskQueries();
   };
 
   const handlePause = async (task) => {
@@ -1325,6 +1337,7 @@ export default function TaskBoard({
       window.dispatchEvent(new CustomEvent("pms:timer-changed"));
     }
     setBreakSubmitting(false);
+    invalidateAllTaskQueries();
   };
 
   const handleResume = async (task) => {
@@ -1367,6 +1380,7 @@ export default function TaskBoard({
       window.dispatchEvent(new CustomEvent("pms:timer-changed"));
     }
     setBreakSubmitting(false);
+    invalidateAllTaskQueries();
   };
 
   const handleChecklistToggle = async (taskId, item, nextValue) => {
@@ -1405,6 +1419,7 @@ export default function TaskBoard({
     );
 
     setPendingChecklistId(null);
+    invalidateAllTaskQueries();
   };
 
   const isChecklistComplete = (task) =>

@@ -199,9 +199,13 @@ export default function FloatingTaskTimer({ session }) {
   }, [syncFromServer]);
 
   useEffect(() => {
-    const onFocus = () => syncFromServer();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    const onSync = () => syncFromServer();
+    window.addEventListener("focus", onSync);
+    window.addEventListener("attendance-updated", onSync);
+    return () => {
+      window.removeEventListener("focus", onSync);
+      window.removeEventListener("attendance-updated", onSync);
+    };
   }, [syncFromServer]);
 
   useEffect(() => {
@@ -220,17 +224,6 @@ export default function FloatingTaskTimer({ session }) {
     };
   }, [syncFromServer]);
 
-  useEffect(() => {
-    const handleManualSaved = (e) => {
-      if (e.detail?.action === "resume-task") {
-        handleResume();
-      }
-    };
-    window.addEventListener("pms:manual-activity-saved", handleManualSaved);
-    return () => {
-      window.removeEventListener("pms:manual-activity-saved", handleManualSaved);
-    };
-  }, [activeSession, canControl]);
 
   const clampPosition = useCallback((nextX, nextY) => {
     const el = containerRef.current;
@@ -375,7 +368,7 @@ export default function FloatingTaskTimer({ session }) {
     }
   };
 
-  const handleResume = async () => {
+  const handleResume = useCallback(async () => {
     if (!activeSession?.task?.id || !canControl) {
       return;
     }
@@ -407,7 +400,19 @@ export default function FloatingTaskTimer({ session }) {
     } else {
       syncFromServer();
     }
-  };
+  }, [activeSession, canControl, addToast, syncFromServer]);
+
+  useEffect(() => {
+    const handleManualSaved = (e) => {
+      if (e.detail?.action === "resume-task") {
+        handleResume();
+      }
+    };
+    window.addEventListener("pms:manual-activity-saved", handleManualSaved);
+    return () => {
+      window.removeEventListener("pms:manual-activity-saved", handleManualSaved);
+    };
+  }, [handleResume]);
 
   const onPointerDownDrag = (event) => {
     if (event.button !== 0) {

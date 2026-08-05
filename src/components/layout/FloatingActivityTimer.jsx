@@ -123,6 +123,12 @@ export default function FloatingActivityTimer({ session }) {
   const [todayBreaks, setTodayBreaks] = useState([]);
   const [activeAttendanceId, setActiveAttendanceId] = useState(null);
   const [onDuty, setOnDuty] = useState(false);
+  const [statusLoaded, setStatusLoaded] = useState(false);
+
+  const timerStateRef = useRef(timerState);
+  useEffect(() => {
+    timerStateRef.current = timerState;
+  }, [timerState]);
 
   const containerRef = useRef(null);
   const dragPointerIdRef = useRef(null);
@@ -138,12 +144,12 @@ export default function FloatingActivityTimer({ session }) {
   }, [userTimeZone]);
 
   // Save state to localStorage helper
-  const saveState = (state) => {
+  const saveState = useCallback((state) => {
     setTimerState(state);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify(state));
     }
-  };
+  }, []);
 
   // Dragging logic
   const onPointerDownDrag = (event) => {
@@ -183,6 +189,156 @@ export default function FloatingActivityTimer({ session }) {
   // Sync log summary for the day
   const fetchTodayData = useCallback(async () => {
     if (!session) return;
+
+    const autoSaveAutoOffTimer = async (dutyEndMs, currentState) => {
+      try {
+        const endDate = new Date(dutyEndMs);
+        let finalWorkSeconds = currentState.accumulatedSeconds;
+        let finalBreaks = [...(currentState.breaks || [])];
+
+        // If actively working when auto-off occurred
+        if (!currentState.paused && currentState.startTime) {
+          finalWorkSeconds += Math.max(0, Math.floor((dutyEndMs - currentState.startTime) / 1000));
+        }
+
+        // If on break when auto-off occurred
+        if (currentState.paused && currentState.currentBreak) {
+          const breakStart = currentState.currentBreak.startAt;
+          if (breakStart < dutyEndMs) {
+            const breakDurationSeconds = Math.max(0, Math.floor((dutyEndMs - breakStart) / 1000));
+            if (breakDurationSeconds >= 30) {
+              finalBreaks.push({
+                type: currentState.currentBreak.type,
+                notes: currentState.currentBreak.notes,
+                startAt: breakStart,
+                endAt: dutyEndMs,
+                durationSeconds: breakDurationSeconds
+              });
+            }
+          }
+        }
+
+        // Clear the running timer state immediately to prevent infinite loop
+        const clearedState = {
+          running: false,
+          paused: false,
+          startTime: null,
+          accumulatedSeconds: 0,
+          description: "",
+          currentBreak: null,
+          breaks: []
+        };
+        saveState(clearedState);
+        setActiveSeconds(0);
+        setBreakSeconds(0);
+
+        if (finalWorkSeconds >= 30) {
+          const totalBreakTimeSeconds = finalBreaks.reduce((acc, b) => acc + b.durationSeconds, 0);
+          const totalElapsedSeconds = finalWorkSeconds + totalBreakTimeSeconds;
+          const startDate = new Date(dutyEndMs - (totalElapsedSeconds * 1000));
+
+          const getDateStrInTZ = (date) => {
+            try {
+              return new Intl.DateTimeFormat("fr-CA", { timeZone: userTimeZone }).format(date);
+            } catch (e) {
+              return date.toISOString().slice(0, 10);
+            }
+          };
+
+          const getTimeStrInTZ = (date) => {
+            try {
+              const formatter = new Intl.DateTimeFormat("en-US", {
+                timeZone: userTimeZone,
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              });
+              const formatted = formatter.format(date);
+              const match = formatted.match(/(\d{2}):(\d{2})/);
+              if (match) {
+                let hour = match[1];
+                if (hour === "24") hour = "00";
+                return `${hour}:${match[2]}`;
+              }
+            } catch (e) {}
+            const pad = (v) => String(v).padStart(2, "0");
+            return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+          };
+
+          const startTimeStr = getTimeStrInTZ(startDate);
+          const endTimeStr = getTimeStrInTZ(endDate);
+          const logDateStr = getDateStrInTZ(startDate);
+
+          const res = await fetch("/api/activity/manual", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              description: currentState.description.trim() || "Forgot to stop activity timer",
+              categories: ["OTHER"],
+              startTime: startTimeStr,
+              endTime: endTimeStr,
+              date: logDateStr,
+            }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to auto-save activity log.");
+          }
+
+          // Post breaks if attendance record exists for that date
+          if (finalBreaks.length > 0) {
+            const attRes = await fetch(`/api/attendance?from=${logDateStr}&to=${logDateStr}`, { cache: "no-store" });
+            if (attRes.ok) {
+              const attData = await attRes.json();
+              const records = attData?.attendance || [];
+              if (records.length > 0) {
+                const targetAttendanceId = records[0].id;
+                for (const brk of finalBreaks) {
+                  const brkStart = new Date(brk.startAt);
+                  const brkEnd = new Date(brk.endAt);
+                  const minutes = Math.max(1, Math.round(brk.durationSeconds / 60));
+
+                  await fetch(`/api/attendance/${targetAttendanceId}/breaks`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      types: [brk.type],
+                      type: brk.type === "OTHER" && brk.notes ? `OTHER: ${brk.notes}` : brk.type,
+                      startTime: getTimeStrInTZ(brkStart),
+                      endTime: getTimeStrInTZ(brkEnd),
+                      notes: currentState.description.trim() || "Forgot to stop break timer",
+                      durationMinutes: minutes
+                    }),
+                  });
+                }
+              }
+            }
+          }
+
+          addToast({
+            title: "Timer Auto-Saved",
+            message: "Your running activity timer has been automatically saved up to your check-out time.",
+            variant: "success",
+          });
+        } else {
+          addToast({
+            title: "Timer Cleared",
+            message: "Your running activity timer was cleared as it did not have sufficient work time before check-out.",
+            variant: "warning",
+          });
+        }
+
+        // Trigger a fresh reload of logs on the next tick
+        setTimeout(() => {
+          fetchTodayData();
+        }, 100);
+
+      } catch (err) {
+        console.error("Error auto-saving auto-off timer:", err);
+      }
+    };
+
     try {
       const todayDateStr = getTodayDateStr();
       
@@ -196,9 +352,11 @@ export default function FloatingActivityTimer({ session }) {
 
       // Fetch active attendance status (handles Auto-Off logic)
       const statusRes = await fetch(`/api/attendance/current-status`, { cache: "no-store" });
+      let currentStatus = null;
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setOnDuty(Boolean(statusData?.onDuty));
+        currentStatus = statusData;
       }
 
       // Fetch Attendance records for today (returns correct breaks list and ID)
@@ -214,14 +372,35 @@ export default function FloatingActivityTimer({ session }) {
           setTodayBreaks([]);
         }
       }
+
+      // Auto-off check
+      const currentState = timerStateRef.current;
+      if (currentStatus?.autoOff && currentState?.running) {
+        const dutyEndMs = currentStatus.dutyEndAt ? new Date(currentStatus.dutyEndAt).getTime() : null;
+        if (dutyEndMs && currentState.startTime && currentState.startTime < dutyEndMs) {
+          await autoSaveAutoOffTimer(dutyEndMs, currentState);
+        }
+      }
     } catch (e) {
       console.error("Error fetching today summary data", e);
+    } finally {
+      setStatusLoaded(true);
     }
-  }, [session, getTodayDateStr]);
+  }, [session, getTodayDateStr, userTimeZone, addToast, saveState]);
 
   // Load and tick timer
   useEffect(() => {
     fetchTodayData();
+
+    if (typeof window !== "undefined") {
+      const handleAttendanceUpdated = () => {
+        fetchTodayData();
+      };
+      window.addEventListener("attendance-updated", handleAttendanceUpdated);
+      return () => {
+        window.removeEventListener("attendance-updated", handleAttendanceUpdated);
+      };
+    }
   }, [fetchTodayData]);
 
   // Intercept warning listener
@@ -678,7 +857,7 @@ export default function FloatingActivityTimer({ session }) {
                 <Play size={14} fill="currentColor" />
                 Start Activity
               </Button>
-              {!onDuty && (
+              {statusLoaded && !onDuty && (
                 <p className="text-[10px] text-amber-500 text-center flex items-center gap-1 justify-center bg-amber-500/10 p-1.5 rounded-lg border border-amber-500/20">
                   <AlertCircle size={12} />
                   You must check in (on duty) first.
@@ -703,7 +882,7 @@ export default function FloatingActivityTimer({ session }) {
             <div className="mt-2 border-t pt-2 max-h-[180px] overflow-y-auto space-y-2 text-xs text-[color:var(--color-text-muted)]" style={{ borderColor: "var(--color-border)" }}>
               <p className="font-semibold text-[10px] uppercase tracking-wider text-[color:var(--color-text-subtle)] flex items-center gap-1">
                 <History size={11} />
-                Today's History
+                Today&apos;s History
               </p>
               
               {todayLogs.length === 0 && todayBreaks.length === 0 ? (

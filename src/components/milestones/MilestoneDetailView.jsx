@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import RefreshButton from "@/components/ui/RefreshButton";
 import {
@@ -46,13 +47,41 @@ export default function MilestoneDetailView({
   currentUserId,
 }) {
   const { addToast } = useToast();
-  const [milestone, setMilestone] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [status, setStatus] = useState({ loading: true, error: null });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [users, setUsers] = useState([]);
+
+  // Query for milestone details and tasks
+  const { data: milestone = null, isLoading: milestoneLoading, error: milestoneError, refetch: refetchMilestone } = useQuery({
+    queryKey: ["milestone", milestoneId],
+    queryFn: async () => {
+      const response = await fetch(`/api/milestones/${milestoneId}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(buildErrorMessage(data));
+      }
+      return data?.milestone ?? null;
+    },
+    staleTime: 1000 * 30,
+  });
+
+  const { data: tasks = [], isLoading: tasksLoading, error: tasksError, refetch: refetchTasks } = useQuery({
+    queryKey: ["tasks", "milestone", milestoneId],
+    queryFn: async () => {
+      const response = await fetch(`/api/tasks?milestoneId=${milestoneId}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(buildErrorMessage(data));
+      }
+      return data?.tasks ?? [];
+    },
+    staleTime: 1000 * 10,
+  });
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refetchMilestone(), refetchTasks()]);
+  }, [refetchMilestone, refetchTasks]);
 
   // Project Members states
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
@@ -118,54 +147,38 @@ export default function MilestoneDetailView({
     }
   }, [isAddMemberModalOpen, loadSystemUsers]);
 
-  const loadMilestone = useCallback(async () => {
-    setStatus({ loading: true, error: null });
-    try {
-      const [milestoneResponse, tasksResponse] = await Promise.all([
-        fetch(`/api/milestones/${milestoneId}`),
-        fetch(`/api/tasks?milestoneId=${milestoneId}`),
-      ]);
-      const milestoneData = await milestoneResponse.json();
-      const tasksData = await tasksResponse.json();
-
-      if (!milestoneResponse.ok) {
-        throw new Error(buildErrorMessage(milestoneData));
-      }
-      if (!tasksResponse.ok) {
-        throw new Error(buildErrorMessage(tasksData));
-      }
-
-      setMilestone(milestoneData?.milestone ?? null);
-      setTasks(tasksData?.tasks ?? []);
-      setStatus({ loading: false, error: null });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to load milestone.";
-      setStatus({ loading: false, error: message });
+  useEffect(() => {
+    if (milestoneError) {
       addToast({
         title: "Milestone unavailable",
-        message,
+        message: milestoneError.message || "Unable to load milestone.",
         variant: "error",
       });
     }
-  }, [addToast, milestoneId]);
+  }, [milestoneError, addToast]);
 
   useEffect(() => {
-    loadMilestone();
-  }, [loadMilestone]);
+    if (tasksError) {
+      addToast({
+        title: "Tasks unavailable",
+        message: tasksError.message || "Unable to load tasks.",
+        variant: "error",
+      });
+    }
+  }, [tasksError, addToast]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
     }
     const handleAttendanceUpdate = () => {
-      loadMilestone();
+      handleRefresh();
     };
     window.addEventListener("attendance-updated", handleAttendanceUpdate);
     return () => {
       window.removeEventListener("attendance-updated", handleAttendanceUpdate);
     };
-  }, [loadMilestone]);
+  }, [handleRefresh]);
 
   const loadUsers = useCallback(async () => {
     if (!canManageAssignments || !milestone?.projectId) {
@@ -218,7 +231,7 @@ export default function MilestoneDetailView({
       setSelectedAddUserId("");
       setIsAddMemberModalOpen(false);
 
-      await loadMilestone();
+      await handleRefresh();
       // Reload task assignee choices
       try {
         const usersResponse = await fetch(
@@ -398,13 +411,7 @@ export default function MilestoneDetailView({
       }
       resetTaskForm();
       setIsDialogOpen(false);
-      if (editingTaskId) {
-        setTasks((prev) =>
-          prev.map((task) => (task.id === data.task.id ? data.task : task))
-        );
-      } else {
-        loadMilestone();
-      }
+      handleRefresh();
     } catch (error) {
       const message =
         error instanceof Error
@@ -435,9 +442,9 @@ export default function MilestoneDetailView({
         backLabel="Back to milestones"
         actions={
           <div className="flex items-center gap-4">
-            <RefreshButton onClick={loadMilestone} ariaLabel="Refresh milestone data" />
+            <RefreshButton onClick={handleRefresh} ariaLabel="Refresh milestone data" />
             {/* Members Avatars */}
-            {!status.loading && !status.error && milestone?.project?.members && (
+            {!milestoneLoading && !milestoneError && milestone?.project?.members && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-[color:var(--color-text-subtle)]">
                   Members:
@@ -484,7 +491,7 @@ export default function MilestoneDetailView({
         }
       />
 
-      {!status.loading && !status.error && milestone && (
+      {!milestoneLoading && !milestoneError && milestone && (
         <div
           className={`rounded-2xl border p-4 ${milestoneCapacity.overbooked ? "border-rose-500/60 bg-rose-500/5" : "border-[color:var(--color-border)] bg-[color:var(--color-card)]"}`}
         >
@@ -511,20 +518,20 @@ export default function MilestoneDetailView({
         </div>
       )}
 
-      {status.loading && (
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">
+      {milestoneLoading && (
+        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)] animate-pulse">
           Loading milestone...
         </div>
       )}
 
-      {!status.loading && status.error && (
+      {!milestoneLoading && milestoneError && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
-          <p>{status.error}</p>
-          <Button label="Retry" variant="secondary" onClick={loadMilestone} />
+          <p>{milestoneError.message || "Unable to load milestone."}</p>
+          <Button label="Retry" variant="secondary" onClick={handleRefresh} />
         </div>
       )}
 
-      {!status.loading && !status.error && milestone && (
+      {!milestoneLoading && !milestoneError && milestone && (
         <>
           <div className="space-y-4">
             <div className="flex items-center justify-between">

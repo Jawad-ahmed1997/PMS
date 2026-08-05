@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import TaskBoard from "@/components/tasks/TaskBoard";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -75,8 +76,6 @@ function FilterPopover({ icon: Icon, label, value, options, onSelect }) {
 
 export default function MyTasksView({ role, currentUserId }) {
   const { addToast } = useToast();
-  const [tasks, setTasks] = useState([]);
-  const [status, setStatus] = useState({ loading: true, error: null });
 
   const isManager = ["ceo", "pm", "cto"].includes(normalizeRoleId(role));
 
@@ -87,10 +86,9 @@ export default function MyTasksView({ role, currentUserId }) {
   const [selectedOwnerId, setSelectedOwnerId] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
 
-  const loadTasks = useCallback(async () => {
-    setStatus({ loading: true, error: null });
-    try {
-      // Always fetch all tasks if manager so they can filter locally, otherwise fetch assigned to them
+  const { data: tasks = [], isLoading, error, refetch } = useQuery({
+    queryKey: ["tasks", isManager ? "all" : "mine"],
+    queryFn: async () => {
       const url = isManager ? `/api/tasks?allTasks=true` : `/api/tasks?assignedToMe=true`;
       const response = await fetch(url);
       const data = await response.json();
@@ -98,24 +96,20 @@ export default function MyTasksView({ role, currentUserId }) {
       if (!response.ok) {
         throw new Error(buildErrorMessage(data));
       }
+      return data?.tasks ?? [];
+    },
+    staleTime: 1000 * 10,
+  });
 
-      setTasks(data?.tasks ?? []);
-      setStatus({ loading: false, error: null });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to load tasks.";
-      setStatus({ loading: false, error: message });
+  useEffect(() => {
+    if (error) {
       addToast({
         title: "Tasks unavailable",
-        message,
+        message: error.message || "Unable to load tasks.",
         variant: "error",
       });
     }
-  }, [addToast, isManager]);
-
-  useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+  }, [error, addToast]);
 
   // Derived Projects List
   const projectsList = useMemo(() => {
@@ -201,7 +195,7 @@ export default function MyTasksView({ role, currentUserId }) {
         title={isManager ? "All Active Tasks" : "My Tasks"}
         subtitle={isManager ? "Oversee all active tasks and execution across all milestones." : "Focus execution on your assigned items across all milestones."}
         actions={
-          <RefreshButton onClick={loadTasks} ariaLabel="Refresh tasks list" />
+          <RefreshButton onClick={() => refetch()} ariaLabel="Refresh tasks list" />
         }
       />
 
@@ -288,20 +282,20 @@ export default function MyTasksView({ role, currentUserId }) {
         </div>
       )}
 
-      {status.loading && (
+      {isLoading && (
         <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)] animate-pulse">
           Loading tasks...
         </div>
       )}
 
-      {!status.loading && status.error && (
+      {!isLoading && error && (
         <div className="space-y-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
-          <p>{status.error}</p>
-          <Button type="button" variant="secondary" onClick={loadTasks}>Retry</Button>
+          <p>{error.message || "Unable to load tasks."}</p>
+          <Button type="button" variant="secondary" onClick={() => refetch()}>Retry</Button>
         </div>
       )}
 
-      {!status.loading && !status.error && (
+      {!isLoading && !error && (
         <div>
           {filteredTasks.length ? (
             <TaskBoard
