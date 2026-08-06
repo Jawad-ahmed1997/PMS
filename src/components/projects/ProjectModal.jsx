@@ -32,6 +32,7 @@ export default function ProjectDialog({
     name: "",
     description: "",
     memberIds: [],
+    adminIds: [],
   });
   const [isSaving, setIsSaving] = useState(false);
   const [users, setUsers] = useState([]);
@@ -42,6 +43,9 @@ export default function ProjectDialog({
       name: initialValues?.name ?? "",
       description: initialValues?.description ?? "",
       memberIds: (initialValues?.members ?? []).map((member) => member.id),
+      adminIds: (initialValues?.members ?? [])
+        .filter((member) => member.projectRole === "ADMIN")
+        .map((member) => member.id),
     });
   }, [isOpen, initialValues]);
 
@@ -83,6 +87,7 @@ export default function ProjectDialog({
             name: formValues.name,
             description: formValues.description,
             memberIds: formValues.memberIds,
+            adminIds: formValues.adminIds,
           }),
         }
       );
@@ -118,12 +123,31 @@ export default function ProjectDialog({
   const toggleMember = (userId) => {
     setFormValues((prev) => {
       const next = new Set(prev.memberIds);
+      const nextAdmins = new Set(prev.adminIds);
       if (next.has(userId)) {
         next.delete(userId);
+        nextAdmins.delete(userId);
       } else {
         next.add(userId);
       }
-      return { ...prev, memberIds: Array.from(next) };
+      return { 
+        ...prev, 
+        memberIds: Array.from(next),
+        adminIds: Array.from(nextAdmins)
+      };
+    });
+  };
+
+  const toggleAdmin = (userId, event) => {
+    event.stopPropagation();
+    setFormValues((prev) => {
+      const nextAdmins = new Set(prev.adminIds);
+      if (nextAdmins.has(userId)) {
+        nextAdmins.delete(userId);
+      } else {
+        nextAdmins.add(userId);
+      }
+      return { ...prev, adminIds: Array.from(nextAdmins) };
     });
   };
 
@@ -200,8 +224,31 @@ export default function ProjectDialog({
                           </span>
                         </div>
                       </div>
-                      
-                      <Checkbox checked={isSelected} onCheckedChange={() => toggleMember(user.id)} onClick={(event) => event.stopPropagation()} aria-label={`Select ${user.name}`} />
+                      <div className="flex items-center gap-2">
+                        {isSelected && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              if (user.id === initialValues?.createdById) return;
+                              toggleAdmin(user.id, event);
+                            }}
+                            disabled={user.id === initialValues?.createdById}
+                            className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider border transition-colors ${
+                              (user.id === initialValues?.createdById || formValues.adminIds.includes(user.id))
+                                ? "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20"
+                                : "bg-muted/40 border-border text-[color:var(--color-text-subtle)] hover:bg-muted"
+                            }`}
+                            title={
+                              user.id === initialValues?.createdById
+                                ? "Project Creator (Always Admin)"
+                                : "Click to toggle admin rights"
+                            }
+                          >
+                            {(user.id === initialValues?.createdById || formValues.adminIds.includes(user.id)) ? "⭐ Admin" : "Member"}
+                          </button>
+                        )}
+                        <Checkbox checked={isSelected} onCheckedChange={() => toggleMember(user.id)} onClick={(event) => event.stopPropagation()} aria-label={`Select ${user.name}`} />
+                      </div>
                     </div>
                   );
                 })

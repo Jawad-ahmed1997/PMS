@@ -106,12 +106,12 @@ function canAccessTask(context, task) {
   );
 }
 
-function canMoveTask(context, task, toStatus = null) {
+function canMoveTask(context, task, toStatus = null, isProjectAdmin = false) {
   if (!task) {
     return false;
   }
 
-  const isManagerRole = ["PM", "CTO", "TEAM_LEAD"].includes(context.role);
+  const isManagerRole = ["PM", "CTO", "TEAM_LEAD"].includes(context.role) || isProjectAdmin;
   const isOwner = task.ownerId === context.user.id;
 
   // Developer-only transitions: only the task owner can make these moves.
@@ -171,7 +171,12 @@ export async function PATCH(request, { params }) {
     return buildError("Task status is required.", 400);
   }
 
-  if (!canMoveTask(context, task, nextStatus)) {
+  const projectMember = await prisma.projectMember.findFirst({
+    where: { projectId: task.projectId, userId: context.user.id },
+  });
+  const isProjectAdmin = projectMember?.role === "ADMIN";
+
+  if (!canMoveTask(context, task, nextStatus, isProjectAdmin)) {
     return buildError(
       isDeveloperOnlyTransition(task.status, nextStatus)
         ? "Only the assigned developer can move their task through this stage."
@@ -187,7 +192,7 @@ export async function PATCH(request, { params }) {
   const transition = canTransition({
     from: task.status,
     to: nextStatus,
-    role: context.role,
+    role: isProjectAdmin ? "PM" : context.role,
     isOwner: task.ownerId === context.user.id,
   });
   if (!transition.ok) {

@@ -190,17 +190,23 @@ export async function POST(request) {
     return authError;
   }
 
-  if (!WORK_ITEM_CREATION_ROLES.includes(context.role)) {
+  const body = await request.json();
+  const projectId = body?.projectId;
+
+  const projectMember = projectId ? await prisma.projectMember.findFirst({
+    where: { projectId, userId: context.user.id },
+  }) : null;
+  const isProjectAdmin = projectMember?.role === "ADMIN";
+
+  if (!WORK_ITEM_CREATION_ROLES.includes(context.role) && !isProjectAdmin) {
     return buildError("You are not allowed to create tasks.", 403);
   }
 
-  const body = await request.json();
   const title = body?.title?.trim();
   const description = body?.description?.trim();
   const status = body?.status;
   const type = body?.type;
   const milestoneId = body?.milestoneId || null;
-  const projectId = body?.projectId;
   const estimatedHours = Number(body?.estimatedHours ?? 0);
   const ownerId = body?.ownerId;
 
@@ -216,7 +222,7 @@ export async function POST(request) {
   }
 
   if (["DONE", "REJECTED"].includes(status)) {
-    if (!["PM", "CTO", "TEAM_LEAD"].includes(context.role)) {
+    if (!["PM", "CTO", "TEAM_LEAD"].includes(context.role) && !isProjectAdmin) {
       return buildError("Only PMs, CTOs, and Team Leads can approve or reject tasks.", 403);
     }
   }
@@ -267,7 +273,7 @@ export async function POST(request) {
 
   let resolvedOwnerId = ownerId;
 
-  if (isAdminRole(context.role)) {
+  if (isAdminRole(context.role) || isProjectAdmin) {
     if (ownerId) {
       const owner = await prisma.user.findUnique({
         where: { id: ownerId },

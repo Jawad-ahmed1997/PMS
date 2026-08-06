@@ -441,12 +441,11 @@ export async function getUserDailyTimeline(prismaClient, userId, date, now = new
     };
   }
 
-  const workLogs = await prismaClient.taskTimeLog.findMany({
+  const workLogs = await prismaClient.taskWorkSession.findMany({
     where: {
-      status: { in: Array.from(WORKING_STATUSES) },
+      userId,
       startedAt: { lte: dayWindow.end },
       OR: [{ endedAt: null }, { endedAt: { gte: dayWindow.start } }],
-      task: { ownerId: userId },
     },
     select: {
       id: true,

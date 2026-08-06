@@ -332,7 +332,7 @@ export default function ActivityDashboard({
     initialData: (!selectedUser?.id && (!selectedDate || selectedDate === getManualTodayDateKey(new Date(), userTimeZone)))
       ? initialLogs
       : undefined,
-    staleTime: 1000 * 10,
+    staleTime: 0,
   });
 
   const logs = useMemo(() => {

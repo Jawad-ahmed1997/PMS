@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -118,6 +118,173 @@ const getTypeBadge = (type) => {
     default:
       return "bg-violet-500/20 text-violet-300 border-violet-500/30";
   }
+};
+
+const WorkflowStepper = () => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const steps = [
+    { id: "BACKLOG", label: "Backlog", desc: "Grooming/Backlog queue" },
+    { id: "READY", label: "Ready", desc: "Ready for development" },
+    { id: "IN_PROGRESS", label: "In Progress", desc: "Active work in progress" },
+    { id: "DEV_TEST", label: "Dev Test", desc: "Developer self-testing" },
+    { id: "TESTING", label: "Testing", desc: "Quality assurance testing" },
+    { id: "DONE", label: "Done / Rejected", desc: "Completed or rejected" }
+  ];
+
+  if (!isExpanded) {
+    return (
+      <div className="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)]/30 backdrop-blur py-2 px-4 flex flex-wrap items-center justify-between gap-3 transition-all">
+        <div className="flex flex-wrap items-center gap-1 text-[11px] text-[color:var(--color-text-muted)]">
+          <span className="font-semibold text-xs text-[color:var(--color-text)] mr-2 flex items-center gap-1 shrink-0">
+            <span>🔄</span> Workflow:
+          </span>
+          {steps.map((step, idx) => (
+            <Fragment key={step.id}>
+              <span className="px-2 py-0.5 rounded bg-[color:var(--color-surface-muted)]/20 border border-[color:var(--color-border)] font-medium text-[color:var(--color-text-subtle)] text-[10px] shrink-0">
+                {step.label}
+              </span>
+              {idx < steps.length - 1 && <span className="text-[color:var(--color-text-muted)] text-[10px] mx-0.5 shrink-0">➔</span>}
+            </Fragment>
+          ))}
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => setIsExpanded(true)}
+          className="h-7 px-2.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/10 rounded-lg flex items-center gap-1 shrink-0"
+        >
+          Permissions Details ▾
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)]/50 backdrop-blur p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-[color:var(--color-border)] pb-3">
+        <div>
+          <h2 className="text-sm font-semibold text-[color:var(--color-text)] flex items-center gap-2">
+            <span>🔄</span> Task Workflow & Move Permissions
+          </h2>
+          <p className="text-xs text-[color:var(--color-text-subtle)] mt-0.5">
+            Guideline on who is authorized to transition tasks between board columns.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider font-semibold">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+              <span className="text-blue-400">Leads Only</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+              <span className="text-emerald-400">Assignee (User)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-purple-500"></span>
+              <span className="text-purple-400">Both (Lead & User)</span>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setIsExpanded(false)}
+            className="h-7 px-2 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/10 rounded-lg flex items-center gap-1 shrink-0"
+          >
+            Collapse ▲
+          </Button>
+        </div>
+      </div>
+
+      {/* Main horizontal/vertical workflow path */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 overflow-x-auto hide-scrollbar py-2">
+        {steps.map((step, idx) => {
+          const isLast = idx === steps.length - 1;
+          
+          let rightsLabel = "";
+          let rightsClass = "";
+          let rightsDesc = "";
+
+          if (idx === 0) {
+            rightsLabel = "Leads Only";
+            rightsClass = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+            rightsDesc = "PM, CTO, Team Lead";
+          } else if (idx === 1 || idx === 3) {
+            rightsLabel = "Assignee";
+            rightsClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+            rightsDesc = "Assigned developer";
+          } else if (idx === 2) {
+            rightsLabel = "Assignee";
+            rightsClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+            rightsDesc = "Assigned developer";
+          } else if (idx === 4) {
+            rightsLabel = "Leads Only";
+            rightsClass = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+            rightsDesc = "PM, CTO, Team Lead";
+          }
+
+          return (
+            <div key={step.id} className="flex flex-col lg:flex-row items-center gap-4">
+              {/* Step item */}
+              <div className="flex flex-row lg:flex-col items-center gap-3 lg:gap-1.5 p-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)]/10 hover:bg-[color:var(--color-surface-muted)]/20 transition-all w-full lg:w-44 shrink-0">
+                <div className="flex items-center justify-center h-7 w-7 rounded-full bg-[color:var(--color-muted-bg)] text-xs font-bold text-[color:var(--color-text)]">
+                  {idx + 1}
+                </div>
+                <div className="text-left lg:text-center">
+                  <p className="text-xs font-semibold text-[color:var(--color-text)]">{step.label}</p>
+                  <p className="text-[10px] text-[color:var(--color-text-subtle)] mt-0.5">{step.desc}</p>
+                </div>
+              </div>
+
+              {/* Connector */}
+              {!isLast && (
+                <div className="flex flex-col items-center justify-center shrink-0 py-1 lg:py-0">
+                  {/* Visual Arrow */}
+                  <div className="hidden lg:block w-16 h-[2px] bg-[color:var(--color-border)] relative">
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 border-t-[5px] border-b-[5px] border-l-[6px] border-t-transparent border-b-transparent border-l-[color:var(--color-border)]"></div>
+                  </div>
+                  <div className="lg:hidden h-6 w-[2px] bg-[color:var(--color-border)] relative">
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-[color:var(--color-border)]"></div>
+                  </div>
+
+                  {/* Rights badge */}
+                  <div 
+                    className={`mt-1.5 lg:mt-2 text-[9px] font-bold px-2 py-0.5 rounded-full border ${rightsClass} cursor-help`}
+                    title={rightsDesc}
+                  >
+                    {rightsLabel}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Auxiliary transition details (On Hold / Blocked) */}
+      <div className="mt-4 pt-4 border-t border-[color:var(--color-border)] grid gap-4 sm:grid-cols-2">
+        <div className="flex items-start gap-3 p-3 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5">
+          <span className="text-lg">⏸</span>
+          <div>
+            <h4 className="text-xs font-semibold text-amber-400">On Hold Transition</h4>
+            <p className="text-[10px] text-[color:var(--color-text-subtle)] mt-1">
+              Tasks in <strong className="text-[color:var(--color-text)]">In Progress / Dev Test</strong> can be moved to <strong className="text-amber-400">On Hold</strong> by <strong className="text-purple-400">Both (Lead & User)</strong>. Resuming from Hold is also allowed by both.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3 p-3 rounded-xl border border-dashed border-rose-500/30 bg-rose-500/5">
+          <span className="text-lg">🚫</span>
+          <div>
+            <h4 className="text-xs font-semibold text-rose-400">Blocked Transition</h4>
+            <p className="text-[10px] text-[color:var(--color-text-subtle)] mt-1">
+              Any task can be marked as <strong className="text-rose-400">Blocked</strong> by <strong className="text-purple-400">Both (Lead & User)</strong>. Resolving a block can be done by the assignee or lead.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default function TaskBoard({
@@ -1788,6 +1955,8 @@ export default function TaskBoard({
           )}
         </div>
       )}
+
+      <WorkflowStepper />
 
       <div
         ref={scrollContainerRef}

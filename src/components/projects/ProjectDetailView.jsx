@@ -91,6 +91,7 @@ export default function ProjectDetailView({
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [selectedAddUserId, setSelectedAddUserId] = useState("");
+  const [selectedAddUserRole, setSelectedAddUserRole] = useState("MEMBER");
   const [addingMember, setAddingMember] = useState(false);
   const [systemUsers, setSystemUsers] = useState([]);
 
@@ -115,11 +116,27 @@ export default function ProjectDetailView({
 
   const taskTypes = useMemo(() => Object.keys(TASK_TYPE_CHECKLISTS), []);
   const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
-  const canCreateTask = useMemo(() => canCreateTasks(normalizedRole), [normalizedRole]);
+
+  const isProjectAdmin = useMemo(() => {
+    if (!project || !currentUserId) return false;
+    const member = (project.members ?? []).find((m) => m.id === currentUserId);
+    return member?.projectRole === "ADMIN" || project.createdById === currentUserId;
+  }, [project, currentUserId]);
+
+  const canCreateTask = useMemo(
+    () => canCreateTasks(normalizedRole) || isProjectAdmin,
+    [normalizedRole, isProjectAdmin]
+  );
+
   const canManageAssignments = useMemo(
     () =>
-      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole),
-    [normalizedRole]
+      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole) || isProjectAdmin,
+    [normalizedRole, isProjectAdmin]
+  );
+
+  const effectiveCanManageMilestones = useMemo(
+    () => canManageMilestones || isProjectAdmin,
+    [canManageMilestones, isProjectAdmin]
   );
 
   // Load project details & milestones
@@ -238,13 +255,19 @@ export default function ProjectDetailView({
 
     setAddingMember(true);
     try {
-      const currentMemberIds = (project.members ?? []).map((m) => m.id);
-      const newMemberIds = [...currentMemberIds, selectedAddUserId];
+      const currentMembers = (project.members ?? []).map((m) => ({
+        userId: m.id,
+        role: m.projectRole ?? "MEMBER",
+      }));
+      const newMembers = [
+        ...currentMembers,
+        { userId: selectedAddUserId, role: selectedAddUserRole }
+      ];
 
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberIds: newMemberIds }),
+        body: JSON.stringify({ members: newMembers }),
       });
 
       const data = await response.json();
@@ -259,6 +282,7 @@ export default function ProjectDetailView({
       });
 
       setSelectedAddUserId("");
+      setSelectedAddUserRole("MEMBER");
       setIsAddMemberModalOpen(false);
 
       await loadProject();
@@ -290,7 +314,7 @@ export default function ProjectDetailView({
 
   const handleMilestoneSubmit = async (event) => {
     event.preventDefault();
-    if (!canManageMilestones) {
+    if (!effectiveCanManageMilestones) {
       addToast({
         title: "Not allowed",
         message: "Not allowed",
@@ -584,7 +608,7 @@ export default function ProjectDetailView({
               }}
               ariaLabel="Refresh project data"
             />
-            {canManageMilestones && (
+            {effectiveCanManageMilestones && (
               activeTab === "milestones" ? (
                 <ActionButton
                   label="Create milestone"
@@ -658,9 +682,11 @@ export default function ProjectDetailView({
                     src={member.image}
                     name={member.name}
                     alt={`${member.name} avatar`}
-                    className="h-7 w-7 border-2 border-card text-[10px]"
+                    className={`h-7 w-7 border-2 text-[10px] ${
+                      member.projectRole === "ADMIN" ? "border-amber-400 ring-1 ring-amber-400/30" : "border-card"
+                    }`}
                     fallbackClassName="text-[10px]"
-                    title={`${member.name} (${member.role})`}
+                    title={member.projectRole === "ADMIN" ? `⭐ ${member.name} (Project Admin)` : `${member.name} (${member.role})`}
                   />
                 ))}
                 {/* Add Member Button */}
@@ -760,7 +786,7 @@ export default function ProjectDetailView({
               ) : tasks.length ? (
                 <TaskBoard
                   tasks={tasks}
-                  role={role}
+                  role={isProjectAdmin ? "PM" : role}
                   currentUserId={currentUserId}
                   onEditTask={openEditTask}
                 />
@@ -1069,6 +1095,30 @@ export default function ProjectDetailView({
                 </p>
               )}
             </div>
+
+            {selectedAddUserId && (
+              <div className="space-y-2">
+                <Label htmlFor="project-role" className="text-sm font-medium">
+                  Project Role / Permissions
+                </Label>
+                <Select
+                  value={selectedAddUserRole}
+                  onValueChange={setSelectedAddUserRole}
+                  required
+                >
+                  <SelectTrigger id="project-role" className="w-full">
+                    <SelectValue placeholder="Choose role..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MEMBER">Standard Member</SelectItem>
+                    <SelectItem value="ADMIN">⭐ Project Admin (Full Access)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Project Admins bypass standard developer role checks, allowing full creation, editing, and transition of tasks in this project.
+                </p>
+              </div>
+            )}
 
             <DialogFooter className="flex-row flex-wrap justify-end gap-2 border-t border-border pt-4">
               <Button

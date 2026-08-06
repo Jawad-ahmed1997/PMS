@@ -2,8 +2,8 @@ import { prisma } from "@/lib/prisma";
 import {
   ADMIN_ROLES,
   buildSuccess,
+  buildError,
   ensureAuthenticated,
-  ensureRole,
   getAuthContext,
   normalizeRole,
   parseBoolean,
@@ -16,15 +16,26 @@ export async function GET(request) {
     return authError;
   }
 
-  const roleError = ensureRole(context.role, ADMIN_ROLES);
-  if (roleError) {
-    return roleError;
-  }
-
   const { searchParams } = new URL(request.url);
   const roleParam = normalizeRole(searchParams.get("role"));
   const isActiveParam = parseBoolean(searchParams.get("isActive"));
   const projectIdParam = searchParams.get("projectId");
+
+  const isManager = ADMIN_ROLES.includes(context.role);
+  let isProjectMember = false;
+
+  if (projectIdParam) {
+    const membership = await prisma.projectMember.findFirst({
+      where: { projectId: projectIdParam, userId: context.user.id },
+    });
+    if (membership) {
+      isProjectMember = true;
+    }
+  }
+
+  if (!isManager && !isProjectMember) {
+    return buildError("You do not have permission to view users.", 403);
+  }
 
   const where = {};
   if (roleParam) {
