@@ -321,12 +321,11 @@ async function buildUserIntervals(prismaClient, userId, windowStart, windowEnd, 
   });
 
   const dutyWindows = mergeIntervals(dutyIntervals);
-  const workLogs = await prismaClient.taskTimeLog.findMany({
+  const workLogs = await prismaClient.taskWorkSession.findMany({
     where: {
-      status: { in: Array.from(WORKING_STATUSES) },
+      userId,
       startedAt: { lte: windowEnd },
       OR: [{ endedAt: null }, { endedAt: { gte: windowStart } }],
-      task: { ownerId: userId },
     },
     select: { taskId: true, startedAt: true, endedAt: true },
   });

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Eye, MoreHorizontal, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -95,27 +96,29 @@ const ProjectMembers = ({ members }) => {
 export default function ProjectListView({ canManageProjects }) {
   const { addToast } = useToast();
   const router = useRouter();
-  const [projects, setProjects] = useState([]);
-  const [status, setStatus] = useState({ loading: true, error: null });
   const [viewMode, setViewMode] = useState("grid");
   const [modalState, setDialogState] = useState({ open: false, mode: "create", project: null });
 
-  const loadProjects = useCallback(async () => {
-    setStatus({ loading: true, error: null });
-    try {
+  const { data: projects = [], isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
       const response = await fetch("/api/projects");
       const data = await response.json();
       if (!response.ok) throw new Error(buildErrorMessage(data));
-      setProjects((data?.projects ?? []).map(normalizeProject));
-      setStatus({ loading: false, error: null });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to load project data.";
-      setStatus({ loading: false, error: message });
-      addToast({ title: "Projects unavailable", message, variant: "error" });
-    }
-  }, [addToast]);
+      return (data?.projects ?? []).map(normalizeProject);
+    },
+    staleTime: 1000 * 30, // 30 seconds
+  });
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  useEffect(() => {
+    if (projectsError) {
+      addToast({
+        title: "Projects unavailable",
+        message: projectsError.message || "Unable to load project data.",
+        variant: "error",
+      });
+    }
+  }, [projectsError, addToast]);
   useEffect(() => {
     const stored = typeof window !== "undefined" ? window.localStorage.getItem(VIEW_PREFERENCE_KEY) : null;
     if (stored === "grid" || stored === "list") setViewMode(stored);
@@ -152,7 +155,7 @@ export default function ProjectListView({ canManageProjects }) {
         subtitle="Track active initiatives across the organization."
         actions={
           <div className="flex items-center gap-2">
-            <RefreshButton onClick={loadProjects} ariaLabel="Refresh project list" />
+            <RefreshButton onClick={() => refetchProjects()} ariaLabel="Refresh project list" />
             {canManageProjects && (
               <Button onClick={openCreateDialog}>Create project</Button>
             )}
@@ -161,11 +164,11 @@ export default function ProjectListView({ canManageProjects }) {
         viewToggle={<ViewToggle value={viewMode} onChange={setViewMode} />}
       />
 
-      {status.loading && <ProjectListSkeleton />}
-      {!status.loading && status.error && <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive"><p>{status.error}</p><Button variant="secondary" onClick={loadProjects}>Retry</Button></div>}
-      {!status.loading && !status.error && !projects.length && <div className="rounded-xl border border-dashed border-border bg-card p-8 text-sm text-muted-foreground">No projects yet. Create one to begin planning milestones.</div>}
+      {projectsLoading && <ProjectListSkeleton />}
+      {!projectsLoading && projectsError && <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive"><p>{projectsError.message || "Unable to load project data."}</p><Button variant="secondary" onClick={() => refetchProjects()}>Retry</Button></div>}
+      {!projectsLoading && !projectsError && !projects.length && <div className="rounded-xl border border-dashed border-border bg-card p-8 text-sm text-muted-foreground">No projects yet. Create one to begin planning milestones.</div>}
 
-      {!status.loading && !status.error && projects.length ? viewMode === "grid" ? (
+      {!projectsLoading && !projectsError && projects.length ? viewMode === "grid" ? (
         <div className="grid auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project, index) => (
             <div key={project.id} role="button" tabIndex={0} onClick={() => router.push(`/projects/${project.id}`)} onKeyDown={(event) => { if (event.key === "Enter") router.push(`/projects/${project.id}`); }} style={{ animationDelay: `${index * 50}ms` }} className="group flex h-full cursor-pointer flex-col justify-between overflow-hidden rounded-xl border border-border/70 bg-card p-5 transition-colors duration-200 ease-out hover:border-foreground/25 hover:bg-muted/20 animate-in fade-in slide-in-from-bottom-4 fill-mode-both">
@@ -185,7 +188,7 @@ export default function ProjectListView({ canManageProjects }) {
         </div>
       ) : null}
 
-      <ProjectDialog isOpen={modalState.open} mode={modalState.mode} initialValues={modalState.project} onClose={closeDialog} onSuccess={loadProjects} />
+      <ProjectDialog isOpen={modalState.open} mode={modalState.mode} initialValues={modalState.project} onClose={closeDialog} onSuccess={() => refetchProjects()} />
     </div>
   );
 }

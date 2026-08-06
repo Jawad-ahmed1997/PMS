@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import RefreshButton from "@/components/ui/RefreshButton";
 import { Sheet } from "@/components/ui/sheet";
@@ -249,8 +250,6 @@ export default function ActivityDashboard({
   const [period, setPeriod] = useState("daily");
   const [selectedDate, setSelectedDate] = useState("");
   const [activeBadge, setActiveBadge] = useState("all");
-  const [logs, setLogs] = useState(initialLogs);
-  const [status, setStatus] = useState({ loading: false, error: null });
   const [selectedUser, setSelectedUser] = useState(null);
   const [userQuery, setUserQuery] = useState("");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -259,10 +258,12 @@ export default function ActivityDashboard({
   const [logDialog, setLogDialog] = useState({ open: false, mode: "create" });
   const [activeLog, setActiveLog] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const categoryMenuRef = useRef(null);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState("");
   const [isSavingLog, setIsSavingLog] = useState(false);
+  const queryClient = useQueryClient();
 
   const [logForm, setLogForm] = useState({
     categories: ["LEARNING"],
@@ -308,43 +309,49 @@ export default function ActivityDashboard({
     );
   }, [categoryQuery]);
 
-  const fetchLogs = async ({ targetUserId } = {}) => {
-    setStatus({ loading: true, error: null });
-    setLogs([]);
-    try {
+  const { data: rawLogs, isLoading: logsLoading, error: logsError, refetch: refetchLogs } = useQuery({
+    queryKey: ["activityLogs", period, selectedDate, selectedUser?.id, isManager],
+    queryFn: async () => {
+      if (!selectedDate) return [];
       const { start, end } = getPeriodRange(period, selectedDate);
       const params = new URLSearchParams();
-      params.set("startDate", start.toISOString());
-      params.set("endDate", end.toISOString());
+      params.set("startDate", formatDateInputValue(start));
+      params.set("endDate", formatDateInputValue(end));
       params.set("scope", isManager ? "all" : "mine");
-      if (targetUserId && isManager) {
-        params.set("userId", targetUserId);
+      if (selectedUser?.id && isManager) {
+        params.set("userId", selectedUser.id);
       }
       const response = await fetch(`/api/activity?${params.toString()}`);
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.error ?? "Unable to load activity logs.");
       }
-      setLogs(data?.activityLogs ?? []);
-      setStatus({ loading: false, error: null });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to load activity logs.";
-      setStatus({ loading: false, error: message });
+      return data?.activityLogs ?? [];
+    },
+    enabled: Boolean(isHydrated && selectedDate),
+    initialData: (!selectedUser?.id && (!selectedDate || selectedDate === getManualTodayDateKey(new Date(), userTimeZone)))
+      ? initialLogs
+      : undefined,
+    staleTime: 0,
+  });
+
+  const logs = useMemo(() => {
+    if (rawLogs !== undefined) {
+      return rawLogs;
+    }
+    const isInitialState = !selectedUser?.id && (!selectedDate || selectedDate === getManualTodayDateKey(new Date(), userTimeZone));
+    return isInitialState ? initialLogs : [];
+  }, [rawLogs, selectedUser?.id, selectedDate, userTimeZone, initialLogs]);
+
+  useEffect(() => {
+    if (logsError) {
       addToast({
         title: "Activity unavailable",
-        message,
+        message: logsError.message || "Unable to load activity logs.",
         variant: "error",
       });
     }
-  };
-
-  useEffect(() => {
-    if (!isHydrated || !selectedDate) {
-      return;
-    }
-    fetchLogs({ targetUserId: selectedUser?.id ?? "" });
-  }, [period, selectedDate, selectedUser?.id, isManager, isHydrated]);
+  }, [logsError, addToast]);
 
   useEffect(() => {
     const manualLogIds = logs
@@ -475,7 +482,8 @@ export default function ActivityDashboard({
         message: "Manual activity removed.",
         variant: "success",
       });
-      await fetchLogs({ targetUserId: selectedUser?.id ?? "" });
+      await refetchLogs();
+      queryClient.invalidateQueries({ queryKey: ["activityLogs"] });
     } catch (error) {
       addToast({
         title: "Delete failed",
@@ -582,7 +590,8 @@ export default function ActivityDashboard({
         variant: "success",
       });
       closeLogDialog();
-      await fetchLogs({ targetUserId: selectedUser?.id ?? "" });
+      await refetchLogs();
+      queryClient.invalidateQueries({ queryKey: ["activityLogs"] });
     } catch (error) {
       addToast({
         title: "Log failed",
@@ -607,7 +616,10 @@ export default function ActivityDashboard({
         subtitle="Track daily logs, task auto-activity, and leadership feedback."
         actions={
           <div className="flex items-center gap-2">
-            <RefreshButton onClick={() => fetchLogs({ targetUserId: selectedUser?.id ?? "" })} ariaLabel="Refresh activity logs" />
+            <RefreshButton onClick={() => {
+              refetchLogs();
+              setRefreshTrigger((prev) => prev + 1);
+            }} ariaLabel="Refresh activity logs" />
             <Button
               label="Manual Log Activity"
               variant="default"
@@ -726,13 +738,13 @@ export default function ActivityDashboard({
         ) : null}
       </div>
 
-      {status.loading ? (
-        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)]">
+      {logsLoading ? (
+        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 text-sm text-[color:var(--color-text-muted)] animate-pulse">
           Loading activity...
         </div>
-      ) : status.error ? (
+      ) : logsError ? (
         <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
-          {status.error}
+          {logsError.message || "Unable to load activity logs."}
         </div>
       ) : (
         <div className="space-y-4">
@@ -747,6 +759,7 @@ export default function ActivityDashboard({
               period={period}
               date={selectedDate}
               userId={selectedUser?.id ?? null}
+              refreshTrigger={refreshTrigger}
             />
             {period === "daily" ? (
               <DailyTimelineChart
@@ -754,6 +767,7 @@ export default function ActivityDashboard({
                 userId={selectedUser?.id ?? null}
                 showNames={isManager}
                 title="Daily working timeline"
+                refreshTrigger={refreshTrigger}
               />
             ) : null}
           </ClientOnly>
@@ -777,7 +791,10 @@ export default function ActivityDashboard({
                 : 0;
               const manualStatus = getManualStatus(log);
               const isRunningManual = isManualLog && manualStatus === "RUNNING";
-              const runningDurationLabel = isRunningManual
+              const isRunningTask = !isManualLog && log.startAt !== undefined && log.startAt !== null && log.endAt === null;
+              const isPausedTask = isRunningTask && log.isPaused;
+              const isRunning = isRunningManual || (isRunningTask && !isPausedTask);
+              const runningDurationLabel = (isRunningManual || isRunningTask)
                 ? getRunningDurationLabel(log.startAt)
                 : null;
               return (
@@ -828,9 +845,14 @@ export default function ActivityDashboard({
                       <span className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">
                         {badgeLabel}
                       </span>
-                      {isRunningManual ? (
+                      {isRunning ? (
                         <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
                           Running
+                        </span>
+                      ) : null}
+                      {isPausedTask ? (
+                        <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+                          On Break
                         </span>
                       ) : null}
                       <ActivityActionMenu
@@ -883,9 +905,9 @@ export default function ActivityDashboard({
                       {formatTimeOnly(log.endAt, userTimeZone)}
                     </p>
                   ) : null}
-                  {isRunningManual && log.startAt ? (
+                  {(isRunningManual || isRunningTask) && log.startAt ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                      Time: {formatTimeOnly(log.startAt, userTimeZone)} • Running
+                      Time: {formatTimeOnly(log.startAt, userTimeZone)} • {isPausedTask ? "Paused" : "Running"}
                       {runningDurationLabel ? ` • ${runningDurationLabel}` : ""}
                     </p>
                   ) : null}

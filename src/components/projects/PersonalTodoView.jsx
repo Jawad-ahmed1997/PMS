@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,8 +16,8 @@ import SearchableTaskSelector from "@/components/ui/SearchableTaskSelector";
 export default function PersonalTodoView({ tasks = [] }) {
   const { addToast } = useToast();
   const [todos, setTodos] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const queryClient = useQueryClient();
 
   // Add Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -53,29 +54,32 @@ export default function PersonalTodoView({ tasks = [] }) {
     return { ...todo, status, cleanContent };
   };
 
-  const loadTodos = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: queryTodos = [], isLoading: loading, error: todosError } = useQuery({
+    queryKey: ["todos"],
+    queryFn: async () => {
       const response = await fetch("/api/todos");
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message ?? "Failed to load to-dos.");
       }
-      setTodos((data.todos ?? []).map(parseTodo));
-    } catch (error) {
-      addToast({
-        title: "To-Dos unavailable",
-        message: error instanceof Error ? error.message : "Failed to load to-dos.",
-        variant: "error",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [addToast]);
+      return (data.todos ?? []).map(parseTodo);
+    },
+    staleTime: 1000 * 10,
+  });
 
   useEffect(() => {
-    loadTodos();
-  }, [loadTodos]);
+    setTodos(queryTodos);
+  }, [queryTodos]);
+
+  useEffect(() => {
+    if (todosError) {
+      addToast({
+        title: "To-Dos unavailable",
+        message: todosError.message || "Failed to load to-dos.",
+        variant: "error",
+      });
+    }
+  }, [todosError, addToast]);
 
   const handleCreateTodo = async (event) => {
     event.preventDefault();
@@ -135,7 +139,7 @@ export default function PersonalTodoView({ tasks = [] }) {
       setCustomReminder("");
       setIsAddModalOpen(false);
       
-      await loadTodos();
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
 
       addToast({
         title: "To-Do created",
@@ -182,7 +186,7 @@ export default function PersonalTodoView({ tasks = [] }) {
       }
     } catch (error) {
       // Revert on error
-      await loadTodos();
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
       addToast({
         title: "Update failed",
         message: error instanceof Error ? error.message : "Failed to update to-do status.",
@@ -213,6 +217,7 @@ export default function PersonalTodoView({ tasks = [] }) {
         message: "Your to-do has been removed.",
         variant: "info",
       });
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
     } catch (error) {
       setTodos(previousTodos);
       addToast({
@@ -292,7 +297,7 @@ export default function PersonalTodoView({ tasks = [] }) {
 
       setIsEditModalOpen(false);
       setEditingTodo(null);
-      await loadTodos();
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
 
       addToast({
         title: "To-Do updated",

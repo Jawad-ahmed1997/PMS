@@ -136,10 +136,6 @@ export async function PATCH(request, { params }) {
     return authError;
   }
 
-  if (!isManagementRole(context.role)) {
-    return buildError("Only PM/CTO can edit tasks.", 403);
-  }
-
   if (!taskId) {
     return buildError("Task id is required.", 400);
   }
@@ -147,6 +143,15 @@ export async function PATCH(request, { params }) {
   const task = await getTask(taskId, context.user.id);
   if (!task) {
     return buildError("Task not found.", 404);
+  }
+
+  const projectMember = task.projectId ? await prisma.projectMember.findFirst({
+    where: { projectId: task.projectId, userId: context.user.id }
+  }) : null;
+  const isProjectAdmin = projectMember?.role === "ADMIN";
+
+  if (!isManagementRole(context.role) && !isProjectAdmin) {
+    return buildError("Only PM/CTO or Project Admins can edit tasks.", 403);
   }
 
   if (!canAccessTask(context, task)) {

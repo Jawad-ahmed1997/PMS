@@ -12,6 +12,7 @@ import NotificationSheet from "@/components/notifications/NotificationDrawer";
 import RouteProgress from "@/components/layout/RouteProgress";
 import { logoutAction } from "@/app/logout/actions";
 import FloatingTaskTimer from "@/components/layout/FloatingTaskTimer";
+import FloatingActivityTimer from "@/components/layout/FloatingActivityTimer";
 import TodoReminderManager from "@/components/layout/TodoReminderManager";
 import {
   NotificationCountsProvider,
@@ -160,6 +161,7 @@ function AppShellContent({ children, session }) {
         onClose={() => setIsNotificationsOpen(false)}
       />
       <FloatingTaskTimer session={session} />
+      <FloatingActivityTimer session={session} />
       <TodoReminderManager session={session} />
     </div>
   );

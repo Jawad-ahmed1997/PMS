@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import PageHeader from "@/components/layout/PageHeader";
 import PersonalTodoView from "@/components/projects/PersonalTodoView";
 import PersonalNotesView from "@/components/projects/PersonalNotesView";
@@ -12,34 +13,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export default function MyDeskView({ role, currentUserId }) {
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState("todos"); // todos, notes
-  const [tasks, setTasks] = useState([]);
-  const [tasksLoading, setTasksLoading] = useState(true);
-
-  const loadTasks = useCallback(async () => {
-    setTasksLoading(true);
-    try {
-      const isManager = role && ["pm", "cto", "ceo", "team-lead"].includes(normalizeRoleId(role));
+  const isManager = role && ["pm", "cto", "ceo", "team-lead"].includes(normalizeRoleId(role));
+  const { data: tasks = [], isLoading: tasksLoading, error: tasksError } = useQuery({
+    queryKey: ["tasks", isManager ? "all" : "mine"],
+    queryFn: async () => {
       const url = isManager ? "/api/tasks?allTasks=true" : "/api/tasks?assignedToMe=true";
       const response = await fetch(url);
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message ?? "Failed to load tasks.");
       }
-      setTasks(data.tasks || []);
-    } catch (error) {
-      addToast({
-        title: "Tasks loading failed",
-        message: error instanceof Error ? error.message : "Could not fetch tasks for linking.",
-        variant: "warning",
-      });
-    } finally {
-      setTasksLoading(false);
-    }
-  }, [role, addToast]);
+      return data.tasks || [];
+    },
+    staleTime: 1000 * 10,
+  });
 
   useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+    if (tasksError) {
+      addToast({
+        title: "Tasks loading failed",
+        message: tasksError.message || "Could not fetch tasks for linking.",
+        variant: "warning",
+      });
+    }
+  }, [tasksError, addToast]);
 
   return (
     <div className="space-y-6">

@@ -115,6 +115,11 @@ export default function FloatingTaskTimer({ session }) {
     return { x: 24, y: 96 };
   });
 
+  const canControl =
+    Boolean(activeSession?.active) &&
+    session &&
+    !["PM", "CTO", "TEAM_LEAD"].includes(String(session.role ?? "").toUpperCase());
+
   const syncFromServer = useCallback(async () => {
     if (!session) {
       setLoading(false);
@@ -194,9 +199,13 @@ export default function FloatingTaskTimer({ session }) {
   }, [syncFromServer]);
 
   useEffect(() => {
-    const onFocus = () => syncFromServer();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    const onSync = () => syncFromServer();
+    window.addEventListener("focus", onSync);
+    window.addEventListener("attendance-updated", onSync);
+    return () => {
+      window.removeEventListener("focus", onSync);
+      window.removeEventListener("attendance-updated", onSync);
+    };
   }, [syncFromServer]);
 
   useEffect(() => {
@@ -214,6 +223,7 @@ export default function FloatingTaskTimer({ session }) {
       window.removeEventListener("pms:timer-changed", handleTimerChange);
     };
   }, [syncFromServer]);
+
 
   const clampPosition = useCallback((nextX, nextY) => {
     const el = containerRef.current;
@@ -280,11 +290,6 @@ export default function FloatingTaskTimer({ session }) {
   const progress = estimatedSeconds > 0 ? Math.min(1, spentSeconds / estimatedSeconds) : 0;
   const colorState = getTimerColor(estimatedSeconds, spentSeconds);
   const palette = COLOR_MAP[colorState];
-
-  const canControl =
-    Boolean(activeSession?.active) &&
-    session &&
-    !["PM", "CTO", "TEAM_LEAD"].includes(String(session.role ?? "").toUpperCase());
 
   const moveToTask = useCallback(async () => {
     if (!activeSession?.task?.id) {
@@ -363,8 +368,16 @@ export default function FloatingTaskTimer({ session }) {
     }
   };
 
-  const handleResume = async () => {
+  const handleResume = useCallback(async () => {
     if (!activeSession?.task?.id || !canControl) {
+      return;
+    }
+    const stored = typeof window !== "undefined" ? localStorage.getItem("activity_timer_state") : null;
+    const parsed = stored ? JSON.parse(stored) : null;
+    if (parsed && parsed.running) {
+      window.dispatchEvent(new CustomEvent("pms:show-manual-warning", { 
+        detail: { action: "resume-task" } 
+      }));
       return;
     }
     setSubmitting(true);
@@ -387,7 +400,19 @@ export default function FloatingTaskTimer({ session }) {
     } else {
       syncFromServer();
     }
-  };
+  }, [activeSession, canControl, addToast, syncFromServer]);
+
+  useEffect(() => {
+    const handleManualSaved = (e) => {
+      if (e.detail?.action === "resume-task") {
+        handleResume();
+      }
+    };
+    window.addEventListener("pms:manual-activity-saved", handleManualSaved);
+    return () => {
+      window.removeEventListener("pms:manual-activity-saved", handleManualSaved);
+    };
+  }, [handleResume]);
 
   const onPointerDownDrag = (event) => {
     if (event.button !== 0) {

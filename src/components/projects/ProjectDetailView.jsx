@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 
 import {
@@ -58,18 +59,31 @@ export default function ProjectDetailView({
   const { addToast } = useToast();
   const [project, setProject] = useState(null);
   const [milestones, setMilestones] = useState([]);
-  const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [activeTab, setActiveTab] = useState("board");
 
   // Loading statuses
   const [status, setStatus] = useState({ loading: true, error: null });
-  const [tasksLoading, setTasksLoading] = useState(false);
   const [savingMilestone, setSavingMilestone] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
-  const refreshIntervalRef = useRef(null);
-  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  // Query for tasks loading
+  const { data: tasks = [], isLoading: tasksLoading, error: tasksError, refetch: refetchTasks, dataUpdatedAt } = useQuery({
+    queryKey: ["tasks", "project", projectId],
+    queryFn: async () => {
+      const response = await fetch(`/api/tasks?projectId=${projectId}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message ?? "Failed to load tasks");
+      }
+      return data?.tasks ?? [];
+    },
+    enabled: activeTab === "board" && !status.loading && !status.error,
+    staleTime: 1000 * 10,
+    refetchInterval: 300000,
+  });
+
+  const lastUpdatedAt = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
   // Modals state
   const [modalOpen, setModalOpen] = useState(false); // Milestone modal
@@ -77,6 +91,7 @@ export default function ProjectDetailView({
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [selectedAddUserId, setSelectedAddUserId] = useState("");
+  const [selectedAddUserRole, setSelectedAddUserRole] = useState("MEMBER");
   const [addingMember, setAddingMember] = useState(false);
   const [systemUsers, setSystemUsers] = useState([]);
 
@@ -101,11 +116,27 @@ export default function ProjectDetailView({
 
   const taskTypes = useMemo(() => Object.keys(TASK_TYPE_CHECKLISTS), []);
   const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
-  const canCreateTask = useMemo(() => canCreateTasks(normalizedRole), [normalizedRole]);
+
+  const isProjectAdmin = useMemo(() => {
+    if (!project || !currentUserId) return false;
+    const member = (project.members ?? []).find((m) => m.id === currentUserId);
+    return member?.projectRole === "ADMIN" || project.createdById === currentUserId;
+  }, [project, currentUserId]);
+
+  const canCreateTask = useMemo(
+    () => canCreateTasks(normalizedRole) || isProjectAdmin,
+    [normalizedRole, isProjectAdmin]
+  );
+
   const canManageAssignments = useMemo(
     () =>
-      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole),
-    [normalizedRole]
+      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole) || isProjectAdmin,
+    [normalizedRole, isProjectAdmin]
+  );
+
+  const effectiveCanManageMilestones = useMemo(
+    () => canManageMilestones || isProjectAdmin,
+    [canManageMilestones, isProjectAdmin]
   );
 
   // Load project details & milestones
@@ -158,84 +189,19 @@ export default function ProjectDetailView({
     }
   }, [addToast, projectId]);
 
-  // Load project tasks with sessionStorage cache (stale-while-revalidate)
-  const loadTasks = useCallback(async (silent = false) => {
-    const cacheKey = `pms-tasks-${projectId}`;
-
-    // On non-silent load, try to serve from cache immediately for instant render
-    if (!silent && typeof window !== "undefined") {
-      try {
-        const cached = sessionStorage.getItem(cacheKey);
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_TTL && Array.isArray(data) && data.length > 0) {
-            setTasks(data);
-            setLastUpdatedAt(new Date(timestamp));
-            // Continue to fetch fresh data in the background (don't show spinner)
-          }
-        }
-      } catch { /* ignore parse errors */ }
+  useEffect(() => {
+    if (tasksError) {
+      addToast({
+        title: "Tasks unavailable",
+        message: tasksError.message || "Failed to load tasks.",
+        variant: "error",
+      });
     }
-
-    if (!silent) setTasksLoading(true);
-    try {
-      const response = await fetch(`/api/tasks?projectId=${projectId}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.message ?? "Failed to load tasks");
-      }
-      const freshTasks = data?.tasks ?? [];
-      setTasks(freshTasks);
-      const now = Date.now();
-      setLastUpdatedAt(new Date(now));
-      // Save to cache
-      if (typeof window !== "undefined") {
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify({ data: freshTasks, timestamp: now }));
-        } catch { /* quota errors */ }
-      }
-    } catch (error) {
-      if (!silent) {
-        addToast({
-          title: "Tasks unavailable",
-          message: error instanceof Error ? error.message : "Failed to load tasks.",
-          variant: "error",
-        });
-      }
-    } finally {
-      if (!silent) setTasksLoading(false);
-    }
-  }, [addToast, projectId, CACHE_TTL]);
+  }, [tasksError, addToast]);
 
   useEffect(() => {
     loadProject();
   }, [loadProject]);
-
-  useEffect(() => {
-    if (activeTab === "board" && !status.loading && !status.error) {
-      loadTasks();
-    }
-  }, [activeTab, loadTasks, status.loading, status.error]);
-
-  // 5-minute background auto-refresh when the board tab is active
-  useEffect(() => {
-    if (activeTab !== "board") {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-      return;
-    }
-    refreshIntervalRef.current = setInterval(() => {
-      loadTasks(true); // silent refresh
-    }, CACHE_TTL);
-    return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-    };
-  }, [activeTab, loadTasks, CACHE_TTL]);
 
   // Load project members for task assignee dropdown
   useEffect(() => {
@@ -289,13 +255,19 @@ export default function ProjectDetailView({
 
     setAddingMember(true);
     try {
-      const currentMemberIds = (project.members ?? []).map((m) => m.id);
-      const newMemberIds = [...currentMemberIds, selectedAddUserId];
+      const currentMembers = (project.members ?? []).map((m) => ({
+        userId: m.id,
+        role: m.projectRole ?? "MEMBER",
+      }));
+      const newMembers = [
+        ...currentMembers,
+        { userId: selectedAddUserId, role: selectedAddUserRole }
+      ];
 
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberIds: newMemberIds }),
+        body: JSON.stringify({ members: newMembers }),
       });
 
       const data = await response.json();
@@ -310,6 +282,7 @@ export default function ProjectDetailView({
       });
 
       setSelectedAddUserId("");
+      setSelectedAddUserRole("MEMBER");
       setIsAddMemberModalOpen(false);
 
       await loadProject();
@@ -341,7 +314,7 @@ export default function ProjectDetailView({
 
   const handleMilestoneSubmit = async (event) => {
     event.preventDefault();
-    if (!canManageMilestones) {
+    if (!effectiveCanManageMilestones) {
       addToast({
         title: "Not allowed",
         message: "Not allowed",
@@ -559,7 +532,7 @@ export default function ProjectDetailView({
 
       resetTaskForm();
       setIsTaskModalOpen(false);
-      loadTasks();
+      refetchTasks();
     } catch (error) {
       const message =
         error instanceof Error
@@ -631,14 +604,11 @@ export default function ProjectDetailView({
           <div className="flex items-center gap-2">
             <RefreshButton
               onClick={async () => {
-                if (typeof window !== "undefined") {
-                  sessionStorage.removeItem(`pms-tasks-${projectId}`);
-                }
-                await Promise.all([loadProject(), loadTasks(false)]);
+                await Promise.all([loadProject(), refetchTasks()]);
               }}
               ariaLabel="Refresh project data"
             />
-            {canManageMilestones && (
+            {effectiveCanManageMilestones && (
               activeTab === "milestones" ? (
                 <ActionButton
                   label="Create milestone"
@@ -712,9 +682,11 @@ export default function ProjectDetailView({
                     src={member.image}
                     name={member.name}
                     alt={`${member.name} avatar`}
-                    className="h-7 w-7 border-2 border-card text-[10px]"
+                    className={`h-7 w-7 border-2 text-[10px] ${
+                      member.projectRole === "ADMIN" ? "border-amber-400 ring-1 ring-amber-400/30" : "border-card"
+                    }`}
                     fallbackClassName="text-[10px]"
-                    title={`${member.name} (${member.role})`}
+                    title={member.projectRole === "ADMIN" ? `⭐ ${member.name} (Project Admin)` : `${member.name} (${member.role})`}
                   />
                 ))}
                 {/* Add Member Button */}
@@ -814,7 +786,7 @@ export default function ProjectDetailView({
               ) : tasks.length ? (
                 <TaskBoard
                   tasks={tasks}
-                  role={role}
+                  role={isProjectAdmin ? "PM" : role}
                   currentUserId={currentUserId}
                   onEditTask={openEditTask}
                 />
@@ -1123,6 +1095,30 @@ export default function ProjectDetailView({
                 </p>
               )}
             </div>
+
+            {selectedAddUserId && (
+              <div className="space-y-2">
+                <Label htmlFor="project-role" className="text-sm font-medium">
+                  Project Role / Permissions
+                </Label>
+                <Select
+                  value={selectedAddUserRole}
+                  onValueChange={setSelectedAddUserRole}
+                  required
+                >
+                  <SelectTrigger id="project-role" className="w-full">
+                    <SelectValue placeholder="Choose role..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MEMBER">Standard Member</SelectItem>
+                    <SelectItem value="ADMIN">⭐ Project Admin (Full Access)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Project Admins bypass standard developer role checks, allowing full creation, editing, and transition of tasks in this project.
+                </p>
+              </div>
+            )}
 
             <DialogFooter className="flex-row flex-wrap justify-end gap-2 border-t border-border pt-4">
               <Button

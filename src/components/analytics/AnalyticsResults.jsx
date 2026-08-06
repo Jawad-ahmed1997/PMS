@@ -252,7 +252,7 @@ function DailyUsersStackedChart({ users }) {
   );
 }
 
-export default function AnalyticsResults({ period, date, userId }) {
+export default function AnalyticsResults({ period, date, userId, refreshTrigger }) {
   const [state, setState] = useState({
     status: "idle",
     error: null,
@@ -291,7 +291,7 @@ export default function AnalyticsResults({ period, date, userId }) {
     };
     load();
     return () => controller.abort();
-  }, [period, date, userId]);
+  }, [period, date, userId, refreshTrigger]);
 
   const payload = useMemo(() => state.payload ?? {}, [state.payload]);
   const results = useMemo(() => payload?.users ?? [], [payload]);

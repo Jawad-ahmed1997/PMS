@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, MoreHorizontal } from "lucide-react";
 import ActionButton from "@/components/ui/ActionButton";
 import {
@@ -590,9 +591,7 @@ export default function AttendanceDashboard({
     return `${hours}:${minutes}`;
   };
 
-  const [attendance, setAttendance] = useState(initialAttendance ?? []);
-  const [presenceNow, setPresenceNow] = useState(initialPresenceNow ?? null);
-  const [status, setStatus] = useState({ loading: false, error: null });
+  const queryClient = useQueryClient();
   const [activeBadge, setActiveBadge] = useState("all");
   const [activePreset, setActivePreset] = useState(initialRange?.preset ?? "today");
   const [range, setRange] = useState(() => {
@@ -605,6 +604,45 @@ export default function AttendanceDashboard({
   const [userQuery, setUserQuery] = useState("");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
+
+  const { data: attendanceData = { attendance: initialAttendance ?? [], presenceNow: initialPresenceNow ?? null }, isLoading: attendanceLoading, error: attendanceError, refetch: refetchAttendance } = useQuery({
+    queryKey: ["attendanceList", range.from, range.to, selectedUser?.id],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (range.from) params.set("from", range.from);
+      if (range.to) params.set("to", range.to);
+      if (selectedUser?.id) params.set("userId", selectedUser.id);
+      const response = await fetch(`/api/attendance?${params.toString()}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message ?? "Unable to load attendance.");
+      }
+      return {
+        attendance: data?.attendance ?? [],
+        presenceNow: data?.presenceNow ?? null,
+      };
+    },
+    initialData: { attendance: initialAttendance ?? [], presenceNow: initialPresenceNow ?? null },
+    staleTime: 1000 * 10,
+  });
+
+  const [attendance, setAttendance] = useState(initialAttendance ?? []);
+  const [presenceNow, setPresenceNow] = useState(initialPresenceNow ?? null);
+
+  useEffect(() => {
+    if (attendanceData) {
+      setAttendance(attendanceData.attendance);
+      setPresenceNow(attendanceData.presenceNow);
+    }
+  }, [attendanceData]);
+
+  const handleRefreshAttendance = useCallback(async () => {
+    await refetchAttendance();
+    queryClient.invalidateQueries({ queryKey: ["attendanceList"] });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("attendance-updated"));
+    }
+  }, [refetchAttendance, queryClient]);
 
   const [modalState, setModalState] = useState({ open: false, mode: "create" });
   const [activeRecord, setActiveRecord] = useState(null);
@@ -730,42 +768,15 @@ export default function AttendanceDashboard({
     );
   };
 
-  const fetchAttendance = async ({ targetUserId } = {}) => {
-    setStatus({ loading: true, error: null });
-    try {
-      const params = new URLSearchParams();
-      if (range.from) {
-        params.set("from", range.from);
-      }
-      if (range.to) {
-        params.set("to", range.to);
-      }
-      if (targetUserId) {
-        params.set("userId", targetUserId);
-      }
-      const response = await fetch(`/api/attendance?${params.toString()}`, { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.message ?? "Unable to load attendance.");
-      }
-      setAttendance(data?.attendance ?? []);
-      setPresenceNow(data?.presenceNow ?? null);
-      setStatus({ loading: false, error: null });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to load attendance.";
-      setStatus({ loading: false, error: message });
+  useEffect(() => {
+    if (attendanceError) {
       addToast({
         title: "Attendance unavailable",
-        message,
+        message: attendanceError.message || "Unable to load attendance.",
         variant: "error",
       });
     }
-  };
-
-  useEffect(() => {
-    fetchAttendance({ targetUserId: selectedUser?.id ?? "" });
-  }, [range.from, range.to, selectedUser?.id]);
+  }, [attendanceError, addToast]);
 
   const handlePresetClick = (preset) => {
     const nextRange = getPresetRange(preset);
@@ -891,7 +902,7 @@ export default function AttendanceDashboard({
         );
         notifyAttendanceUpdated(data.attendance.userId ?? currentUser?.id);
       } else {
-        fetchAttendance({ targetUserId: selectedUser?.id ?? "" });
+        handleRefreshAttendance();
       }
     } catch (error) {
       const message =
@@ -1001,7 +1012,7 @@ export default function AttendanceDashboard({
           )
         );
       } else {
-        fetchAttendance({ targetUserId: selectedUser?.id ?? "" });
+        handleRefreshAttendance();
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save break.";
@@ -1043,7 +1054,7 @@ export default function AttendanceDashboard({
           )
         );
       } else {
-        fetchAttendance({ targetUserId: selectedUser?.id ?? "" });
+        handleRefreshAttendance();
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to delete break.";
@@ -1062,7 +1073,6 @@ export default function AttendanceDashboard({
   const handleSubmit = async (event) => {
     event.preventDefault();
     setAttendanceSubmitting(true);
-    setStatus((prev) => ({ ...prev, loading: true }));
 
     const payload = {
       date: form.date,
@@ -1099,7 +1109,7 @@ export default function AttendanceDashboard({
       if (data?.presenceNow) {
         setPresenceNow(data.presenceNow);
       }
-      fetchAttendance({ targetUserId: selectedUser?.id ?? "" });
+      handleRefreshAttendance();
       notifyAttendanceUpdated(data?.attendance?.userId ?? currentUser?.id);
     } catch (error) {
       const message =
@@ -1110,7 +1120,6 @@ export default function AttendanceDashboard({
         variant: "error",
       });
     } finally {
-      setStatus((prev) => ({ ...prev, loading: false }));
       setAttendanceSubmitting(false);
     }
   };
@@ -1123,7 +1132,7 @@ export default function AttendanceDashboard({
         subtitle="Track check-ins and check-outs across the team."
         actions={
           <div className="flex items-center gap-2">
-            <RefreshButton onClick={() => fetchAttendance({ targetUserId: selectedUser?.id ?? "" })} ariaLabel="Refresh attendance records" />
+            <RefreshButton onClick={handleRefreshAttendance} ariaLabel="Refresh attendance records" />
             <Button type="button" onClick={openCreateModal}>Add Attendance</Button>
           </div>
         }
@@ -1308,7 +1317,7 @@ export default function AttendanceDashboard({
         </div>
       ) : null}
 
-      {status.loading ? (
+      {attendanceLoading ? (
         <div className="space-y-3 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6">
           {[...Array(5)].map((_, index) => (
             <div
@@ -1317,9 +1326,9 @@ export default function AttendanceDashboard({
             />
           ))}
         </div>
-      ) : status.error ? (
+      ) : attendanceError ? (
         <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
-          {status.error}
+          {attendanceError.message || "Unable to load attendance."}
         </div>
       ) : filteredAttendance.length ? (
         <div className="overflow-x-auto rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)]">

@@ -22,6 +22,7 @@ async function getProjectWithAccess(projectId) {
       members: {
         select: {
           userId: true,
+          role: true,
           user: { select: { id: true, name: true, email: true, role: true } },
         },
       },
@@ -67,7 +68,10 @@ export async function GET(request, { params }) {
   return buildSuccess("Project loaded.", {
     project: {
       ...project,
-      members: project.members.map((member) => member.user),
+      members: project.members.map((member) => ({
+        ...member.user,
+        projectRole: member.role ?? "MEMBER",
+      })),
     },
   });
 }
@@ -103,15 +107,42 @@ async function handleProjectUpdate(request, { params }) {
   const incomingMemberIds = Array.isArray(body?.memberIds)
     ? body.memberIds.filter(Boolean)
     : null;
+  const incomingAdminIds = Array.isArray(body?.adminIds)
+    ? body.adminIds.filter(Boolean)
+    : [];
+  const incomingMembers = Array.isArray(body?.members) ? body.members : null;
 
-  if (!name && description === undefined && incomingMemberIds === null) {
+  if (!name && description === undefined && incomingMemberIds === null && incomingMembers === null) {
     return buildError("No valid updates provided.", 400);
   }
 
   const existingMemberIds = project.members?.map((member) => member.userId) ?? [];
   let memberIdsUpdate = null;
   let addedMemberIds = [];
-  if (incomingMemberIds !== null) {
+  let memberRolesMap = {};
+
+  if (incomingMembers !== null) {
+    const ids = incomingMembers.map((m) => m.userId || m.id).filter(Boolean);
+    const uniqueMemberIds = Array.from(
+      new Set([project.createdById, ...ids])
+    );
+    const memberCount = await prisma.user.count({
+      where: { id: { in: uniqueMemberIds } },
+    });
+    if (memberCount !== uniqueMemberIds.length) {
+      return buildError("One or more project members were not found.", 404);
+    }
+    memberIdsUpdate = uniqueMemberIds;
+    addedMemberIds = uniqueMemberIds.filter(
+      (memberId) => !existingMemberIds.includes(memberId)
+    );
+    incomingMembers.forEach((m) => {
+      const id = m.userId || m.id;
+      if (id) {
+        memberRolesMap[id] = m.role || m.projectRole || "MEMBER";
+      }
+    });
+  } else if (incomingMemberIds !== null) {
     const uniqueMemberIds = Array.from(
       new Set([project.createdById, ...incomingMemberIds])
     );
@@ -125,6 +156,9 @@ async function handleProjectUpdate(request, { params }) {
     addedMemberIds = uniqueMemberIds.filter(
       (memberId) => !existingMemberIds.includes(memberId)
     );
+    uniqueMemberIds.forEach((userId) => {
+      memberRolesMap[userId] = incomingAdminIds.includes(userId) ? "ADMIN" : "MEMBER";
+    });
   }
 
   const updated = await prisma.project.update({
@@ -138,7 +172,10 @@ async function handleProjectUpdate(request, { params }) {
         ? {
             members: {
               deleteMany: {},
-              create: memberIdsUpdate.map((userId) => ({ userId })),
+              create: memberIdsUpdate.map((userId) => ({
+                userId,
+                role: userId === project.createdById ? "ADMIN" : (memberRolesMap[userId] || "MEMBER"),
+              })),
             },
           }
         : {}),
@@ -150,6 +187,7 @@ async function handleProjectUpdate(request, { params }) {
       members: {
         select: {
           userId: true,
+          role: true,
           user: { select: { id: true, name: true, email: true, role: true } },
         },
       },
@@ -169,7 +207,10 @@ async function handleProjectUpdate(request, { params }) {
   return buildSuccess("Project updated.", {
     project: {
       ...updated,
-      members: updated.members.map((member) => member.user),
+      members: updated.members.map((member) => ({
+        ...member.user,
+        projectRole: member.role ?? "MEMBER",
+      })),
     },
   });
 }
