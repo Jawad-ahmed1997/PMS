@@ -88,6 +88,11 @@ export function isManualLogInFuture(
   const endAt = endTime
     ? makeZonedDateTime({ dateKey: normalized, timeStr: endTime, tz: timeZone })
     : null;
+
+  if (startAt && endAt && endAt <= startAt) {
+    endAt.setDate(endAt.getDate() + 1);
+  }
+
   if (startAt && startAt.getTime() > now.getTime()) {
     return true;
   }
@@ -139,6 +144,9 @@ export function buildManualLogTimes({ date, startTime, endTime, timeZone = MANUA
   });
   if (!endAt) {
     return { error: "End time must be valid." };
+  }
+  if (endAt <= startAt) {
+    endAt.setDate(endAt.getDate() + 1);
   }
   if (endAt <= startAt) {
     return { error: "End time must be after start time." };
