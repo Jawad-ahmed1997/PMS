@@ -514,10 +514,10 @@ export default function ActivityDashboard({
       });
       return;
     }
-    if (logForm.endTime && logForm.startTime >= logForm.endTime) {
+    if (logForm.endTime && logForm.startTime === logForm.endTime) {
       addToast({
         title: "Invalid time range",
-        message: "End time must be after start time.",
+        message: "End time cannot be equal to start time.",
         variant: "warning",
       });
       return;
