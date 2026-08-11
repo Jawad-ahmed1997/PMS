@@ -106,7 +106,7 @@ export async function PATCH(request, { params }) {
     return buildError("Break not found.", 404);
   }
 
-  const now = getTimeZoneNow();
+  const now = new Date();
   if (!canManageBreak({ context, attendance: existingBreak.attendance, now })) {
     return buildError("You do not have permission to edit this break.", 403);
   }
@@ -196,7 +196,7 @@ export async function DELETE(request, { params }) {
     return buildError("Break not found.", 404);
   }
 
-  const now = getTimeZoneNow();
+  const now = new Date();
   if (!canManageBreak({ context, attendance: existingBreak.attendance, now })) {
     return buildError("You do not have permission to delete this break.", 403);
   }

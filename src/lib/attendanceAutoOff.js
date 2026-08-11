@@ -1,4 +1,5 @@
 import { endWorkSession } from "@/lib/taskWorkSessions";
+import { getTimeZoneParts } from "@/lib/attendanceTimes";
 
 export const ATTENDANCE_AUTO_OFF_HOURS = 10;
 export const ATTENDANCE_AUTO_OFF_REASON = "AUTO_OFF_10H";
@@ -46,17 +47,28 @@ export function resolveAttendanceOutTime(attendance, now = new Date()) {
   return nowDate > autoOffAt ? autoOffAt : nowDate;
 }
 
-export function shouldAutoOffAttendance(attendance, now = new Date()) {
+export function shouldAutoOffAttendance(attendance, now = new Date(), timeZone = null) {
   if (!attendance?.inTime || attendance?.outTime) {
     return false;
   }
   const autoOffAt = getAttendanceAutoOffTime(attendance.inTime);
   const nowDate = toDate(now) ?? new Date();
+
+  // Restrict auto-off checking to between 1:00 AM and 10:00 AM local time
+  const resolvedTimeZone = timeZone ?? attendance.user?.timezone ?? "Asia/Karachi";
+  const parts = getTimeZoneParts(nowDate, resolvedTimeZone);
+  if (parts) {
+    const localHour = Number(parts.hour);
+    if (localHour < 1 || localHour > 10) {
+      return false;
+    }
+  }
+
   return Boolean(autoOffAt && nowDate > autoOffAt);
 }
 
-export async function normalizeAttendanceAutoOff(prismaClient, attendance, now = new Date()) {
-  if (!prismaClient || !attendance?.id || !shouldAutoOffAttendance(attendance, now)) {
+export async function normalizeAttendanceAutoOff(prismaClient, attendance, now = new Date(), timeZone = null) {
+  if (!prismaClient || !attendance?.id || !shouldAutoOffAttendance(attendance, now, timeZone)) {
     return null;
   }
 
@@ -165,13 +177,17 @@ export async function normalizeAttendanceAutoOff(prismaClient, attendance, now =
   }
 }
 
-export async function normalizeAutoOffForAttendances(prismaClient, attendances, now = new Date()) {
+export async function normalizeAutoOffForAttendances(prismaClient, attendances, now = new Date(), timeZone = null) {
   if (!prismaClient || !Array.isArray(attendances) || attendances.length === 0) {
     return 0;
   }
+  const stale = attendances.filter((att) => shouldAutoOffAttendance(att, now, timeZone));
+  if (stale.length === 0) {
+    return 0;
+  }
   let changes = 0;
-  for (const attendance of attendances) {
-    const updated = await normalizeAttendanceAutoOff(prismaClient, attendance, now);
+  for (const attendance of stale) {
+    const updated = await normalizeAttendanceAutoOff(prismaClient, attendance, now, timeZone);
     if (updated) {
       changes += 1;
     }
@@ -183,6 +199,12 @@ export async function normalizeAutoOffForUser(prismaClient, userId, now = new Da
   if (!prismaClient || !userId) {
     return 0;
   }
+  const user = await prismaClient.user.findUnique({
+    where: { id: userId },
+    select: { timezone: true },
+  });
+  const timeZone = user?.timezone ?? "Asia/Karachi";
+
   const stale = await prismaClient.attendance.findMany({
     where: {
       userId,
@@ -191,5 +213,5 @@ export async function normalizeAutoOffForUser(prismaClient, userId, now = new Da
     },
     select: { id: true, inTime: true, outTime: true, userId: true },
   });
-  return normalizeAutoOffForAttendances(prismaClient, stale, now);
+  return normalizeAutoOffForAttendances(prismaClient, stale, now, timeZone);
 }

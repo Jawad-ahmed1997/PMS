@@ -141,23 +141,25 @@ export async function GET(request) {
     where,
     orderBy: { date: "desc" },
     include: {
-      user: { select: { id: true, name: true, role: true, email: true } },
+      user: { select: { id: true, name: true, role: true, email: true, timezone: true } },
       wfhIntervals: { orderBy: { startAt: "asc" } },
       breaks: { orderBy: { startAt: "asc" } },
     },
   });
 
-  await normalizeAutoOffForAttendances(prisma, attendance, new Date());
+  const changes = await normalizeAutoOffForAttendances(prisma, attendance, new Date());
 
-  attendance = await prisma.attendance.findMany({
-    where,
-    orderBy: { date: "desc" },
-    include: {
-      user: { select: { id: true, name: true, role: true, email: true } },
-      wfhIntervals: { orderBy: { startAt: "asc" } },
-      breaks: { orderBy: { startAt: "asc" } },
-    },
-  });
+  if (changes > 0) {
+    attendance = await prisma.attendance.findMany({
+      where,
+      orderBy: { date: "desc" },
+      include: {
+        user: { select: { id: true, name: true, role: true, email: true, timezone: true } },
+        wfhIntervals: { orderBy: { startAt: "asc" } },
+        breaks: { orderBy: { startAt: "asc" } },
+      },
+    });
+  }
 
   const presenceUserId = requestedUserId ?? context.user.id;
   const presenceNow = presenceUserId

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/ToastProvider";
 import useOutsideClick from "@/hooks/useOutsideClick";
@@ -120,57 +121,64 @@ export default function FloatingTaskTimer({ session }) {
     session &&
     !["PM", "CTO", "TEAM_LEAD"].includes(String(session.role ?? "").toUpperCase());
 
+  const queryClient = useQueryClient();
+
+  const { data: statusData } = useQuery({
+    queryKey: ["activeTaskSessionStatus"],
+    queryFn: async () => {
+      if (!session) {
+        return { resolvedOnDuty: false, resolvedSession: null };
+      }
+      const [attendanceResult, sessionResult] = await Promise.allSettled([
+        fetch("/api/attendance/current-status", { cache: "no-store" }),
+        fetch("/api/tasks/active-session", { cache: "no-store" }),
+      ]);
+
+      if (
+        (attendanceResult.status === "fulfilled" && attendanceResult.value.status === 401) ||
+        (sessionResult.status === "fulfilled" && sessionResult.value.status === 401)
+      ) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/login?denied=1&reason=Session%20expired.%20Please%20sign%20in%20again.";
+        }
+        throw new Error("Session expired");
+      }
+
+      let resolvedOnDuty = false;
+      if (
+        attendanceResult.status === "fulfilled" &&
+        attendanceResult.value.ok
+      ) {
+        const attendanceData = await attendanceResult.value.json();
+        resolvedOnDuty = Boolean(attendanceData?.onDuty);
+      }
+
+      let resolvedSession = null;
+      if (sessionResult.status === "fulfilled") {
+        const data = await sessionResult.value.json();
+        if (sessionResult.value.ok) {
+          resolvedSession = data.active ? data : null;
+        }
+      }
+
+      return { resolvedOnDuty, resolvedSession };
+    },
+    enabled: Boolean(session),
+    refetchInterval: 15000, // Poll status every 15 seconds (auto-paused when tab hidden)
+    staleTime: 5000,
+  });
+
   const syncFromServer = useCallback(async () => {
-    if (!session) {
-      setLoading(false);
-      setActiveSession(null);
-      setOnDuty(false);
-      return;
-    }
-
-    const [attendanceResult, sessionResult] = await Promise.allSettled([
-      fetch("/api/attendance/current-status", { cache: "no-store" }),
-      fetch("/api/tasks/active-session", { cache: "no-store" }),
-    ]);
-
-    if (
-      (attendanceResult.status === "fulfilled" && attendanceResult.value.status === 401) ||
-      (sessionResult.status === "fulfilled" && sessionResult.value.status === 401)
-    ) {
-      if (typeof window !== "undefined") {
-        window.location.href = "/login?denied=1&reason=Session%20expired.%20Please%20sign%20in%20again.";
-      }
-      return;
-    }
-
-    let resolvedOnDuty = false;
-    if (
-      attendanceResult.status === "fulfilled" &&
-      attendanceResult.value.ok
-    ) {
-      const attendanceData = await attendanceResult.value.json();
-      resolvedOnDuty = Boolean(attendanceData?.onDuty);
-    }
-
-    let resolvedSession = null;
-    if (sessionResult.status === "fulfilled") {
-      const data = await sessionResult.value.json();
-      if (sessionResult.value.ok) {
-        resolvedSession = data.active ? data : null;
-      }
-    }
-
-    setOnDuty(resolvedOnDuty);
-    setActiveSession(resolvedSession);
-    setLoading(false);
-  }, [session]);
+    await queryClient.invalidateQueries({ queryKey: ["activeTaskSessionStatus"] });
+  }, [queryClient]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      syncFromServer();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [syncFromServer]);
+    if (statusData) {
+      setOnDuty(statusData.resolvedOnDuty);
+      setActiveSession(statusData.resolvedSession);
+      setLoading(false);
+    }
+  }, [statusData]);
 
   useEffect(() => {
     if (!activeSession?.active) {
@@ -190,13 +198,6 @@ export default function FloatingTaskTimer({ session }) {
       setTick(Date.now());
     }
   }, [activeSession]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      syncFromServer();
-    }, 30000);
-    return () => window.clearInterval(interval);
-  }, [syncFromServer]);
 
   useEffect(() => {
     const onSync = () => syncFromServer();

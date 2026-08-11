@@ -604,14 +604,32 @@ export default function AttendanceDashboard({
   const [userQuery, setUserQuery] = useState("");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
+  const [isFiltering, setIsFiltering] = useState(false);
 
-  const { data: attendanceData = { attendance: initialAttendance ?? [], presenceNow: initialPresenceNow ?? null }, isLoading: attendanceLoading, error: attendanceError, refetch: refetchAttendance } = useQuery({
-    queryKey: ["attendanceList", range.from, range.to, selectedUser?.id],
+  const [currentStatus, setCurrentStatus] = useState(null);
+
+  const fetchCurrentStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/attendance/current-status", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentStatus(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCurrentStatus();
+  }, [fetchCurrentStatus]);
+
+  const { data: attendanceData = { attendance: initialAttendance ?? [], presenceNow: initialPresenceNow ?? null }, isFetching: attendanceLoading, error: attendanceError, refetch: refetchAttendance } = useQuery({
+    queryKey: ["attendanceList", range.from, range.to],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (range.from) params.set("from", range.from);
       if (range.to) params.set("to", range.to);
-      if (selectedUser?.id) params.set("userId", selectedUser.id);
       const response = await fetch(`/api/attendance?${params.toString()}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) {
@@ -633,16 +651,24 @@ export default function AttendanceDashboard({
     if (attendanceData) {
       setAttendance(attendanceData.attendance);
       setPresenceNow(attendanceData.presenceNow);
+      setIsFiltering(false);
     }
   }, [attendanceData]);
 
+  // Clear local attendance list immediately when changing filters to prevent showing stale records
+  useEffect(() => {
+    setIsFiltering(true);
+    setAttendance([]);
+  }, [range.from, range.to]);
+
   const handleRefreshAttendance = useCallback(async () => {
     await refetchAttendance();
+    fetchCurrentStatus();
     queryClient.invalidateQueries({ queryKey: ["attendanceList"] });
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("attendance-updated"));
     }
-  }, [refetchAttendance, queryClient]);
+  }, [refetchAttendance, queryClient, fetchCurrentStatus]);
 
   const [modalState, setModalState] = useState({ open: false, mode: "create" });
   const [activeRecord, setActiveRecord] = useState(null);
@@ -728,11 +754,17 @@ export default function AttendanceDashboard({
   }, [attendance]);
 
   const filteredAttendance = useMemo(() => {
-    if (activeBadge === "recorded") {
-      return attendance.filter((record) => record.inTime || record.outTime);
+    let result = attendance;
+    if (selectedUser?.id) {
+      result = result.filter(
+        (record) => (record.userId ?? record.user?.id) === selectedUser.id
+      );
     }
-    return attendance;
-  }, [activeBadge, attendance]);
+    if (activeBadge === "recorded") {
+      result = result.filter((record) => record.inTime || record.outTime);
+    }
+    return result;
+  }, [activeBadge, attendance, selectedUser?.id]);
 
   const activeBreakRecord = useMemo(() => {
     const targetUserId = selectedUser?.id ?? currentUser?.id;
@@ -779,12 +811,14 @@ export default function AttendanceDashboard({
   }, [attendanceError, addToast]);
 
   const handlePresetClick = (preset) => {
+    setIsFiltering(true);
     const nextRange = getPresetRange(preset);
     setRange(nextRange);
     setActivePreset(preset);
   };
 
   const handleRangeChange = (field, value) => {
+    setIsFiltering(true);
     setRange((prev) => ({ ...prev, [field]: value }));
     setActivePreset(null);
   };
@@ -794,7 +828,7 @@ export default function AttendanceDashboard({
     setForm({
       date: getTodayInPSTDateString(),
       inTime: formatTimeInput(now),
-      outTime: formatTimeInput(now),
+      outTime: "",
       note: "",
       userId: "",
     });
@@ -811,7 +845,7 @@ export default function AttendanceDashboard({
     setForm({
       date: formatDateForInput(record.date) || getTodayInPSTDateString(),
       inTime: formatTimeInput(record.inTime) || formatTimeInput(now),
-      outTime: formatTimeInput(record.outTime) || formatTimeInput(now),
+      outTime: record.outTime ? formatTimeInput(record.outTime) : "",
       note: record.note ?? "",
       userId: record.userId ?? record.user?.id ?? "",
     });
@@ -1133,7 +1167,9 @@ export default function AttendanceDashboard({
         actions={
           <div className="flex items-center gap-2">
             <RefreshButton onClick={handleRefreshAttendance} ariaLabel="Refresh attendance records" />
-            <Button type="button" onClick={openCreateModal}>Add Attendance</Button>
+            {(!isLeader && currentStatus?.dutyStartAt) ? null : (
+              <Button type="button" onClick={openCreateModal}>Add Attendance</Button>
+            )}
           </div>
         }
       />
@@ -1317,7 +1353,7 @@ export default function AttendanceDashboard({
         </div>
       ) : null}
 
-      {attendanceLoading ? (
+      {(attendanceLoading || isFiltering) ? (
         <div className="space-y-3 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6">
           {[...Array(5)].map((_, index) => (
             <div

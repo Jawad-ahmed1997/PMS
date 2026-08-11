@@ -77,7 +77,7 @@ export async function POST(request, { params }) {
     return buildError("Add out time to enable WFH.", 400);
   }
 
-  const dutyDate = getDutyDate(getTimeZoneNow());
+  const dutyDate = getDutyDate(new Date(), context.timezone);
   const today = normalizeDateOnly(dutyDate ?? new Date());
   const attendanceDate = normalizeDateOnly(attendance.date);
   if (!today || !attendanceDate || attendanceDate.getTime() !== today.getTime()) {
@@ -89,6 +89,7 @@ export async function POST(request, { params }) {
     shiftDate: attendance.date,
     startTime: body?.startAt ?? body?.startTime,
     endTime: body?.endAt ?? body?.endTime,
+    timeZone: context.timezone,
   });
 
   if (!startAt || !endAt) {
@@ -99,7 +100,7 @@ export async function POST(request, { params }) {
     return buildError("WFH end time must be after start time.", 400);
   }
 
-  const now = getTimeZoneNow();
+  const now = new Date();
   if (startAt > now) {
     return buildError("WFH start time cannot be in the future.", 422);
   }

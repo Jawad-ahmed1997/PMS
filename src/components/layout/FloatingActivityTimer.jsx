@@ -23,6 +23,8 @@ const STORAGE_KEY_POS_X = "activity_timer_pos_x";
 const STORAGE_KEY_POS_Y = "activity_timer_pos_y";
 const STORAGE_KEY_STATE = "activity_timer_state";
 
+
+
 const BREAK_TYPES = [
   { value: "NAMAZ", label: "Namaz" },
   { value: "LUNCH", label: "Lunch" },
@@ -171,6 +173,8 @@ export default function FloatingActivityTimer({ session }) {
     }
   }, [userTimeZone]);
 
+  const [dutyDate, setDutyDate] = useState(() => getTodayDateStr());
+
   // Save state to localStorage helper
   const saveState = useCallback((state) => {
     setTimerState(state);
@@ -218,27 +222,31 @@ export default function FloatingActivityTimer({ session }) {
     if (!session) return;
 
     try {
-      const todayDateStr = getTodayDateStr();
-      
-      // Fetch Activity logs
-      const actRes = await fetch(`/api/activity?startDate=${todayDateStr}&endDate=${todayDateStr}`, { cache: "no-store" });
+      // 1. Fetch active attendance status (handles Auto-Off logic) first to get the correct duty date
+      const statusRes = await fetch(`/api/attendance/current-status`, { cache: "no-store" });
+      let currentStatus = null;
+      let targetDutyDate = getTodayDateStr(); // fallback
+
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        setOnDuty(Boolean(statusData?.onDuty));
+        currentStatus = statusData;
+        if (statusData?.dutyDate) {
+          targetDutyDate = statusData.dutyDate;
+          setDutyDate(statusData.dutyDate);
+        }
+      }
+
+      // 2. Fetch Activity logs using targetDutyDate
+      const actRes = await fetch(`/api/activity?startDate=${targetDutyDate}&endDate=${targetDutyDate}`, { cache: "no-store" });
       if (actRes.ok) {
         const actData = await actRes.json();
         const logs = actData?.activityLogs || [];
         setTodayLogs(logs.filter(l => l.type === "MANUAL"));
       }
 
-      // Fetch active attendance status (handles Auto-Off logic)
-      const statusRes = await fetch(`/api/attendance/current-status`, { cache: "no-store" });
-      let currentStatus = null;
-      if (statusRes.ok) {
-        const statusData = await statusRes.json();
-        setOnDuty(Boolean(statusData?.onDuty));
-        currentStatus = statusData;
-      }
-
-      // Fetch Attendance records for today (returns correct breaks list and ID)
-      const attRes = await fetch(`/api/attendance?from=${todayDateStr}&to=${todayDateStr}`, { cache: "no-store" });
+      // 3. Fetch Attendance records using targetDutyDate
+      const attRes = await fetch(`/api/attendance?from=${targetDutyDate}&to=${targetDutyDate}`, { cache: "no-store" });
       if (attRes.ok) {
         const attData = await attRes.json();
         const records = attData?.attendance || [];
@@ -481,7 +489,7 @@ export default function FloatingActivityTimer({ session }) {
           description: startForm.description.trim(),
           categories: ["OTHER"],
           startTime: startTimeStr,
-          date: dateStr,
+          date: dutyDate,
         }),
       });
 

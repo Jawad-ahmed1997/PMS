@@ -104,7 +104,7 @@ export async function POST(request, { params }) {
     return buildError("Attendance record not found.", 404);
   }
 
-  const now = getTimeZoneNow();
+  const now = new Date();
   if (!canManageBreak({ context, attendance, now })) {
     return buildError("You do not have permission to add breaks.", 403);
   }
