@@ -17,8 +17,7 @@ export async function POST(request) {
   }
 
   const now = new Date();
-  const timezoneNow = getTimeZoneNow();
-  const dutyDate = getDutyDate(timezoneNow);
+  const dutyDate = getDutyDate(now, context.timezone);
   const dutyDateValue = dutyDate ? new Date(dutyDate) : null;
 
   if (!dutyDateValue) {

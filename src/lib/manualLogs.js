@@ -82,11 +82,21 @@ export function isManualLogInFuture(
     return false;
   }
   const now = baseDate instanceof Date ? baseDate : new Date(baseDate);
-  const startAt = startTime
-    ? makeZonedDateTime({ dateKey: normalized, timeStr: startTime, tz: timeZone })
+
+  const normalizedStartTime = normalizeTimeString(startTime);
+  const startHour = normalizedStartTime ? Number(normalizedStartTime.split(":")[0]) : null;
+  const startAtDateKey = (startHour !== null && startHour < 11) ? shiftDateKey(normalized, 1) : normalized;
+
+  const startAt = normalizedStartTime
+    ? makeZonedDateTime({ dateKey: startAtDateKey, timeStr: normalizedStartTime, tz: timeZone })
     : null;
-  const endAt = endTime
-    ? makeZonedDateTime({ dateKey: normalized, timeStr: endTime, tz: timeZone })
+
+  const normalizedEndTime = normalizeTimeString(endTime);
+  const endHour = normalizedEndTime ? Number(normalizedEndTime.split(":")[0]) : null;
+  const endAtDateKey = (endHour !== null && endHour < 11) ? shiftDateKey(normalized, 1) : normalized;
+
+  const endAt = normalizedEndTime
+    ? makeZonedDateTime({ dateKey: endAtDateKey, timeStr: normalizedEndTime, tz: timeZone })
     : null;
 
   if (startAt && endAt && endAt <= startAt) {
@@ -119,8 +129,13 @@ export function buildManualLogTimes({ date, startTime, endTime, timeZone = MANUA
   if (!normalizedStartTime) {
     return { error: "Start time is required." };
   }
+
+  // If start hour is after midnight (less than 11 AM), shift the base dateKey by +1 day
+  const startHour = Number(normalizedStartTime.split(":")[0]);
+  const startAtDateKey = startHour < 11 ? shiftDateKey(normalized, 1) : normalized;
+
   const startAt = makeZonedDateTime({
-    dateKey: normalized,
+    dateKey: startAtDateKey,
     timeStr: normalizedStartTime,
     tz: timeZone,
   });
@@ -137,8 +152,13 @@ export function buildManualLogTimes({ date, startTime, endTime, timeZone = MANUA
     };
   }
   const normalizedEndTime = normalizeTimeString(endTime);
+
+  // If end hour is after midnight (less than 11 AM), shift the base dateKey by +1 day
+  const endHour = Number(normalizedEndTime.split(":")[0]);
+  const endAtDateKey = endHour < 11 ? shiftDateKey(normalized, 1) : normalized;
+
   const endAt = makeZonedDateTime({
-    dateKey: normalized,
+    dateKey: endAtDateKey,
     timeStr: normalizedEndTime,
     tz: timeZone,
   });

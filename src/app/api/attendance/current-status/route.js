@@ -30,8 +30,8 @@ export async function GET() {
     return authError;
   }
 
-  const now = getTimeZoneNow();
-  await normalizeAutoOffForUser(prisma, context.user.id, new Date());
+  const now = new Date();
+  await normalizeAutoOffForUser(prisma, context.user.id, now);
 
   const dutyDate = getDutyDate(now);
   const dutyDateValue = dutyDate ? new Date(dutyDate) : null;
@@ -43,6 +43,7 @@ export async function GET() {
           date: dutyDateValue,
         },
         select: {
+          id: true,
           inTime: true,
           outTime: true,
           autoOff: true,
@@ -54,6 +55,7 @@ export async function GET() {
     return buildSuccess("Attendance status loaded.", {
       onDuty: false,
       autoOff: false,
+      dutyDate,
       dutyStartAt: null,
       dutyEndAt: null,
     });
@@ -75,6 +77,7 @@ export async function GET() {
   return buildSuccess("Attendance status loaded.", {
     onDuty,
     autoOff,
+    dutyDate,
     dutyStartAt: toIso(attendance.inTime),
     dutyEndAt: onDuty ? null : toIso(resolvedOutTime),
   });
