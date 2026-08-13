@@ -13,6 +13,7 @@ async function getComment(commentId) {
     where: { id: commentId },
     include: {
       createdBy: { select: { id: true, name: true, email: true, role: true } },
+      attachment: true,
     },
   });
 }
@@ -27,16 +28,26 @@ async function canAccessEntity(context, entityType, entityId) {
       where: { id: entityId },
       select: {
         id: true,
+        ownerId: true,
         project: {
           select: { members: { select: { userId: true } } },
+        },
+        milestone: {
+          select: {
+            project: {
+              select: { members: { select: { userId: true } } },
+            },
+          },
         },
       },
     });
 
-    return Boolean(
-      task?.project?.members?.some(
-        (member) => member.userId === context.user.id
-      )
+    if (!task) return false;
+
+    return (
+      task.ownerId === context.user.id ||
+      Boolean(task.project?.members?.some((member) => member.userId === context.user.id)) ||
+      Boolean(task.milestone?.project?.members?.some((member) => member.userId === context.user.id))
     );
   }
 
@@ -141,6 +152,21 @@ export async function DELETE(request, { params }) {
   }
 
   try {
+    if (comment.attachment?.key) {
+      try {
+        const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+        const { s3Client } = await import("@/lib/s3");
+        await s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET_NAME,
+            Key: comment.attachment.key,
+          })
+        );
+      } catch (s3Err) {
+        console.error("Failed to delete S3 object for comment:", s3Err);
+      }
+    }
+
     await prisma.comment.delete({ where: { id: commentId } });
     return buildSuccess("Comment deleted.");
   } catch (error) {

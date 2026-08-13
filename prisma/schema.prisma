@@ -288,8 +288,22 @@ model Task {
   notifications  Notification[]
   personalTodos  PersonalTodo[]
   personalNotes  PersonalNote[]
+  coverImage     String?
+  attachments    TaskAttachment[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime?      @updatedAt
+}
+
+model TaskAttachment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name      String
+  size      String
+  type      String
+  url       String
+  key       String
+  createdAt DateTime @default(now())
 }
 
 model TaskTimeLog {
@@ -464,6 +478,19 @@ model Comment {
   mentions     String[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime? @updatedAt
+  attachment   CommentAttachment?
+}
+
+model CommentAttachment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  commentId String   @unique @db.ObjectId
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  name      String
+  size      String
+  type      String
+  url       String
+  key       String
+  createdAt DateTime @default(now())
 }
 
 model CommentReadState {

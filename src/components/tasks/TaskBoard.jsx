@@ -578,9 +578,20 @@ export default function TaskBoard({
   }, [selectedTask]);
 
   // Mock states for Trello Task Modal features
-  const [taskCovers, setTaskCovers] = useState({}); // taskId -> base64
-  const [taskAttachments, setTaskAttachments] = useState({}); // taskId -> Array of attachments
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isRemovingCover, setIsRemovingCover] = useState(false);
+  const [uploadCoverProgress, setUploadCoverProgress] = useState(0);
+  const [attachments, setAttachments] = useState([]);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
+  const [isDeletingAttachmentId, setIsDeletingAttachmentId] = useState(null);
+  const [pendingAttachments, setPendingAttachments] = useState([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [uploadAttachmentProgress, setUploadAttachmentProgress] = useState(0);
+  const [lightboxAttachment, setLightboxAttachment] = useState(null);
+  const [lightboxImage, setLightboxImage] = useState(null);
   const [newSubtaskText, setNewSubtaskText] = useState("");
+  const [pendingCoverFile, setPendingCoverFile] = useState(null);
+  const [pendingCoverPreview, setPendingCoverPreview] = useState(null);
   
 
   useEffect(() => {
@@ -731,84 +742,255 @@ export default function TaskBoard({
   }, [selectedTask]);
 
 
-  const handleCoverUpload = (event, taskId) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setTaskCovers((prev) => ({
-        ...prev,
-        [taskId]: reader.result,
-      }));
+
+  const handleCancelPendingAttachment = useCallback(() => {
+    pendingAttachments.forEach((item) => {
+      if (item.preview) {
+        URL.revokeObjectURL(item.preview);
+      }
+    });
+    setPendingAttachments([]);
+  }, [pendingAttachments]);
+
+  const handlePendingAttachmentsSelect = useCallback((files) => {
+    const allowedPrefixes = ["image/", "video/", "application/pdf", "text/plain"];
+    const validFiles = Array.from(files).filter((file) =>
+      allowedPrefixes.some((pref) => file.type.startsWith(pref))
+    );
+
+    if (validFiles.length === 0) {
       addToast({
-        title: "Cover updated",
-        message: "Task cover photo updated successfully.",
-        variant: "success",
+        title: "No valid files",
+        message: "Only images, videos, PDFs, and plain text files are allowed.",
+        variant: "error",
       });
-      playNotificationSound();
-    };
-    reader.readAsDataURL(file);
-  };
+      return;
+    }
 
-  const handleRemoveCover = (taskId) => {
-    setTaskCovers((prev) => {
-      const copy = { ...prev };
-      delete copy[taskId];
-      return copy;
-    });
-    addToast({
-      title: "Cover removed",
-      message: "Task cover photo removed.",
-      variant: "info",
-    });
-  };
-
-  const handleAddAttachment = (event, taskId) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const isImage = file.type.startsWith("image/");
-      const newAttachment = {
+    const newPendingItems = validFiles.map((file) => {
+      const preview = URL.createObjectURL(file);
+      const item = {
         id: Math.random().toString(36).substring(2, 9),
-        name: file.name,
-        size: (file.size / 1024).toFixed(1) + " KB",
-        type: file.type,
-        url: reader.result,
-        createdAt: new Date().toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
+        file,
+        preview,
+        progress: 0,
+        isUploading: false,
+        textSnippet: "",
       };
 
-      setTaskAttachments((prev) => ({
-        ...prev,
-        [taskId]: [...(prev[taskId] ?? []), newAttachment],
-      }));
+      if (file.type === "text/plain") {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target.result || "";
+          item.textSnippet = text.substring(0, 120) + (file.size > 120 ? "..." : "");
+          setPendingAttachments((prev) =>
+            prev.map((p) => (p.id === item.id ? { ...p, textSnippet: item.textSnippet } : p))
+          );
+        };
+        reader.readAsText(file.slice(0, 300));
+      }
 
-      addToast({
-        title: "File attached",
-        message: `"${file.name}" attached successfully.`,
-        variant: "success",
-      });
-    };
-    reader.readAsDataURL(file);
+      return item;
+    });
+
+    setPendingAttachments((prev) => [...prev, ...newPendingItems]);
+  }, [addToast]);
+
+  const handleAddAttachment = (event) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    handlePendingAttachmentsSelect(files);
+    event.target.value = "";
   };
 
-  const handleDeleteAttachment = (taskId, attachmentId) => {
-    setTaskAttachments((prev) => ({
-      ...prev,
-      [taskId]: (prev[taskId] ?? []).filter((att) => att.id !== attachmentId),
-    }));
-    addToast({
-      title: "Attachment removed",
-      message: "File attachment removed.",
-      variant: "info",
+  const handleRemovePendingItem = (itemId) => {
+    setPendingAttachments((prev) => {
+      const item = prev.find((p) => p.id === itemId);
+      if (item && item.preview) {
+        URL.revokeObjectURL(item.preview);
+      }
+      return prev.filter((p) => p.id !== itemId);
     });
   };
+
+  const handleSavePendingAttachments = async (taskId) => {
+    const itemsToUpload = pendingAttachments.filter((item) => !item.isUploading);
+    if (itemsToUpload.length === 0) return;
+
+    setIsUploadingAttachment(true);
+
+    for (const item of itemsToUpload) {
+      setPendingAttachments((prev) =>
+        prev.map((p) => (p.id === item.id ? { ...p, isUploading: true } : p))
+      );
+
+      const file = item.file;
+      const fileSizeStr = (file.size / 1024).toFixed(1) + " KB";
+
+      try {
+        const res = await fetch("/api/upload/presigned", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            fileType: file.type,
+            uploadType: "task",
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData?.message || "Failed to get upload signature.");
+        }
+
+        const { uploadUrl, fileUrl, fileKey } = await res.json();
+
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", uploadUrl, true);
+          xhr.setRequestHeader("Content-Type", file.type);
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              setPendingAttachments((prev) =>
+                prev.map((p) => (p.id === item.id ? { ...p, progress: percent } : p))
+              );
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status === 200) {
+              resolve();
+            } else {
+              reject(new Error(`S3 upload failed with status ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Network error during S3 upload."));
+          xhr.send(file);
+        });
+
+        const saveRes = await fetch(`/api/tasks/${taskId}/attachments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: file.name,
+            size: fileSizeStr,
+            type: file.type,
+            url: fileUrl,
+            key: fileKey,
+          }),
+        });
+
+        if (!saveRes.ok) {
+          const errData = await saveRes.json();
+          throw new Error(errData?.message || "Failed to save attachment metadata.");
+        }
+
+        const { attachment } = await saveRes.json();
+
+        setAttachments((prev) => [attachment, ...prev]);
+
+        setTaskItems((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? { ...t, attachmentCount: (t.attachmentCount ?? 0) + 1 }
+              : t
+          )
+        );
+
+        setPendingAttachments((prev) => {
+          const filtered = prev.filter((p) => p.id !== item.id);
+          URL.revokeObjectURL(item.preview);
+          return filtered;
+        });
+      } catch (err) {
+        console.error("Attachment upload error for:", file.name, err);
+        addToast({
+          title: "Upload failed",
+          message: `Failed to upload "${file.name}".`,
+          variant: "error",
+        });
+        setPendingAttachments((prev) =>
+          prev.map((p) => (p.id === item.id ? { ...p, isUploading: false, progress: 0 } : p))
+        );
+      }
+    }
+
+    setIsUploadingAttachment(false);
+    playNotificationSound();
+  };
+
+  const handleDeleteAttachment = async (taskId, attachmentId) => {
+    setIsDeletingAttachmentId(attachmentId);
+    try {
+      const deleteRes = await fetch(`/api/tasks/${taskId}/attachments/${attachmentId}`, {
+        method: "DELETE",
+      });
+
+      if (!deleteRes.ok) {
+        const errData = await deleteRes.json();
+        throw new Error(errData?.message || "Failed to delete attachment.");
+      }
+
+      setAttachments((prev) => prev.filter((att) => att.id !== attachmentId));
+
+      setTaskItems((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, attachmentCount: Math.max(0, (t.attachmentCount ?? 0) - 1) }
+            : t
+        )
+      );
+
+      addToast({
+        title: "Attachment removed",
+        message: "File attachment removed.",
+        variant: "info",
+      });
+    } catch (err) {
+      console.error("Delete attachment error:", err);
+      addToast({
+        title: "Action failed",
+        message: err instanceof Error ? err.message : "Failed to delete attachment.",
+        variant: "error",
+      });
+    } finally {
+      setIsDeletingAttachmentId(null);
+    }
+  };
+
+  const fetchAttachments = useCallback(async (taskId) => {
+    if (!taskId) return;
+    setIsLoadingAttachments(true);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/attachments`);
+      if (res.ok) {
+        const data = await res.json();
+        setAttachments(data.attachments || []);
+      }
+    } catch (err) {
+      console.error("Failed to load attachments:", err);
+    } finally {
+      setIsLoadingAttachments(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedTaskId) {
+      fetchAttachments(selectedTaskId);
+    } else {
+      setAttachments([]);
+    }
+  }, [selectedTaskId, fetchAttachments]);
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      handleCancelPendingAttachment();
+    }
+  }, [selectedTaskId, handleCancelPendingAttachment]);
 
   const handleAddSubtask = async (e, taskId) => {
     e.preventDefault();
@@ -1354,6 +1536,197 @@ export default function TaskBoard({
       return null;
     }
   }, []);
+
+  const triggerCoverUpload = useCallback(async (file, taskId) => {
+    if (!file.type.startsWith("image/")) {
+      addToast({
+        title: "Invalid file",
+        message: "Only image files are allowed for cover banner.",
+        variant: "error",
+      });
+      return;
+    }
+
+    setIsUploadingCover(true);
+    setUploadCoverProgress(0);
+
+    try {
+      // 1. Get presigned URL
+      const res = await fetch("/api/upload/presigned", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name || "pasted-image.png",
+          fileType: file.type,
+          uploadType: "task",
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData?.message || "Failed to get upload signature.");
+      }
+
+      const { uploadUrl, fileUrl } = await res.json();
+
+      // 2. Direct upload to S3 with progress tracking
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", file.type);
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setUploadCoverProgress(percent);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            resolve();
+          } else {
+            reject(new Error(`S3 upload failed with status ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Network error during S3 upload."));
+        xhr.send(file);
+      });
+
+      // 3. Save to database
+      const patchRes = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coverImage: fileUrl }),
+      });
+
+      if (!patchRes.ok) {
+        const errData = await patchRes.json();
+        throw new Error(errData?.message || "Failed to update cover image in database.");
+      }
+
+      // 4. Refresh local task details
+      await refreshTask(taskId);
+
+      addToast({
+        title: "Cover updated",
+        message: "Task cover photo uploaded and updated successfully.",
+        variant: "success",
+      });
+      playNotificationSound();
+    } catch (err) {
+      console.error("Cover upload error:", err);
+      addToast({
+        title: "Upload failed",
+        message: err instanceof Error ? err.message : "Failed to upload cover banner.",
+        variant: "error",
+      });
+    } finally {
+      setIsUploadingCover(false);
+      setUploadCoverProgress(0);
+    }
+  }, [addToast, refreshTask, playNotificationSound]);
+
+  const handleCancelPendingCover = useCallback(() => {
+    if (pendingCoverPreview) {
+      URL.revokeObjectURL(pendingCoverPreview);
+    }
+    setPendingCoverFile(null);
+    setPendingCoverPreview(null);
+  }, [pendingCoverPreview]);
+
+  const handlePendingCoverSelect = useCallback((file) => {
+    if (!file.type.startsWith("image/")) {
+      addToast({
+        title: "Invalid file",
+        message: "Only image files are allowed for cover banner.",
+        variant: "error",
+      });
+      return;
+    }
+    if (pendingCoverPreview) {
+      URL.revokeObjectURL(pendingCoverPreview);
+    }
+    setPendingCoverFile(file);
+    setPendingCoverPreview(URL.createObjectURL(file));
+  }, [pendingCoverPreview, addToast]);
+
+  const handleCoverUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    handlePendingCoverSelect(file);
+    event.target.value = "";
+  };
+
+  const handleSavePendingCover = async (taskId) => {
+    if (!pendingCoverFile) return;
+    await triggerCoverUpload(pendingCoverFile, taskId);
+    handleCancelPendingCover();
+  };
+
+  const handleRemoveCover = async (taskId) => {
+    setIsRemovingCover(true);
+    try {
+      const patchRes = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coverImage: null }),
+      });
+
+      if (!patchRes.ok) {
+        const errData = await patchRes.json();
+        throw new Error(errData?.message || "Failed to remove cover image.");
+      }
+
+      await refreshTask(taskId);
+
+      addToast({
+        title: "Cover removed",
+        message: "Task cover photo removed.",
+        variant: "info",
+      });
+    } catch (err) {
+      console.error("Remove cover error:", err);
+      addToast({
+        title: "Action failed",
+        message: err instanceof Error ? err.message : "Failed to remove cover image.",
+        variant: "error",
+      });
+    } finally {
+      setIsRemovingCover(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedTaskId) return;
+
+    const handlePaste = async (event) => {
+      const clipboardItems = event.clipboardData?.items;
+      if (!clipboardItems) return;
+
+      const items = Array.from(clipboardItems);
+      const imageItem = items.find((item) => item.type.indexOf("image") !== -1);
+      if (!imageItem) return;
+
+      const file = imageItem.getAsFile();
+      if (!file) return;
+
+      event.preventDefault();
+      handlePendingCoverSelect(file);
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [selectedTaskId, handlePendingCoverSelect]);
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      handleCancelPendingCover();
+    }
+  }, [selectedTaskId, handleCancelPendingCover]);
 
   const handleRequestTimeSubmit = async (task) => {
     if (!task) {
@@ -2071,6 +2444,15 @@ export default function TaskBoard({
                       onDragEnd={handleDragEnd}
                       onClick={() => setSelectedTaskId(task.id)}
                     >
+                      {task.coverImage && (
+                        <div className="mb-2 -mx-2.5 -mt-2.5 overflow-hidden rounded-t-xl bg-[color:var(--color-muted-bg)] sm:-mx-3 sm:-mt-3 border-b border-[color:var(--color-border)]">
+                          <img
+                            src={task.coverImage}
+                            alt=""
+                            className="w-full h-32 object-cover transition-transform duration-300 hover:scale-[1.03]"
+                          />
+                        </div>
+                      )}
                       <p className="truncate text-sm font-semibold text-[color:var(--color-text)]">
                         {task.title}
                       </p>
@@ -2147,6 +2529,14 @@ export default function TaskBoard({
                                   title="Your Personal Notes linked to this task"
                                 >
                                   📝 {task.personalNotes.length}
+                                </span>
+                              )}
+                              {task.attachmentCount > 0 && (
+                                <span
+                                  className="ml-1.5 inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-1.5 py-0.5 rounded-md"
+                                  title="Attachments linked to this task"
+                                >
+                                  📎 {task.attachmentCount}
                                 </span>
                               )}
                               {(() => {
@@ -2226,19 +2616,48 @@ export default function TaskBoard({
           <div className="relative z-10 flex h-[90vh] max-h-[850px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] shadow-2xl transition-all">
 
             {/* Cover Banner Section */}
-            {taskCovers[selectedTask.id] ? (
-              <div className="relative h-48 w-full bg-[color:var(--color-muted-bg)] overflow-hidden shrink-0">
+            {selectedTask.coverImage ? (
+              <div className="relative h-48 w-full bg-[color:var(--color-muted-bg)] overflow-hidden shrink-0 group">
                 <img
-                  src={taskCovers[selectedTask.id]}
+                  src={selectedTask.coverImage}
                   alt="Task Cover Banner"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover cursor-zoom-in transition-transform duration-300 hover:scale-[1.01]"
+                  onClick={() => setLightboxImage(selectedTask.coverImage)}
                 />
                 <button
                   onClick={() => handleRemoveCover(selectedTask.id)}
-                  className="absolute right-4 top-4 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-semibold text-white/90 hover:bg-black/80 hover:text-white transition-colors"
+                  disabled={isRemovingCover}
+                  className="absolute right-4 top-4 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-semibold text-white/90 hover:bg-black/80 hover:text-white transition-colors disabled:opacity-50"
                 >
-                  Remove Cover
+                  {isRemovingCover ? "Removing..." : "Remove Cover"}
                 </button>
+              </div>
+            ) : null}
+
+            {/* Pending Cover Preview Section */}
+            {!selectedTask.coverImage && pendingCoverPreview ? (
+              <div className="relative h-48 w-full bg-[color:var(--color-muted-bg)] overflow-hidden shrink-0">
+                <img
+                  src={pendingCoverPreview}
+                  alt="Pending Cover Preview"
+                  className="h-full w-full object-cover opacity-95 blur-[0.5px]"
+                />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => handleSavePendingCover(selectedTask.id)}
+                    disabled={isUploadingCover}
+                    className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 transition-colors shadow-lg disabled:opacity-50"
+                  >
+                    {isUploadingCover ? `Saving (${uploadCoverProgress}%)` : "✅ Save Cover"}
+                  </button>
+                  <button
+                    onClick={handleCancelPendingCover}
+                    disabled={isUploadingCover}
+                    className="rounded-lg bg-white/20 hover:bg-white/30 backdrop-blur px-4 py-2 text-xs font-bold text-white transition-colors shadow-lg disabled:opacity-50"
+                  >
+                    ❌ Cancel
+                  </button>
+                </div>
               </div>
             ) : null}
 
@@ -2319,15 +2738,15 @@ export default function TaskBoard({
                   </div>
                 </div>
 
-                {/* Cover Photo Option (if not uploaded) */}
-                {!taskCovers[selectedTask.id] && (
+                {/* Cover Photo Option (if not uploaded and no pending preview) */}
+                {!selectedTask.coverImage && !pendingCoverPreview && (
                   <div className="flex gap-2">
                     <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:border-indigo-400 hover:text-white transition-all bg-[color:var(--color-muted-bg)]/40">
                       🖼 Add Cover Banner
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleCoverUpload(e, selectedTask.id)}
+                        onChange={handleCoverUpload}
                         className="hidden"
                       />
                     </label>
@@ -2456,56 +2875,182 @@ export default function TaskBoard({
                   </form>
                 </div>
 
-                {/* Attachments Section [MOCK] */}
+                {/* Attachments Section */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-[color:var(--color-border)] pb-2">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-[color:var(--color-text-subtle)]">
                       📎 Attachments
                     </h3>
-                    <label className="cursor-pointer text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
-                      + Add File
-                      <input
-                        type="file"
-                        onChange={(e) => handleAddAttachment(e, selectedTask.id)}
-                        className="hidden"
-                      />
-                    </label>
+                    {!isUploadingAttachment && (
+                      <label className="cursor-pointer text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
+                        + Add Files
+                        <input
+                          type="file"
+                          accept="image/*,video/*,application/pdf,text/plain"
+                          multiple
+                          onChange={handleAddAttachment}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
                   </div>
 
-                  {(taskAttachments[selectedTask.id] ?? []).length > 0 ? (
+                  {/* Pending Attachments Queue */}
+                  {pendingAttachments.length > 0 && (
+                    <div className="rounded-xl border border-dashed border-indigo-500/50 bg-indigo-500/5 p-4 space-y-4 shadow-inner">
+                      <div className="flex justify-between items-center gap-2">
+                        <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                          ✨ Pending Upload Queue ({pendingAttachments.length})
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleSavePendingAttachments(selectedTask.id)}
+                            disabled={isUploadingAttachment}
+                            className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-[10px] font-bold text-white transition-all shadow disabled:opacity-50 shrink-0"
+                          >
+                            {isUploadingAttachment ? "Uploading..." : "✅ Upload All"}
+                          </button>
+                          <button
+                            onClick={handleCancelPendingAttachment}
+                            disabled={isUploadingAttachment}
+                            className="rounded-lg bg-[color:var(--color-muted-bg)] border border-[color:var(--color-border)] hover:bg-[color:var(--color-muted-bg)]/85 px-2.5 py-1.5 text-[10px] font-bold text-[color:var(--color-text-subtle)] hover:text-white transition-all disabled:opacity-50 shrink-0"
+                          >
+                            ❌ Clear Queue
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2 max-h-60 overflow-y-auto pr-1">
+                        {pendingAttachments.map((item) => {
+                          const file = item.file;
+                          const isImage = file.type.startsWith("image/");
+                          const isVideo = file.type.startsWith("video/");
+                          const isPdf = file.type === "application/pdf";
+                          const isText = file.type === "text/plain";
+                          
+                          return (
+                            <div 
+                              key={item.id} 
+                              onClick={() => setLightboxAttachment({
+                                name: file.name,
+                                size: (file.size / 1024).toFixed(1) + " KB",
+                                type: file.type,
+                                url: item.preview
+                              })}
+                              className="flex items-center gap-3 cursor-pointer rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)]/45 p-2 relative group min-w-0 hover:border-[color:var(--color-accent)]/40 hover:bg-[color:var(--color-muted-bg)]/60 transition-all"
+                            >
+                              {/* Lightweight Preview Box */}
+                              <div className="h-12 w-12 shrink-0 rounded bg-black/30 border border-[color:var(--color-border)] overflow-hidden flex items-center justify-center relative">
+                                {isImage ? (
+                                  <img
+                                    src={item.preview}
+                                    alt="Preview"
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : isVideo ? (
+                                  <video
+                                    src={item.preview}
+                                    className="h-full w-full object-cover animate-pulse"
+                                    muted
+                                    loop
+                                    playsInline
+                                    preload="metadata"
+                                  />
+                                ) : isText ? (
+                                  <div className="text-[7px] text-[color:var(--color-text-muted)] p-1 overflow-hidden select-none break-all font-mono leading-tight">
+                                    {item.textSnippet || "TXT"}
+                                  </div>
+                                ) : (
+                                  <span className="text-xl">📕</span>
+                                )}
+                                
+                                {item.isUploading && (
+                                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                    <span className="text-[9px] font-bold text-white">{item.progress}%</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-[11px] font-semibold text-[color:var(--color-text)]">
+                                  {file.name}
+                                </p>
+                                <p className="mt-0.5 text-[9px] text-[color:var(--color-text-subtle)] font-mono">
+                                  {(file.size / 1024).toFixed(1)} KB · {file.type.split('/')[1] || file.type}
+                                </p>
+                              </div>
+
+                              {!item.isUploading && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemovePendingItem(item.id);
+                                  }}
+                                  className="text-[10px] text-rose-400 hover:text-rose-300 transition-colors p-1 shrink-0"
+                                  title="Remove from queue"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {isLoadingAttachments ? (
+                    <div className="py-6 text-center text-xs text-[color:var(--color-text-subtle)]">
+                      Loading attachments...
+                    </div>
+                  ) : attachments.length > 0 ? (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {(taskAttachments[selectedTask.id] ?? []).map((att) => {
+                      {attachments.map((att) => {
                         const isImage = att.type.startsWith("image/");
+                        const isVideo = att.type.startsWith("video/");
+                        const isPdf = att.type === "application/pdf";
                         return (
                           <div
                             key={att.id}
-                            className="flex items-center gap-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)]/30 p-2.5 hover:border-[color:var(--color-accent)]/40 transition-all"
+                            onClick={() => setLightboxAttachment(att)}
+                            className="flex items-center gap-3 cursor-pointer rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)]/30 p-2.5 hover:border-[color:var(--color-accent)]/40 hover:bg-[color:var(--color-muted-bg)]/50 transition-all group"
                           >
-                            {isImage ? (
-                              <img
-                                src={att.url}
-                                alt={att.name}
-                                className="h-10 w-10 rounded-lg object-cover bg-black/40 shrink-0"
-                              />
-                            ) : (
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-xs font-bold text-indigo-400">
-                                📄
+                            <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden bg-black/40 flex items-center justify-center relative">
+                              {isImage ? (
+                                <img
+                                  src={att.url}
+                                  alt={att.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : isVideo ? (
+                                <span className="text-lg">🎥</span>
+                              ) : isPdf ? (
+                                <span className="text-lg">📕</span>
+                              ) : (
+                                <span className="text-lg">📄</span>
+                              )}
+                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white font-bold transition-opacity">
+                                👁️
                               </div>
-                            )}
+                            </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-xs font-semibold text-[color:var(--color-text)]">
                                 {att.name}
                               </p>
                               <p className="mt-0.5 text-[9px] text-[color:var(--color-text-subtle)] font-mono">
-                                {att.size} · {att.createdAt}
+                                {att.size} · {new Date(att.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                               </p>
                             </div>
                             <button
-                              onClick={() => handleDeleteAttachment(selectedTask.id, att.id)}
-                              className="text-[10px] text-rose-400 hover:text-rose-300 transition-colors px-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAttachment(selectedTask.id, att.id);
+                              }}
+                              disabled={isDeletingAttachmentId === att.id}
+                              className="text-[10px] text-rose-400 hover:text-rose-300 disabled:opacity-50 transition-colors px-1 shrink-0"
                               title="Delete attachment"
                             >
-                              ✕
+                              {isDeletingAttachmentId === att.id ? "..." : "✕"}
                             </button>
                           </div>
                         );
@@ -2695,6 +3240,116 @@ export default function TaskBoard({
         </div>,
         document.body
       ) : null}
+
+      {mounted && lightboxImage ? createPortal(
+        <div 
+          className="fixed inset-0 z-[10005] flex items-center justify-center bg-black/90 p-4 transition-all"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button 
+            className="absolute right-6 top-6 rounded-full bg-white/10 p-2 text-white/80 hover:bg-white/20 hover:text-white transition-colors"
+            onClick={() => setLightboxImage(null)}
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img 
+            src={lightboxImage} 
+            alt="Fullscreen preview" 
+            className="max-h-[90vh] max-w-full rounded-lg object-contain shadow-2xl"
+          />
+        </div>,
+        document.body
+      ) : null}
+
+      {mounted && lightboxAttachment ? createPortal(
+        <div 
+          className="fixed inset-0 z-[10006] flex flex-col items-center justify-center bg-black/95 p-4 transition-all"
+          onClick={() => setLightboxAttachment(null)}
+        >
+          {/* Header Panel */}
+          <div className="absolute top-0 inset-x-0 h-16 bg-black/40 flex items-center justify-between px-6 z-10">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">
+                {lightboxAttachment.name}
+              </p>
+              <p className="mt-0.5 text-[10.5px] text-white/60 font-mono">
+                {lightboxAttachment.size} · {lightboxAttachment.type}
+              </p>
+            </div>
+            <button 
+              className="rounded-full bg-white/10 p-2 text-white/80 hover:bg-white/20 hover:text-white transition-colors"
+              onClick={() => setLightboxAttachment(null)}
+            >
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Interactive Player / Viewer */}
+          <div 
+            className="w-full max-w-5xl max-h-[80vh] flex items-center justify-center mt-16 overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {lightboxAttachment.type.startsWith("image/") ? (
+              <img 
+                src={lightboxAttachment.url} 
+                alt={lightboxAttachment.name} 
+                className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl"
+              />
+            ) : lightboxAttachment.type.startsWith("video/") ? (
+              <video 
+                src={lightboxAttachment.url} 
+                controls 
+                autoPlay 
+                className="max-h-[80vh] w-full rounded-lg shadow-2xl bg-black"
+              />
+            ) : lightboxAttachment.type === "application/pdf" ? (
+              <iframe 
+                src={lightboxAttachment.url} 
+                className="w-full h-[75vh] rounded-lg shadow-2xl bg-white border-0"
+              />
+            ) : lightboxAttachment.type === "text/plain" ? (
+              <TextFileViewer url={lightboxAttachment.url} />
+            ) : (
+              <div className="text-center p-8 bg-[color:var(--color-card)] border border-[color:var(--color-border)] rounded-2xl max-w-md shadow-2xl">
+                <span className="text-5xl block mb-3">📁</span>
+                <p className="text-sm font-semibold text-[color:var(--color-text)] mb-4">
+                  Preview is not supported for this file type.
+                </p>
+                <a 
+                  href={lightboxAttachment.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-bold text-white transition-colors shadow"
+                >
+                  Download File
+                </a>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      ) : null}
     </div>
+  );
+}
+
+const TextFileViewer = ({ url }) => {
+  const [content, setContent] = useState("Loading file contents...");
+
+  useEffect(() => {
+    fetch(url)
+      .then((res) => res.text())
+      .then((text) => setContent(text))
+      .catch((err) => setContent("Error loading file contents: " + err.message));
+  }, [url]);
+
+  return (
+    <pre className="w-full max-h-[70vh] rounded-lg shadow-2xl bg-zinc-950/90 text-zinc-200 border border-zinc-800 p-6 overflow-auto text-left font-mono text-xs whitespace-pre-wrap leading-relaxed">
+      {content}
+    </pre>
   );
 }
