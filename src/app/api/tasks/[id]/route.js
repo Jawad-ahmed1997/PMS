@@ -36,6 +36,7 @@ async function getTask(taskId, userId) {
     reworkCount: true,
     totalTimeSpent: true,
     lastStartedAt: true,
+    coverImage: true,
     createdAt: true,
     owner: { select: { id: true, name: true, email: true, role: true } },
     milestone: {
@@ -150,16 +151,24 @@ export async function PATCH(request, { params }) {
   }) : null;
   const isProjectAdmin = projectMember?.role === "ADMIN";
 
+  const body = await request.json();
+  const updates = {};
+
+  const isAssignee = task.ownerId === context.user.id;
+  const bodyKeys = Object.keys(body || {});
+  const isCoverImageOnlyUpdate = bodyKeys.length === 1 && bodyKeys.includes("coverImage");
+
   if (!isManagementRole(context.role) && !isProjectAdmin) {
-    return buildError("Only PM/CTO or Project Admins can edit tasks.", 403);
+    if (isCoverImageOnlyUpdate && isAssignee) {
+      // Allow task assignee to update cover image only
+    } else {
+      return buildError("Only PM/CTO or Project Admins can edit tasks.", 403);
+    }
   }
 
   if (!canAccessTask(context, task)) {
     return buildError("You do not have permission to update this task.", 403);
   }
-
-  const body = await request.json();
-  const updates = {};
 
   if (body?.title !== undefined) {
     const trimmedTitle = body.title.trim();
@@ -237,6 +246,31 @@ export async function PATCH(request, { params }) {
 
   if (body?.ktLink !== undefined) {
     updates.ktLink = body.ktLink ? body.ktLink.trim() : null;
+  }
+
+  if (body?.coverImage !== undefined) {
+    updates.coverImage = body.coverImage ? body.coverImage.trim() : null;
+
+    if (task.coverImage) {
+      try {
+        const oldUrl = task.coverImage;
+        const s3Marker = ".amazonaws.com/";
+        const markerIndex = oldUrl.indexOf(s3Marker);
+        if (markerIndex !== -1) {
+          const key = decodeURIComponent(oldUrl.substring(markerIndex + s3Marker.length));
+          const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+          const { s3Client } = await import("@/lib/s3");
+          await s3Client.send(
+            new DeleteObjectCommand({
+              Bucket: process.env.AWS_S3_BUCKET_NAME,
+              Key: key,
+            })
+          );
+        }
+      } catch (s3Err) {
+        console.error("Failed to delete old S3 cover image object:", s3Err);
+      }
+    }
   }
 
   if (body?.status) {

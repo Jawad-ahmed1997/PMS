@@ -127,6 +127,7 @@ export async function GET(request) {
       reworkCount: true,
       totalTimeSpent: true,
       lastStartedAt: true,
+      coverImage: true,
       createdAt: true,
       owner: { select: { id: true, name: true, email: true, role: true } },
       milestone: {
@@ -151,6 +152,11 @@ export async function GET(request) {
         where: { userId: context.user.id },
         select: { id: true, title: true, content: true },
       },
+      _count: {
+        select: {
+          attachments: true
+        }
+      }
     },
   });
 
@@ -161,8 +167,10 @@ export async function GET(request) {
         task.id,
         task.ownerId
       );
+      const { _count, ...restOfTask } = task;
       return {
-        ...task,
+        ...restOfTask,
+        attachmentCount: _count?.attachments ?? 0,
         spentTimeSeconds: computed.effectiveSpentSeconds,
         breakSeconds: computed.breakSeconds,
         dutyOverlapSeconds: computed.dutyOverlapSeconds,

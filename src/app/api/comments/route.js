@@ -23,11 +23,21 @@ async function getAccessibleTaskIds(context, ids) {
   const tasks = await prisma.task.findMany({
     where: {
       ...(ids?.length ? { id: { in: ids } } : {}),
-      milestone: {
-        project: {
-          members: { some: { userId: context.user.id } },
+      OR: [
+        { ownerId: context.user.id },
+        {
+          project: {
+            members: { some: { userId: context.user.id } },
+          },
         },
-      },
+        {
+          milestone: {
+            project: {
+              members: { some: { userId: context.user.id } },
+            },
+          },
+        },
+      ],
     },
     select: { id: true },
   });
@@ -98,6 +108,7 @@ export async function GET(request) {
     orderBy: { createdAt: "asc" },
     include: {
       createdBy: { select: { id: true, name: true, email: true, role: true } },
+      attachment: true,
     },
   });
 
@@ -128,13 +139,14 @@ export async function POST(request) {
   }
 
   const body = await request.json();
-  const message = body?.message?.trim();
+  const message = body?.message?.trim() || "";
   const entityType = normalizeEntityType(body?.entityType);
   const entityId = body?.entityId;
   const mentions = Array.isArray(body?.mentions) ? body.mentions : [];
+  const attachmentData = body?.attachment; // { name, size, type, url, key }
 
-  if (!message) {
-    return buildError("Message is required.", 400);
+  if (!message && !attachmentData) {
+    return buildError("Message or attachment is required.", 400);
   }
 
   if (!entityType || !isValidEntityType(entityType)) {
@@ -158,6 +170,13 @@ export async function POST(request) {
         project: {
           select: { members: { select: { userId: true } } },
         },
+        milestone: {
+          select: {
+            project: {
+              select: { members: { select: { userId: true } } }
+            }
+          }
+        }
       },
     });
 
@@ -165,9 +184,11 @@ export async function POST(request) {
       return buildError("Task not found.", 404);
     }
 
-    const isMember = task.project?.members?.some(
-      (member) => member.userId === context.user.id
-    );
+    const isMember = 
+      task.ownerId === context.user.id ||
+      task.project?.members?.some((member) => member.userId === context.user.id) ||
+      task.milestone?.project?.members?.some((member) => member.userId === context.user.id);
+
     if (!isMember && !isAdminRole(context.role)) {
       return buildError("You do not have permission to comment on this task.", 403);
     }
@@ -199,9 +220,21 @@ export async function POST(request) {
       entityType,
       entityId,
       mentions,
+      ...(attachmentData ? {
+        attachment: {
+          create: {
+            name: attachmentData.name,
+            size: attachmentData.size,
+            type: attachmentData.type,
+            url: attachmentData.url,
+            key: attachmentData.key,
+          }
+        }
+      } : {})
     },
     include: {
       createdBy: { select: { id: true, name: true, email: true, role: true } },
+      attachment: true,
     },
   });
 
