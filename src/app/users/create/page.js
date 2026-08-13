@@ -6,7 +6,12 @@ import { normalizeRoleId, roles } from "@/lib/roles";
 export default async function CreateUserPage() {
   const session = await getSession();
   const roleId = normalizeRoleId(session?.role);
-  const canCreate = [roles.CEO, roles.PM, roles.CTO].includes(roleId);
+  const canCreate = [
+    roles.CEO,
+    roles.PM,
+    roles.CTO,
+    roles.TEAM_LEAD,
+  ].includes(roleId);
 
   return (
     <div className="space-y-6">
