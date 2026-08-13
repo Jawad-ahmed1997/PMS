@@ -745,13 +745,15 @@ export default function TaskBoard({
 
 
   const handleCancelPendingAttachment = useCallback(() => {
-    pendingAttachments.forEach((item) => {
-      if (item.preview) {
-        URL.revokeObjectURL(item.preview);
-      }
+    setPendingAttachments((prev) => {
+      prev.forEach((item) => {
+        if (item.preview) {
+          URL.revokeObjectURL(item.preview);
+        }
+      });
+      return [];
     });
-    setPendingAttachments([]);
-  }, [pendingAttachments]);
+  }, []);
 
   const handlePendingAttachmentsSelect = useCallback((files) => {
     const allowedPrefixes = ["image/", "video/", "application/pdf", "text/plain"];
@@ -1629,12 +1631,14 @@ export default function TaskBoard({
   }, [addToast, refreshTask, playNotificationSound]);
 
   const handleCancelPendingCover = useCallback(() => {
-    if (pendingCoverPreview) {
-      URL.revokeObjectURL(pendingCoverPreview);
-    }
+    setPendingCoverPreview((prevPreview) => {
+      if (prevPreview) {
+        URL.revokeObjectURL(prevPreview);
+      }
+      return null;
+    });
     setPendingCoverFile(null);
-    setPendingCoverPreview(null);
-  }, [pendingCoverPreview]);
+  }, []);
 
   const handlePendingCoverSelect = useCallback((file) => {
     if (!file.type.startsWith("image/")) {
