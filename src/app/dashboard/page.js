@@ -210,7 +210,10 @@ export default async function DashboardPage() {
   }
 
   const isExecutiveSummary = roleId === roles.CEO || !roleId;
-  const isFullVisibility = roleId === roles.PM || roleId === roles.CTO;
+  const isFullVisibility =
+    roleId === roles.PM ||
+    roleId === roles.CTO ||
+    roleId === roles.TEAM_LEAD;
   const isDeveloper =
     roleId === roles.DEV ||
     roleId === roles.SENIOR_DEV ||

@@ -5,12 +5,12 @@ export const navigationItems = [
   {
     label: "Projects",
     href: "/projects",
-    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
   },
   {
     label: "My Tasks",
     href: "/my-tasks",
-    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
   },
   {
     label: "My Desk",
@@ -20,18 +20,18 @@ export const navigationItems = [
   {
     label: "Activity",
     href: "/activity",
-    roles: [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD, roles.SENIOR_DEV, roles.DEV, roles.INTERN, roles.JUNIOR_INTERN],
   },
   { label: "Attendance", href: "/attendance", roles: allRoles },
   {
     label: "Reports",
     href: "/reports",
-    roles: [roles.CEO, roles.PM, roles.CTO],
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD],
   },
   {
     label: "Members",
     href: "/users/create",
-    roles: [roles.CEO, roles.PM, roles.CTO],
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD],
   },
 ];
 

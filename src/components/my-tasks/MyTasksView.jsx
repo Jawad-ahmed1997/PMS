@@ -200,7 +200,7 @@ export default function MyTasksView({ role, currentUserId }) {
       />
 
       {/* Premium Integrated Filters Bar */}
-      {!status.loading && !status.error && tasks.length > 0 && (
+      {!isLoading && !error && tasks.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-4 bg-[color:var(--color-card)] border border-[color:var(--color-border)] px-4 py-3 rounded-2xl shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
             {/* Filter Indicator Icon */}
