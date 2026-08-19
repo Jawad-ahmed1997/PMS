@@ -141,7 +141,7 @@ export async function GET(request) {
     where,
     orderBy: { date: "desc" },
     include: {
-      user: { select: { id: true, name: true, role: true, email: true, timezone: true } },
+      user: { select: { id: true, name: true, role: true, email: true, image: true, timezone: true } },
       wfhIntervals: { orderBy: { startAt: "asc" } },
       breaks: { orderBy: { startAt: "asc" } },
     },
@@ -154,7 +154,7 @@ export async function GET(request) {
       where,
       orderBy: { date: "desc" },
       include: {
-        user: { select: { id: true, name: true, role: true, email: true, timezone: true } },
+        user: { select: { id: true, name: true, role: true, email: true, image: true, timezone: true } },
         wfhIntervals: { orderBy: { startAt: "asc" } },
         breaks: { orderBy: { startAt: "asc" } },
       },
@@ -256,7 +256,7 @@ export async function POST(request) {
       autoOffReason: null,
     },
     include: {
-      user: { select: { id: true, name: true, role: true, email: true } },
+      user: { select: { id: true, name: true, role: true, email: true, image: true } },
       wfhIntervals: { orderBy: { startAt: "asc" } },
       breaks: { orderBy: { startAt: "asc" } },
     },

@@ -17,13 +17,13 @@ async function getProjectWithAccess(projectId) {
     where: { id: projectId },
     include: {
       createdBy: {
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, role: true, image: true },
       },
       members: {
         select: {
           userId: true,
           role: true,
-          user: { select: { id: true, name: true, email: true, role: true } },
+          user: { select: { id: true, name: true, email: true, role: true, image: true } },
         },
       },
     },
@@ -182,13 +182,13 @@ async function handleProjectUpdate(request, { params }) {
     },
     include: {
       createdBy: {
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, role: true, image: true },
       },
       members: {
         select: {
           userId: true,
           role: true,
-          user: { select: { id: true, name: true, email: true, role: true } },
+          user: { select: { id: true, name: true, email: true, role: true, image: true } },
         },
       },
     },

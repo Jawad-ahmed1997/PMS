@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
@@ -112,7 +113,17 @@ export default function ProjectDetailView({
     ownerId: "",
     milestoneId: "",
     checklistItems: [],
+    attachments: [],
   });
+
+  const fileInputRef = useRef(null);
+  const [pendingUploads, setPendingUploads] = useState([]);
+  const [lightboxAttachment, setLightboxAttachment] = useState(null);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const taskTypes = useMemo(() => Object.keys(TASK_TYPE_CHECKLISTS), []);
   const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
@@ -370,8 +381,71 @@ export default function ProjectDetailView({
     }
   };
 
+  const handleLocalFilesSelect = (files) => {
+    const allowedPrefixes = ["image/", "video/", "application/pdf", "text/plain"];
+    const validFiles = Array.from(files).filter((file) =>
+      allowedPrefixes.some((pref) => file.type.startsWith(pref))
+    );
+
+    if (validFiles.length === 0) return;
+
+    const newAttachments = validFiles.map((file) => {
+      const localUrl = URL.createObjectURL(file);
+      return {
+        key: `local-${Date.now()}-${Math.random()}`,
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.type,
+        url: localUrl,
+        file: file,
+      };
+    });
+
+    setTaskForm((prev) => ({
+      ...prev,
+      attachments: [...(prev.attachments || []), ...newAttachments],
+    }));
+  };
+
+  const revokeAllLocalObjectUrls = (attachments) => {
+    (attachments || []).forEach((att) => {
+      if (att.url && att.url.startsWith("blob:")) {
+        URL.revokeObjectURL(att.url);
+      }
+    });
+  };
+
+  const handleRemoveAttachment = (key) => {
+    setTaskForm((prev) => {
+      const target = (prev.attachments || []).find((att) => att.key === key);
+      if (target?.url && target.url.startsWith("blob:")) {
+        URL.revokeObjectURL(target.url);
+      }
+      return {
+        ...prev,
+        attachments: (prev.attachments || []).filter((att) => att.key !== key),
+      };
+    });
+  };
+
+  const handleTaskFormPaste = (event) => {
+    const clipboardItems = event.clipboardData?.items;
+    if (!clipboardItems) return;
+
+    const items = Array.from(clipboardItems);
+    const imageItem = items.find((item) => item.type.indexOf("image") !== -1);
+    if (!imageItem) return;
+
+    const file = imageItem.getAsFile();
+    if (!file) return;
+
+    event.preventDefault();
+    handleLocalFilesSelect([file]);
+  };
+
   // Task Form Management
   const resetTaskForm = () => {
+    revokeAllLocalObjectUrls(taskForm.attachments);
     setTaskForm({
       title: "",
       description: "",
@@ -381,8 +455,10 @@ export default function ProjectDetailView({
       ownerId: "",
       milestoneId: milestones[0]?.id ?? "",
       checklistItems: [],
+      attachments: [],
     });
     setEditingTaskId(null);
+    setPendingUploads([]);
   };
 
   const parseEstimatedTime = (value) => {
@@ -483,6 +559,85 @@ export default function ProjectDetailView({
 
     setSavingTask(true);
     try {
+      const uploadedAttachments = [];
+      const localAttachments = (taskForm.attachments || []).filter((att) => att.file);
+
+      if (localAttachments.length > 0) {
+        // Initialize pending uploads in the UI queue
+        const newPendingItems = localAttachments.map((item, idx) => ({
+          id: item.key,
+          name: item.name,
+          progress: 0,
+          type: item.type,
+        }));
+        setPendingUploads(newPendingItems);
+
+        for (const item of localAttachments) {
+          // 1. Fetch Presigned URL
+          const res = await fetch("/api/upload/presigned", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filename: item.name,
+              fileType: item.type,
+              uploadType: "task",
+            }),
+          });
+
+          if (!res.ok) {
+            throw new Error(`Failed to get presigned S3 url for ${item.name}`);
+          }
+
+          const { uploadUrl, fileUrl, fileKey } = await res.json();
+
+          // 2. PUT upload to S3
+          await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("PUT", uploadUrl, true);
+            xhr.setRequestHeader("Content-Type", item.type);
+
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                const percent = Math.round((event.loaded / event.total) * 100);
+                setPendingUploads((prev) =>
+                  prev.map((p) => (p.id === item.key ? { ...p, progress: percent } : p))
+                );
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status === 200) resolve();
+              else reject(new Error(`S3 upload failed for ${item.name}`));
+            };
+
+            xhr.onerror = () => reject(new Error(`Upload network error for ${item.name}`));
+            xhr.send(item.file);
+          });
+
+          uploadedAttachments.push({
+            name: item.name,
+            size: item.size,
+            type: item.type,
+            url: fileUrl,
+            key: fileKey,
+          });
+
+          setPendingUploads((prev) => prev.filter((p) => p.id !== item.key));
+        }
+      }
+
+      const existingAttachments = (taskForm.attachments || [])
+        .filter((att) => !att.file)
+        .map((att) => ({
+          name: att.name,
+          size: att.size,
+          type: att.type,
+          url: att.url,
+          key: att.key,
+        }));
+
+      const finalAttachments = [...existingAttachments, ...uploadedAttachments];
+
       const payload = {
         title: taskForm.title,
         description: taskForm.description,
@@ -499,16 +654,17 @@ export default function ProjectDetailView({
           body: JSON.stringify(
             editingTaskId
               ? {
-                ...payload,
-                checklistItems: taskForm.checklistItems,
-                milestoneId: taskForm.milestoneId || null,
-              }
+                  ...payload,
+                  checklistItems: taskForm.checklistItems,
+                  milestoneId: taskForm.milestoneId || null,
+                }
               : {
-                ...payload,
-                status: taskForm.status,
-                milestoneId: taskForm.milestoneId || null,
-                projectId: projectId,
-              }
+                  ...payload,
+                  status: taskForm.status,
+                  milestoneId: taskForm.milestoneId || null,
+                  projectId: projectId,
+                  attachments: finalAttachments,
+                }
           ),
         }
       );
@@ -993,6 +1149,107 @@ export default function ProjectDetailView({
                     onChange={(event) => setTaskForm((prev) => ({ ...prev, estimatedTime: event.target.value }))}
                   />
               </div>
+              <div className="space-y-2">
+                <Label>Attachments</Label>
+                
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  multiple
+                  accept="image/*,video/*,application/pdf,text/plain"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.length) {
+                      handleLocalFilesSelect(e.target.files);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+
+                {/* Drop zone / Upload trigger */}
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onPaste={handleTaskFormPaste}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    if (e.dataTransfer.files?.length) {
+                      handleLocalFilesSelect(e.dataTransfer.files);
+                    }
+                  }}
+                  className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed border-[color:var(--color-border)] hover:border-[color:var(--color-accent)] rounded-xl py-6 px-4 bg-[color:var(--color-muted-bg)]/20 hover:bg-[color:var(--color-muted-bg)]/40 transition-all text-center space-y-1.5 group"
+                >
+                  <svg
+                    className="h-7 w-7 text-[color:var(--color-text-subtle)] group-hover:text-white transition-colors"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.122 2.122l7.81-7.81a1.5 1.5 0 00-2.122-2.122z"
+                    />
+                  </svg>
+                  <div>
+                    <p className="text-xs font-semibold text-[color:var(--color-text)]">
+                      Click/Drag here to upload or paste a screenshot
+                    </p>
+                    <p className="text-[10px] text-[color:var(--color-text-subtle)] mt-0.5">
+                      Supports images, videos, PDFs, and text files
+                    </p>
+                  </div>
+                </div>
+
+                {/* Attached Files List */}
+                {taskForm.attachments && taskForm.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-3 mt-2">
+                    {taskForm.attachments.map((att) => {
+                      const pending = (pendingUploads || []).find((p) => p.id === att.key);
+                      const isUploading = Boolean(pending);
+                      const progress = pending?.progress ?? 0;
+                      return (
+                        <div
+                          key={att.key}
+                          onClick={() => setLightboxAttachment(att)}
+                          className="cursor-pointer relative h-24 w-24 rounded-xl border border-[color:var(--color-border)] hover:border-[color:var(--color-accent)] bg-[color:var(--color-muted-bg)]/20 shadow-sm transition-all overflow-hidden group flex items-center justify-center text-3xl shrink-0"
+                          title={att.name}
+                        >
+                          {att.type.startsWith("image/") ? (
+                            <img src={att.url} alt={att.name} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                          ) : att.type.startsWith("video/") ? (
+                            <span>🎥</span>
+                          ) : att.type === "application/pdf" ? (
+                            <span>📕</span>
+                          ) : (
+                            <span>📄</span>
+                          )}
+                          
+                          {isUploading ? (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+                              <span className="text-[10px] font-bold text-white">{progress}%</span>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveAttachment(att.key);
+                              }}
+                              className="absolute top-1 right-1 h-5 w-5 flex items-center justify-center rounded-full bg-black/60 hover:bg-rose-600 text-white text-[10px] transition-colors shadow z-10"
+                              title="Remove attachment"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <DialogFooter className="mt-4 border-t border-border pt-4">
@@ -1142,6 +1399,94 @@ export default function ProjectDetailView({
           </form>
         </DialogContent>
       </DialogRoot>
+
+      {isClient && lightboxAttachment ? createPortal(
+        <div 
+          className="fixed inset-0 z-[10006] flex flex-col items-center justify-center bg-black/95 p-4 transition-all"
+          onClick={() => setLightboxAttachment(null)}
+        >
+          {/* Header Panel */}
+          <div className="absolute top-0 inset-x-0 h-16 bg-black/40 flex items-center justify-between px-6 z-10">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">
+                {lightboxAttachment.name}
+              </p>
+              <p className="mt-0.5 text-[10.5px] text-white/60 font-mono">
+                {lightboxAttachment.size} · {lightboxAttachment.type}
+              </p>
+            </div>
+            <button 
+              className="rounded-full bg-white/10 p-2 text-white/80 hover:bg-white/20 hover:text-white transition-colors"
+              onClick={() => setLightboxAttachment(null)}
+            >
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Interactive Player / Viewer */}
+          <div 
+            className="w-full max-w-5xl max-h-[80vh] flex items-center justify-center mt-16 overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {lightboxAttachment.type.startsWith("image/") ? (
+              <img 
+                src={lightboxAttachment.url} 
+                alt={lightboxAttachment.name} 
+                className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl"
+              />
+            ) : lightboxAttachment.type.startsWith("video/") ? (
+              <video 
+                src={lightboxAttachment.url} 
+                controls 
+                autoPlay 
+                className="max-h-[80vh] w-full rounded-lg shadow-2xl bg-black"
+              />
+            ) : lightboxAttachment.type === "application/pdf" ? (
+              <iframe 
+                src={lightboxAttachment.url} 
+                className="w-full h-[75vh] rounded-lg shadow-2xl bg-white border-0"
+              />
+            ) : lightboxAttachment.type === "text/plain" ? (
+              <TextFileViewer url={lightboxAttachment.url} />
+            ) : (
+              <div className="text-center p-8 bg-[color:var(--color-card)] border border-[color:var(--color-border)] rounded-2xl max-w-md shadow-2xl">
+                <span className="text-5xl block mb-3">📁</span>
+                <p className="text-sm font-semibold text-[color:var(--color-text)] mb-4">
+                  Preview is not supported for this file type.
+                </p>
+                <a 
+                  href={lightboxAttachment.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-block rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-bold text-white transition-colors shadow"
+                >
+                  Download File
+                </a>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      ) : null}
     </div>
   );
 }
+
+const TextFileViewer = ({ url }) => {
+  const [content, setContent] = useState("Loading file contents...");
+
+  useEffect(() => {
+    fetch(url)
+      .then((res) => res.text())
+      .then((text) => setContent(text))
+      .catch((err) => setContent("Error loading file content: " + err.message));
+  }, [url]);
+
+  return (
+    <pre className="w-full max-h-[75vh] p-6 rounded-lg bg-[#18181b] border border-neutral-800 text-neutral-200 overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap select-text">
+      {content}
+    </pre>
+  );
+};

@@ -11,7 +11,7 @@ export default async function ProfilePage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { email: session.email },
-    select: { id: true, name: true, email: true, role: true, timezone: true },
+    select: { id: true, name: true, email: true, role: true, image: true, timezone: true },
   });
 
   if (!dbUser) redirect("/login");
@@ -30,7 +30,7 @@ export default async function ProfilePage() {
       <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm">
           <div className="flex items-center gap-4">
-            <Avatar src={session.image} name={name} alt={`${name} avatar`} className="h-16 w-16 border border-border text-lg shadow-sm" />
+            <Avatar src={dbUser.image || session.image} name={name} alt={`${name} avatar`} className="h-16 w-16 border border-border text-lg shadow-sm" />
             <div className="min-w-0">
               <h2 className="truncate text-lg font-semibold text-foreground">{name}</h2>
               <p className="truncate text-sm text-muted-foreground">{dbUser.email}</p>

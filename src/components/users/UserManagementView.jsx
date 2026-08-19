@@ -188,7 +188,7 @@ export default function UserManagementView() {
                   <tr key={user.id} className="hover:bg-[color:var(--color-surface-muted)]/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <Avatar name={user.name} />
+                        <Avatar src={user.image} name={user.name} alt={`${user.name} avatar`} />
                         <div className="min-w-0">
                           <p className="font-medium text-[color:var(--color-text)] truncate">{user.name}</p>
                         </div>

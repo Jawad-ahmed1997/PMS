@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, MoreHorizontal } from "lucide-react";
 import ActionButton from "@/components/ui/ActionButton";
+import Avatar from "@/components/ui/Avatar";
 import {
   DialogRoot,
   DialogPortal,
@@ -1394,11 +1395,21 @@ export default function AttendanceDashboard({
                       <>
                         {isLeader ? (
                           <td className="px-4 py-4">
-                            <div className="text-sm font-semibold text-[color:var(--color-text)]">
-                              {record.user?.name ?? "Unknown"}
-                            </div>
-                            <div className="text-xs text-[color:var(--color-text-subtle)]">
-                              {record.user?.role ?? ""}
+                            <div className="flex items-center gap-3">
+                              <Avatar
+                                src={record.user?.image}
+                                name={record.user?.name ?? record.user?.email ?? "User"}
+                                alt={`${record.user?.name ?? "User"} avatar`}
+                                className="h-8 w-8 text-xs shrink-0"
+                              />
+                              <div>
+                                <div className="text-sm font-semibold text-[color:var(--color-text)]">
+                                  {record.user?.name ?? "Unknown"}
+                                </div>
+                                <div className="text-xs text-[color:var(--color-text-subtle)]">
+                                  {record.user?.role ?? ""}
+                                </div>
+                              </div>
                             </div>
                           </td>
                         ) : null}

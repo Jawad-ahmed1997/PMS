@@ -42,6 +42,7 @@ export async function GET(request, { params }) {
       name: true,
       email: true,
       role: true,
+      image: true,
       isActive: true,
       timezone: true,
       createdAt: true,
@@ -76,6 +77,10 @@ export async function PATCH(request, { params }) {
   const name = body?.name?.trim();
   const password = body?.password;
   const updates = {};
+
+  if (body?.image !== undefined) {
+    updates.image = body.image ? body.image.trim() : null;
+  }
 
   if (body?.timezone) {
     updates.timezone = body.timezone.trim();
@@ -120,6 +125,7 @@ export async function PATCH(request, { params }) {
         name: true,
         email: true,
         role: true,
+        image: true,
         isActive: true,
         timezone: true,
         createdAt: true,

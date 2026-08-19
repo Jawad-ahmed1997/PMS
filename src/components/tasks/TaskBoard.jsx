@@ -2924,13 +2924,12 @@ export default function TaskBoard({
                         </div>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2 max-h-60 overflow-y-auto pr-1">
+                      <div className="flex flex-wrap gap-3">
                         {pendingAttachments.map((item) => {
                           const file = item.file;
                           const isImage = file.type.startsWith("image/");
                           const isVideo = file.type.startsWith("video/");
                           const isPdf = file.type === "application/pdf";
-                          const isText = file.type === "text/plain";
                           
                           return (
                             <div 
@@ -2941,56 +2940,35 @@ export default function TaskBoard({
                                 type: file.type,
                                 url: item.preview
                               })}
-                              className="flex items-center gap-3 cursor-pointer rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)]/45 p-2 relative group min-w-0 hover:border-[color:var(--color-accent)]/40 hover:bg-[color:var(--color-muted-bg)]/60 transition-all"
+                              className="cursor-pointer relative h-24 w-24 rounded-xl border border-[color:var(--color-border)] hover:border-[color:var(--color-accent)] bg-[color:var(--color-muted-bg)]/20 shadow-sm transition-all overflow-hidden group flex items-center justify-center text-3xl shrink-0"
+                              title={file.name}
                             >
-                              {/* Lightweight Preview Box */}
-                              <div className="h-12 w-12 shrink-0 rounded bg-black/30 border border-[color:var(--color-border)] overflow-hidden flex items-center justify-center relative">
-                                {isImage ? (
-                                  <img
-                                    src={item.preview}
-                                    alt="Preview"
-                                    className="h-full w-full object-cover"
-                                  />
-                                ) : isVideo ? (
-                                  <video
-                                    src={item.preview}
-                                    className="h-full w-full object-cover animate-pulse"
-                                    muted
-                                    loop
-                                    playsInline
-                                    preload="metadata"
-                                  />
-                                ) : isText ? (
-                                  <div className="text-[7px] text-[color:var(--color-text-muted)] p-1 overflow-hidden select-none break-all font-mono leading-tight">
-                                    {item.textSnippet || "TXT"}
-                                  </div>
-                                ) : (
-                                  <span className="text-xl">📕</span>
-                                )}
-                                
-                                {item.isUploading && (
-                                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                    <span className="text-[9px] font-bold text-white">{item.progress}%</span>
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-[11px] font-semibold text-[color:var(--color-text)]">
-                                  {file.name}
-                                </p>
-                                <p className="mt-0.5 text-[9px] text-[color:var(--color-text-subtle)] font-mono">
-                                  {(file.size / 1024).toFixed(1)} KB · {file.type.split('/')[1] || file.type}
-                                </p>
-                              </div>
-
-                              {!item.isUploading && (
+                              {isImage ? (
+                                <img
+                                  src={item.preview}
+                                  alt={file.name}
+                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                />
+                              ) : isVideo ? (
+                                <span>🎥</span>
+                              ) : isPdf ? (
+                                <span>📕</span>
+                              ) : (
+                                <span>📄</span>
+                              )}
+                              
+                              {item.isUploading ? (
+                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+                                  <span className="text-[10px] font-bold text-white">{item.progress}%</span>
+                                </div>
+                              ) : (
                                 <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleRemovePendingItem(item.id);
                                   }}
-                                  className="text-[10px] text-rose-400 hover:text-rose-300 transition-colors p-1 shrink-0"
+                                  className="absolute top-1 right-1 h-5 w-5 flex items-center justify-center rounded-full bg-black/60 hover:bg-rose-600 text-white text-[10px] transition-colors shadow z-10"
                                   title="Remove from queue"
                                 >
                                   ✕
@@ -3008,50 +2986,39 @@ export default function TaskBoard({
                       Loading attachments...
                     </div>
                   ) : attachments.length > 0 ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex flex-wrap gap-3 mt-2">
                       {attachments.map((att) => {
-                        const isImage = att.type.startsWith("image/");
-                        const isVideo = att.type.startsWith("video/");
+                        const isImage = att.type?.startsWith("image/");
+                        const isVideo = att.type?.startsWith("video/");
                         const isPdf = att.type === "application/pdf";
                         return (
                           <div
                             key={att.id}
                             onClick={() => setLightboxAttachment(att)}
-                            className="flex items-center gap-3 cursor-pointer rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)]/30 p-2.5 hover:border-[color:var(--color-accent)]/40 hover:bg-[color:var(--color-muted-bg)]/50 transition-all group"
+                            className="cursor-pointer relative h-24 w-24 rounded-xl border border-[color:var(--color-border)] hover:border-[color:var(--color-accent)] bg-[color:var(--color-muted-bg)]/20 shadow-sm transition-all overflow-hidden group flex items-center justify-center text-3xl shrink-0"
+                            title={att.name}
                           >
-                            <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden bg-black/40 flex items-center justify-center relative">
-                              {isImage ? (
-                                <img
-                                  src={att.url}
-                                  alt={att.name}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : isVideo ? (
-                                <span className="text-lg">🎥</span>
-                              ) : isPdf ? (
-                                <span className="text-lg">📕</span>
-                              ) : (
-                                <span className="text-lg">📄</span>
-                              )}
-                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white font-bold transition-opacity">
-                                👁️
-                              </div>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-xs font-semibold text-[color:var(--color-text)]">
-                                {att.name}
-                              </p>
-                              <p className="mt-0.5 text-[9px] text-[color:var(--color-text-subtle)] font-mono">
-                                {att.size} · {new Date(att.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                              </p>
-                            </div>
+                            {isImage ? (
+                              <img
+                                src={att.url}
+                                alt={att.name}
+                                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                            ) : isVideo ? (
+                              <span>🎥</span>
+                            ) : isPdf ? (
+                              <span>📕</span>
+                            ) : (
+                              <span>📄</span>
+                            )}
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteAttachment(selectedTask.id, att.id);
                               }}
                               disabled={isDeletingAttachmentId === att.id}
-                              className="text-[10px] text-rose-400 hover:text-rose-300 disabled:opacity-50 transition-colors px-1 shrink-0"
+                              className="absolute top-1 right-1 h-5 w-5 flex items-center justify-center rounded-full bg-black/60 hover:bg-rose-600 text-white text-[10px] transition-colors shadow z-10 disabled:opacity-50"
                               title="Delete attachment"
                             >
                               {isDeletingAttachmentId === att.id ? "..." : "✕"}

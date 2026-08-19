@@ -35,11 +35,11 @@ export async function GET(request) {
     orderBy: { createdAt: "desc" },
     include: {
       createdBy: {
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, role: true, image: true },
       },
       members: {
         select: {
-          user: { select: { id: true, name: true, email: true, role: true } },
+          user: { select: { id: true, name: true, email: true, role: true, image: true } },
         },
       },
     },
@@ -99,11 +99,11 @@ export async function POST(request) {
     },
     include: {
       createdBy: {
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, role: true, image: true },
       },
       members: {
         select: {
-          user: { select: { id: true, name: true, email: true, role: true } },
+          user: { select: { id: true, name: true, email: true, role: true, image: true } },
         },
       },
     },
