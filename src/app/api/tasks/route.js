@@ -312,6 +312,8 @@ export async function POST(request) {
     );
   }
 
+  const attachments = Array.isArray(body?.attachments) ? body.attachments : [];
+
   const createdTask = await prisma.$transaction(async (tx) => {
     const now = new Date();
     const task = await tx.task.create({
@@ -326,6 +328,19 @@ export async function POST(request) {
         estimatedHours,
         reworkCount: 0,
         lastStartedAt: null,
+        ...(attachments.length > 0
+          ? {
+              attachments: {
+                create: attachments.map((att) => ({
+                  name: att.name,
+                  size: att.size,
+                  type: att.type,
+                  url: att.url,
+                  key: att.key,
+                })),
+              },
+            }
+          : {}),
       },
       include: {
         owner: { select: { id: true, name: true, email: true, role: true } },

@@ -82,6 +82,7 @@ export async function GET(request) {
           name: true,
           email: true,
           role: true,
+          image: true,
         },
       },
       task: { select: { id: true, title: true, ownerId: true } },
@@ -184,7 +185,7 @@ export async function POST(request) {
         durationSeconds,
       },
       include: {
-        user: { select: { id: true, name: true, email: true, role: true } },
+        user: { select: { id: true, name: true, email: true, role: true, image: true } },
         task: { select: { id: true, title: true, ownerId: true } },
       },
     });
