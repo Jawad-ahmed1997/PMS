@@ -13,6 +13,7 @@ import RouteProgress from "@/components/layout/RouteProgress";
 import { logoutAction } from "@/app/logout/actions";
 import FloatingTaskTimer from "@/components/layout/FloatingTaskTimer";
 import FloatingActivityTimer from "@/components/layout/FloatingActivityTimer";
+import TabTitleTimerManager from "@/components/layout/TabTitleTimerManager";
 import TodoReminderManager from "@/components/layout/TodoReminderManager";
 import {
   NotificationCountsProvider,
@@ -162,6 +163,7 @@ function AppShellContent({ children, session }) {
       />
       <FloatingTaskTimer session={session} />
       <FloatingActivityTimer session={session} />
+      <TabTitleTimerManager session={session} />
       <TodoReminderManager session={session} />
     </div>
   );

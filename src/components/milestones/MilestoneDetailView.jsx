@@ -51,6 +51,7 @@ export default function MilestoneDetailView({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [initialTaskForm, setInitialTaskForm] = useState(null);
   const [users, setUsers] = useState([]);
 
   // Query for milestone details and tasks
@@ -341,6 +342,7 @@ export default function MilestoneDetailView({
       attachments: [],
     });
     setEditingTaskId(null);
+    setInitialTaskForm(null);
     setPendingUploads([]);
   };
 
@@ -392,7 +394,7 @@ export default function MilestoneDetailView({
 
   const openEditTask = (task) => {
     setEditingTaskId(task.id);
-    setTaskForm({
+    const initial = {
       title: task.title ?? "",
       description: task.description ?? "",
       status: task.status ?? (TASK_STATUSES[0]?.id ?? "BACKLOG"),
@@ -404,9 +406,25 @@ export default function MilestoneDetailView({
         label: item.label,
         isCompleted: item.isCompleted,
       })),
-    });
+    };
+    setTaskForm(initial);
+    setInitialTaskForm(initial);
     setIsDialogOpen(true);
   };
+
+  const isTaskFormUnchanged = useMemo(() => {
+    if (!editingTaskId || !initialTaskForm) return false;
+    const currentComparable = {
+      title: taskForm.title,
+      description: taskForm.description,
+      status: taskForm.status,
+      type: taskForm.type,
+      estimatedTime: taskForm.estimatedTime,
+      ownerId: taskForm.ownerId,
+      checklistItems: taskForm.checklistItems,
+    };
+    return JSON.stringify(currentComparable) === JSON.stringify(initialTaskForm) && pendingUploads.length === 0;
+  }, [editingTaskId, taskForm, initialTaskForm, pendingUploads]);
 
   const handleTaskSubmit = async (event) => {
     event.preventDefault();
@@ -1058,7 +1076,7 @@ export default function MilestoneDetailView({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingTask}>
+              <Button type="submit" disabled={savingTask || (Boolean(editingTaskId) && isTaskFormUnchanged)}>
                 {savingTask
                   ? "Saving..."
                   : editingTaskId
