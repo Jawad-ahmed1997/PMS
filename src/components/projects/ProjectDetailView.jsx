@@ -90,6 +90,7 @@ export default function ProjectDetailView({
   const [modalOpen, setModalOpen] = useState(false); // Milestone modal
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false); // Task modal
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [initialTaskForm, setInitialTaskForm] = useState(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [selectedAddUserId, setSelectedAddUserId] = useState("");
   const [selectedAddUserRole, setSelectedAddUserRole] = useState("MEMBER");
@@ -458,6 +459,7 @@ export default function ProjectDetailView({
       attachments: [],
     });
     setEditingTaskId(null);
+    setInitialTaskForm(null);
     setPendingUploads([]);
   };
 
@@ -509,7 +511,7 @@ export default function ProjectDetailView({
 
   const openEditTask = (task) => {
     setEditingTaskId(task.id);
-    setTaskForm({
+    const initial = {
       title: task.title ?? "",
       description: task.description ?? "",
       status: task.status ?? (TASK_STATUSES[0]?.id ?? "BACKLOG"),
@@ -522,9 +524,26 @@ export default function ProjectDetailView({
         label: item.label,
         isCompleted: item.isCompleted,
       })),
-    });
+    };
+    setTaskForm(initial);
+    setInitialTaskForm(initial);
     setIsTaskModalOpen(true);
   };
+
+  const isTaskFormUnchanged = useMemo(() => {
+    if (!editingTaskId || !initialTaskForm) return false;
+    const currentComparable = {
+      title: taskForm.title,
+      description: taskForm.description,
+      status: taskForm.status,
+      type: taskForm.type,
+      estimatedTime: taskForm.estimatedTime,
+      ownerId: taskForm.ownerId,
+      milestoneId: taskForm.milestoneId,
+      checklistItems: taskForm.checklistItems,
+    };
+    return JSON.stringify(currentComparable) === JSON.stringify(initialTaskForm) && pendingUploads.length === 0;
+  }, [editingTaskId, taskForm, initialTaskForm, pendingUploads]);
 
   const handleTaskSubmit = async (event) => {
     event.preventDefault();
@@ -1264,7 +1283,7 @@ export default function ProjectDetailView({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingTask}>
+              <Button type="submit" disabled={savingTask || (Boolean(editingTaskId) && isTaskFormUnchanged)}>
                 {savingTask ? "Saving..." : editingTaskId ? "Save changes" : "Create task"}
               </Button>
             </DialogFooter>

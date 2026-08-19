@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import ActionButton from "@/components/ui/ActionButton";
 import { Sheet } from "@/components/ui/sheet";
 import CommentThread from "@/components/comments/CommentThread";
+import Avatar from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/ToastProvider";
 import { TASK_STATUSES, getNextStatuses, getStatusLabel, isDeveloperOnlyTransition, isManagementOnlyTransition } from "@/lib/kanban";
 import { canMarkTaskDone, normalizeRoleId, roles } from "@/lib/roles";
@@ -82,15 +83,15 @@ const getPresenceLabel = (task) => {
 };
 
 const getProgressState = (task) => {
-  if (task.status === "DONE") {
-    return "completed";
-  }
   const estimatedSeconds = Math.max(0, (task.estimatedHours ?? 0) * 3600);
   const spentSeconds = Number(
     task.spentTimeSeconds ?? task.totalTimeSpent ?? 0
   );
   if (estimatedSeconds > 0 && spentSeconds > estimatedSeconds) {
     return "overdue";
+  }
+  if (task.status === "DONE") {
+    return "completed";
   }
   return "onTrack";
 };
@@ -2438,11 +2439,15 @@ export default function TaskBoard({
                       ? effectiveSpentSeconds / estimatedSeconds
                       : 0;
                   const progressState = getProgressState(task);
+                  const isLate = estimatedSeconds > 0 && effectiveSpentSeconds > estimatedSeconds;
                   return (
                     <div
                       key={task.id}
-                      className={`min-w-0 cursor-pointer overflow-hidden rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-2.5 transition hover:border-[color:var(--color-accent)] sm:p-3 ${pendingTaskId === task.id ? "opacity-60" : ""
-                        } ${draggingTaskId === task.id ? "opacity-70" : ""}`}
+                      className={`min-w-0 cursor-pointer overflow-hidden rounded-xl border p-2.5 transition sm:p-3 ${
+                        isLate
+                          ? "border-rose-500/80 shadow-[0_0_12px_rgba(244,63,94,0.18)] bg-rose-500/[0.03]"
+                          : "border-[color:var(--color-border)] bg-[color:var(--color-card)] hover:border-[color:var(--color-accent)]"
+                      } ${pendingTaskId === task.id ? "opacity-60" : ""} ${draggingTaskId === task.id ? "opacity-70" : ""}`}
                       draggable={Boolean(currentUserId)}
                       onDragStart={(event) => handleDragStart(event, task)}
                       onDragEnd={handleDragEnd}
@@ -2461,6 +2466,11 @@ export default function TaskBoard({
                         {task.title}
                       </p>
                       <div className="mt-1 flex flex-wrap gap-1">
+                        {isLate && (
+                          <span className="rounded border border-rose-500/50 bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-400">
+                            🚨 {task.status === "DONE" ? "COMPLETED LATE" : "OVERDUE"}
+                          </span>
+                        )}
                         {task.status === "BLOCKED" && (
                           <span className="rounded border border-rose-500/40 px-1.5 py-0.5 text-[10px] text-rose-300">🔒 {task.blockedType}: {task.blockedReason}</span>
                         )}
@@ -2492,12 +2502,12 @@ export default function TaskBoard({
                       })()}
                       <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                          <span
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-muted-bg)] text-[10px] font-semibold text-[color:var(--color-text)]"
-                            title={task.owner?.name ?? "Unassigned"}
-                          >
-                            {(task.owner?.name ?? "U").charAt(0).toUpperCase()}
-                          </span>
+                          <Avatar
+                            src={task.owner?.image}
+                            name={task.owner?.name ?? "Unassigned"}
+                            alt={task.owner?.name ?? "Unassigned"}
+                            className="h-7 w-7 text-[10px] shrink-0"
+                          />
                           <div className="flex flex-col min-w-0">
                             <span className="truncate text-[11px] font-medium text-[color:var(--color-text-subtle)] leading-tight">
                               {task.owner?.name ?? "Unassigned"}

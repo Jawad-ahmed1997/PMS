@@ -82,6 +82,7 @@ function getTimeStrInTZ(date, timeZone) {
 export default function FloatingActivityTimer({ session }) {
   const { addToast } = useToast();
   const userTimeZone = session?.user?.timezone || "Asia/Karachi";
+  const [isTaskTimerActive, setIsTaskTimerActive] = useState(false);
 
   // Persistent States
   const [timerState, setTimerState] = useState(() => {
@@ -404,6 +405,36 @@ export default function FloatingActivityTimer({ session }) {
       window.removeEventListener("pms:show-manual-warning", handleInterceptWarning);
     };
   }, [timerState]);
+
+  // Check if a task timer is active
+  useEffect(() => {
+    const checkTaskSession = async () => {
+      try {
+        const res = await fetch("/api/tasks/active-session", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setIsTaskTimerActive(Boolean(data?.active));
+        }
+      } catch (e) {}
+    };
+    checkTaskSession();
+
+    const handleTimerChange = (e) => {
+      const payload = e?.detail?.activeSession;
+      if (payload !== undefined) {
+        setIsTaskTimerActive(Boolean(payload?.active));
+      } else {
+        checkTaskSession();
+      }
+    };
+
+    window.addEventListener("pms:timer-changed", handleTimerChange);
+    window.addEventListener("focus", checkTaskSession);
+    return () => {
+      window.removeEventListener("pms:timer-changed", handleTimerChange);
+      window.removeEventListener("focus", checkTaskSession);
+    };
+  }, []);
 
   useEffect(() => {
     let interval = null;
@@ -747,7 +778,7 @@ export default function FloatingActivityTimer({ session }) {
     }
   };
 
-  if (!session) return null;
+  if (!session || isTaskTimerActive) return null;
 
   return (
     <>
