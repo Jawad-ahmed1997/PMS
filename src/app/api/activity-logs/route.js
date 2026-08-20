@@ -16,6 +16,7 @@ import {
   MANUAL_LOG_CATEGORIES,
   normalizeManualCategories,
 } from "@/lib/manualLogs";
+import { findConflictingManualLog, validateAndSplitManualLog } from "@/lib/manualLogMutations";
 
 export async function GET(request) {
   const context = await getAuthContext();
@@ -143,9 +144,24 @@ export async function POST(request) {
   }
 
   const { startAt, endAt, durationSeconds, error: timeError } =
-    buildManualLogTimes({ date: dateInput, startTime, endTime });
+    buildManualLogTimes({ date: dateInput, startTime, endTime, timeZone: context.timezone });
   if (timeError) {
     return buildError(timeError, 400);
+  }
+
+  const result = await validateAndSplitManualLog(prisma, {
+    userId: context.user.id,
+    startAt,
+    endAt,
+    timeZone: context.timezone,
+  });
+
+  if (result.hasConflict) {
+    return buildError(result.conflict.reasonMessage || "Manual activity overlaps with another log.", 409);
+  }
+
+  if (result.segments.length === 0) {
+    return buildError("Activity time falls entirely within a break.", 400);
   }
 
   if (taskId) {
@@ -171,39 +187,45 @@ export async function POST(request) {
     }
   }
 
-  const activityLog = await prisma.$transaction(async (tx) => {
-    const createdLog = await tx.activityLog.create({
-      data: {
-        description,
-        date,
-        categories,
-        userId: context.user.id,
-        taskId,
-        type: "MANUAL",
-        startAt,
-        endAt,
-        durationSeconds,
-      },
-      include: {
-        user: { select: { id: true, name: true, email: true, role: true, image: true } },
-        task: { select: { id: true, title: true, ownerId: true } },
-      },
-    });
+  const createdLogs = await prisma.$transaction(
+    result.segments.map((seg) =>
+      prisma.activityLog.create({
+        data: {
+          description,
+          date,
+          categories,
+          userId: context.user.id,
+          taskId,
+          type: "MANUAL",
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+          durationSeconds: seg.durationSeconds,
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true, image: true } },
+          task: { select: { id: true, title: true, ownerId: true } },
+        },
+      })
+    )
+  );
 
-    return createdLog;
-  });
+  const firstLog = createdLogs[0];
 
-  if (activityLog.taskId) {
+  if (firstLog.taskId) {
     const actorName = context.user?.name || context.user?.email || "A teammate";
-    const taskMemberIds = await getTaskMemberIds(activityLog.taskId);
+    const taskMemberIds = await getTaskMemberIds(firstLog.taskId);
     await createNotification({
       type: "USER_LOG_COMMENT",
       actorId: context.user.id,
-      message: `${actorName} logged activity on ${activityLog.task?.title ?? "a task"}.`,
-      taskId: activityLog.taskId,
+      message: `${actorName} logged activity on ${firstLog.task?.title ?? "a task"}.`,
+      taskId: firstLog.taskId,
       recipientIds: taskMemberIds,
     });
   }
 
-  return buildSuccess("Activity log created.", { activityLog }, 201);
+  const message = result.isSplit
+    ? `Activity logged in ${createdLogs.length} parts (automatically split around break).`
+    : "Activity log created.";
+
+  return buildSuccess(message, { activityLog: firstLog, activityLogs: createdLogs }, 201);
 }

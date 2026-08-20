@@ -15,6 +15,7 @@ import {
 } from "@/lib/manualLogs";
 import {
   findConflictingManualLog,
+  validateAndSplitManualLog,
   withManualLogStatus,
 } from "@/lib/manualLogMutations";
 
@@ -119,6 +120,8 @@ export async function PATCH(request, { params }) {
     updates.categories = categories;
   }
 
+  let extraSegments = [];
+
   if (hasTimeUpdate) {
     if (!body?.endTime) {
       return buildError("End time is required to complete this manual activity.", 400);
@@ -133,26 +136,34 @@ export async function PATCH(request, { params }) {
     if (timeError) {
       return buildError(timeError, 400);
     }
-    updates.startAt = startAt;
-    updates.endAt = endAt;
-    updates.durationSeconds = durationSeconds;
 
-    const conflict = await findConflictingManualLog(prisma, {
+    const result = await validateAndSplitManualLog(prisma, {
       userId: context.user.id,
       startAt,
       endAt,
       excludeId: logId,
+      timeZone: userTimeZone,
     });
-    if (conflict) {
-      return buildError("Manual activity overlaps with another log.", 409);
+
+    if (result.hasConflict) {
+      return buildError(result.conflict.reasonMessage || "Manual activity overlaps with another log.", 409);
     }
+
+    if (result.segments.length === 0) {
+      return buildError("Activity time falls entirely within a break.", 400);
+    }
+
+    updates.startAt = result.segments[0].startAt;
+    updates.endAt = result.segments[0].endAt;
+    updates.durationSeconds = result.segments[0].durationSeconds;
+    extraSegments = result.segments.slice(1);
   }
 
   if (Object.keys(updates).length === 0) {
     return buildError("No valid updates provided.", 400);
   }
 
-  const activityLog = await prisma.activityLog.update({
+  const updatedLog = await prisma.activityLog.update({
     where: { id: logId },
     data: updates,
     include: {
@@ -161,5 +172,28 @@ export async function PATCH(request, { params }) {
     },
   });
 
-  return buildSuccess("Activity log updated.", { activityLog: withManualLogStatus(activityLog) });
+  if (extraSegments.length > 0) {
+    await prisma.$transaction(
+      extraSegments.map((seg) =>
+        prisma.activityLog.create({
+          data: {
+            description: updatedLog.description,
+            date: updatedLog.date,
+            categories: updatedLog.categories,
+            userId: context.user.id,
+            type: "MANUAL",
+            startAt: seg.startAt,
+            endAt: seg.endAt,
+            durationSeconds: seg.durationSeconds,
+          },
+        })
+      )
+    );
+  }
+
+  const message = extraSegments.length > 0
+    ? `Activity log updated and split into ${extraSegments.length + 1} parts around break.`
+    : "Activity log updated.";
+
+  return buildSuccess(message, { activityLog: withManualLogStatus(updatedLog) });
 }

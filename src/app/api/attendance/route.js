@@ -137,16 +137,22 @@ export async function GET(request) {
     where.date = range;
   }
 
-  let attendance = await prisma.attendance.findMany({
-    where,
-    orderBy: { date: "desc" },
-    include: {
-      user: { select: { id: true, name: true, role: true, email: true, image: true, timezone: true } },
-      wfhIntervals: { orderBy: { startAt: "asc" } },
-      breaks: { orderBy: { startAt: "asc" } },
-    },
-  });
+  const presenceUserId = requestedUserId ?? context.user.id;
 
+  const [rawAttendance, presenceNow] = await Promise.all([
+    prisma.attendance.findMany({
+      where,
+      orderBy: { date: "desc" },
+      include: {
+        user: { select: { id: true, name: true, role: true, email: true, image: true, timezone: true } },
+        wfhIntervals: { orderBy: { startAt: "asc" } },
+        breaks: { orderBy: { startAt: "asc" } },
+      },
+    }),
+    presenceUserId ? getUserPresenceNow(prisma, presenceUserId) : null,
+  ]);
+
+  let attendance = rawAttendance;
   const changes = await normalizeAutoOffForAttendances(prisma, attendance, new Date());
 
   if (changes > 0) {
@@ -160,11 +166,6 @@ export async function GET(request) {
       },
     });
   }
-
-  const presenceUserId = requestedUserId ?? context.user.id;
-  const presenceNow = presenceUserId
-    ? await getUserPresenceNow(prisma, presenceUserId)
-    : null;
 
   return buildSuccess("Attendance loaded.", {
     attendance: attendance.map((record) => attachComputedDurations(record)),
