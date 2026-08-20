@@ -18,6 +18,7 @@ import {
 import {
   findConflictingManualLog,
   findRunningManualLog,
+  validateAndSplitManualLog,
   withManualLogStatus,
 } from "@/lib/manualLogMutations";
 
@@ -78,13 +79,19 @@ export async function POST(request) {
     return buildError(timeError, 400);
   }
 
-  const conflict = await findConflictingManualLog(prisma, {
+  const result = await validateAndSplitManualLog(prisma, {
     userId: context.user.id,
     startAt,
     endAt,
+    timeZone: userTimeZone,
   });
-  if (conflict) {
-    return buildError("Manual activity overlaps with another log.", 409);
+
+  if (result.hasConflict) {
+    return buildError(result.conflict.reasonMessage || "Manual activity overlaps with another log.", 409);
+  }
+
+  if (result.segments.length === 0) {
+    return buildError("Activity time falls entirely within a break.", 400);
   }
 
   if (!endAt) {
@@ -96,22 +103,37 @@ export async function POST(request) {
     }
   }
 
-  const activityLog = await prisma.activityLog.create({
-    data: {
-      description,
-      date,
-      categories,
-      userId: context.user.id,
-      type: "MANUAL",
-      startAt,
-      endAt,
-      durationSeconds,
-    },
-    include: {
-      user: { select: { id: true, name: true, email: true, role: true } },
-      task: { select: { id: true, title: true, ownerId: true } },
-    },
-  });
+  const createdLogs = await prisma.$transaction(
+    result.segments.map((seg) =>
+      prisma.activityLog.create({
+        data: {
+          description,
+          date,
+          categories,
+          userId: context.user.id,
+          type: "MANUAL",
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+          durationSeconds: seg.durationSeconds,
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+          task: { select: { id: true, title: true, ownerId: true } },
+        },
+      })
+    )
+  );
 
-  return buildSuccess("Activity log created.", { activityLog: withManualLogStatus(activityLog) }, 201);
+  const message = result.isSplit
+    ? `Activity logged in ${createdLogs.length} parts (automatically split around break).`
+    : "Activity log created.";
+
+  return buildSuccess(
+    message,
+    {
+      activityLog: withManualLogStatus(createdLogs[0]),
+      activityLogs: createdLogs.map((log) => withManualLogStatus(log)),
+    },
+    201
+  );
 }

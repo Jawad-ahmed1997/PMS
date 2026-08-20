@@ -32,12 +32,17 @@ function formatPercent(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-function getTimeLabel(date) {
+function getTimeLabel(date, timeZone = "Asia/Karachi") {
   const value = new Date(date);
   if (Number.isNaN(value.getTime())) {
     return "";
   }
-  return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return value.toLocaleTimeString("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function formatBreakReason(reason) {

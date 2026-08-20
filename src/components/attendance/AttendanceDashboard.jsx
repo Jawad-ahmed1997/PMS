@@ -281,6 +281,47 @@ function getRecordDurations(record) {
   };
 }
 
+function getRecordBreaks(record, timeZone = "Asia/Karachi") {
+  if (!Array.isArray(record?.breaks) || record.breaks.length === 0) {
+    return { count: 0, totalFormatted: "-", details: [] };
+  }
+
+  let totalMinutes = 0;
+  const details = [];
+
+  record.breaks.forEach((brk) => {
+    let mins = brk.durationMinutes ?? 0;
+    if (!mins && brk.startAt && brk.endAt) {
+      const s = new Date(brk.startAt);
+      const e = new Date(brk.endAt);
+      if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime()) && e > s) {
+        mins = Math.round((e.getTime() - s.getTime()) / (60 * 1000));
+      }
+    }
+    totalMinutes += mins;
+
+    const label = formatBreakTypes(brk.types, brk.type);
+    const startStr = brk.startAt ? formatDisplayTime(brk.startAt, timeZone) : "";
+    const endStr = brk.endAt ? formatDisplayTime(brk.endAt, timeZone) : "";
+    const timeRange = startStr && endStr ? `${startStr} → ${endStr}` : startStr ? startStr : "";
+    const duration = formatDurationFromMinutes(mins);
+
+    details.push({
+      id: brk.id,
+      label,
+      duration,
+      timeRange,
+      notes: brk.notes?.trim() || null,
+    });
+  });
+
+  return {
+    count: record.breaks.length,
+    totalFormatted: formatDurationFromMinutes(totalMinutes),
+    details,
+  };
+}
+
 function isTodayDate(value) {
   const target = formatDateForInput(value);
   if (!target) {
@@ -625,12 +666,13 @@ export default function AttendanceDashboard({
     fetchCurrentStatus();
   }, [fetchCurrentStatus]);
 
-  const { data: attendanceData = { attendance: initialAttendance ?? [], presenceNow: initialPresenceNow ?? null }, isFetching: attendanceLoading, error: attendanceError, refetch: refetchAttendance } = useQuery({
-    queryKey: ["attendanceList", range.from, range.to],
+  const { data: attendanceData, isFetching: attendanceLoading, error: attendanceError, refetch: refetchAttendance } = useQuery({
+    queryKey: ["attendanceList", range.from, range.to, selectedUser?.id],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (range.from) params.set("from", range.from);
       if (range.to) params.set("to", range.to);
+      if (selectedUser?.id) params.set("userId", selectedUser.id);
       const response = await fetch(`/api/attendance?${params.toString()}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) {
@@ -641,7 +683,9 @@ export default function AttendanceDashboard({
         presenceNow: data?.presenceNow ?? null,
       };
     },
-    initialData: { attendance: initialAttendance ?? [], presenceNow: initialPresenceNow ?? null },
+    initialData: (initialAttendance !== null && initialAttendance !== undefined)
+      ? { attendance: initialAttendance, presenceNow: initialPresenceNow ?? null }
+      : undefined,
     staleTime: 1000 * 10,
   });
 
@@ -650,11 +694,13 @@ export default function AttendanceDashboard({
 
   useEffect(() => {
     if (attendanceData) {
-      setAttendance(attendanceData.attendance);
-      setPresenceNow(attendanceData.presenceNow);
+      setAttendance(attendanceData.attendance ?? []);
+      setPresenceNow(attendanceData.presenceNow ?? null);
+    }
+    if (!attendanceLoading) {
       setIsFiltering(false);
     }
-  }, [attendanceData]);
+  }, [attendanceData, attendanceLoading]);
 
   // Clear local attendance list immediately when changing filters to prevent showing stale records
   useEffect(() => {
@@ -1379,6 +1425,7 @@ export default function AttendanceDashboard({
                 <th className="px-4 py-3">Office duration</th>
                 <th className="px-4 py-3">WFH duration</th>
                 <th className="px-4 py-3">Total duty</th>
+                <th className="px-4 py-3">Breaks</th>
                 <th className="px-4 py-3">Note</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -1449,6 +1496,44 @@ export default function AttendanceDashboard({
                         </td>
                         <td className="px-4 py-4 text-[color:var(--color-text)]">
                           {durations.total}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {(() => {
+                            const breakInfo = getRecordBreaks(record, userTimeZone);
+                            if (!breakInfo.count) {
+                              return <span className="text-[color:var(--color-text-subtle)]">-</span>;
+                            }
+                            return (
+                              <div className="group relative inline-block cursor-help">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-300 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20">
+                                  <span>{breakInfo.totalFormatted}</span>
+                                  <span className="text-[10px] text-amber-400/70">({breakInfo.count})</span>
+                                </span>
+                                <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-3 text-xs shadow-2xl transition-all group-hover:block w-max max-w-xs space-y-2 text-[color:var(--color-text)]">
+                                  <div className="flex items-center justify-between border-b border-[color:var(--color-border)] pb-1.5 gap-4">
+                                    <span className="font-semibold text-amber-400">Breaks ({breakInfo.count})</span>
+                                    <span className="font-mono text-xs text-amber-300 font-bold">{breakInfo.totalFormatted} total</span>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {breakInfo.details.map((item, idx) => (
+                                      <div key={item.id || idx} className="flex flex-col gap-0.5 text-[11px] text-[color:var(--color-text-muted)]">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <span className="font-semibold text-[color:var(--color-text)]">{item.label}</span>
+                                          <span className="font-mono font-medium text-amber-300">{item.duration}</span>
+                                        </div>
+                                        {item.timeRange ? (
+                                          <span className="text-[10px] text-[color:var(--color-text-subtle)]">{item.timeRange}</span>
+                                        ) : null}
+                                        {item.notes ? (
+                                          <span className="text-[10px] italic text-[color:var(--color-text-muted)]">"{item.notes}"</span>
+                                        ) : null}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-4 text-[color:var(--color-text-muted)]">
                           {record.note || "-"}

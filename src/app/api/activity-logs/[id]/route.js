@@ -17,6 +17,7 @@ import {
   MANUAL_LOG_CATEGORIES,
   normalizeManualCategories,
 } from "@/lib/manualLogs";
+import { findConflictingManualLog, validateAndSplitManualLog } from "@/lib/manualLogMutations";
 
 async function getActivityLog(logId) {
   return prisma.activityLog.findUnique({
@@ -146,6 +147,8 @@ export async function PATCH(request, { params }) {
       updates.categories = categories;
     }
 
+    let extraSegments = [];
+
     if (hasTimeUpdate) {
       if (!body?.startTime || !body?.endTime) {
         return buildError("Start and end time are required.", 400);
@@ -159,9 +162,27 @@ export async function PATCH(request, { params }) {
       if (timeError) {
         return buildError(timeError, 400);
       }
-      updates.startAt = startAt;
-      updates.endAt = endAt;
-      updates.durationSeconds = durationSeconds;
+
+      const result = await validateAndSplitManualLog(prisma, {
+        userId: context.user.id,
+        startAt,
+        endAt,
+        excludeId: logId,
+        timeZone: context.timezone,
+      });
+
+      if (result.hasConflict) {
+        return buildError(result.conflict.reasonMessage || "Manual activity overlaps with another log.", 409);
+      }
+
+      if (result.segments.length === 0) {
+        return buildError("Activity time falls entirely within a break.", 400);
+      }
+
+      updates.startAt = result.segments[0].startAt;
+      updates.endAt = result.segments[0].endAt;
+      updates.durationSeconds = result.segments[0].durationSeconds;
+      extraSegments = result.segments.slice(1);
     }
   }
 
@@ -170,14 +191,28 @@ export async function PATCH(request, { params }) {
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    const nextLog = await tx.activityLog.update({
+    await tx.activityLog.update({
       where: { id: logId },
       data: updates,
-      include: {
-        user: { select: { id: true, name: true, email: true, role: true } },
-        task: { select: { id: true, title: true, ownerId: true } },
-      },
     });
+
+    if (extraSegments.length > 0) {
+      for (const seg of extraSegments) {
+        await tx.activityLog.create({
+          data: {
+            description: updates.description ?? log.description,
+            date: updates.date ?? log.date,
+            categories: updates.categories ?? log.categories,
+            userId: context.user.id,
+            taskId: log.taskId ?? null,
+            type: "MANUAL",
+            startAt: seg.startAt,
+            endAt: seg.endAt,
+            durationSeconds: seg.durationSeconds,
+          },
+        });
+      }
+    }
 
     return tx.activityLog.findUnique({
       where: { id: logId },
@@ -188,7 +223,11 @@ export async function PATCH(request, { params }) {
     });
   });
 
-  return buildSuccess("Activity log updated.", { activityLog: updated });
+  const message = extraSegments.length > 0
+    ? `Activity log updated and split into ${extraSegments.length + 1} parts around break.`
+    : "Activity log updated.";
+
+  return buildSuccess(message, { activityLog: updated });
 }
 
 export async function DELETE(request, { params }) {

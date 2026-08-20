@@ -6,6 +6,7 @@ import PlaceholderUpload from "@/components/ui/PlaceholderUpload";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session-server";
 import { isAdminRole, normalizeRole } from "@/lib/api";
+import ReportingDashboard from "@/components/reports/ReportingDashboard";
 
 const reports = [
   {
@@ -104,8 +105,8 @@ export default async function ReportsPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Reports"
-        title="Stakeholder-ready reporting"
-        subtitle="Daily and weekly reports are auto-generated and email-ready."
+        title="Stakeholder-ready reporting & analytics"
+        subtitle="Live accountability dashboards, performance scorecards, and auto-generated reports."
         actions={
           <Button
             label="Generate report"
@@ -120,7 +121,12 @@ export default async function ReportsPage() {
         }
       />
 
-      <div className="space-y-5">
+      {/* NEW Interactive Analytics & Reporting Dashboard at Top */}
+      <ReportingDashboard session={session} />
+
+      {/* Existing Report Templates & Coverage below */}
+      <div className="space-y-5 pt-6 border-t border-[color:var(--color-border)]">
+        <h2 className="text-base font-semibold text-[color:var(--color-text)]">Scheduled Report Templates & Email Delivery</h2>
         {reports.map((report) => (
           <Card
             key={report.title}
