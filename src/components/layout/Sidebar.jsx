@@ -59,6 +59,18 @@ const iconMap = {
       <path d="M4 20a8 8 0 0 1 16 0M19 8v4m2-2h-4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  "AI Manager": (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 2a4 4 0 0 1 4 4v1a2 2 0 0 1 2 2v6a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a2 2 0 0 1 2-2V6a4 4 0 0 1 4-4Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 13h6M12 10v6M9 6a3 3 0 0 1 6 0" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  "AI Doctor": (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect width="18" height="14" x="3" y="6" rx="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 10v6M9 13h6M12 2v4M8 20v2M16 20v2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   Milestones: <Milestone className="h-[18px] w-[18px]" />,
   "Create user": <UserRoundPlus className="h-[18px] w-[18px]" />,
 };
@@ -66,7 +78,7 @@ const iconMap = {
 
 const navigationGroups = [
   { label: "Overview", items: ["Dashboard", "Projects", "My Tasks", "My Desk", "Activity"] },
-  { label: "Operations", items: ["Attendance", "Reports"] },
+  { label: "Operations", items: ["Attendance", "Reports", "AI Manager", "AI Doctor"] },
   { label: "Administration", items: ["Members"] },
 ];
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Users, Trash2, Shield, ShieldCheck, Crown } from "lucide-react";
 
 import {
   Dialog,
@@ -315,6 +315,99 @@ export default function ProjectDetailView({
       });
     } finally {
       setAddingMember(false);
+    }
+  };
+
+  const handleToggleMemberRole = async (userId, currentRole) => {
+    if (!project) return;
+    const newRole = currentRole === "ADMIN" ? "MEMBER" : "ADMIN";
+    try {
+      const updatedMembers = (project.members ?? []).map((m) => ({
+        userId: m.id,
+        role: m.id === userId ? newRole : (m.projectRole ?? "MEMBER"),
+      }));
+
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ members: updatedMembers }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message ?? "Failed to update member role.");
+      }
+
+      addToast({
+        title: "Role updated",
+        message: `Updated member to ${newRole === "ADMIN" ? "Project Admin" : "Standard Member"}.`,
+        variant: "success",
+      });
+
+      await loadProject();
+    } catch (error) {
+      addToast({
+        title: "Action failed",
+        message: error instanceof Error ? error.message : "Failed to update role.",
+        variant: "error",
+      });
+    }
+  };
+
+  const handleRemoveMember = async (userId) => {
+    if (!project) return;
+    if (userId === project.createdById) {
+      addToast({
+        title: "Cannot remove creator",
+        message: "The project creator cannot be removed.",
+        variant: "warning",
+      });
+      return;
+    }
+    if (!confirm("Are you sure you want to remove this member from the project?")) {
+      return;
+    }
+    try {
+      const updatedMembers = (project.members ?? [])
+        .filter((m) => m.id !== userId)
+        .map((m) => ({
+          userId: m.id,
+          role: m.projectRole ?? "MEMBER",
+        }));
+
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ members: updatedMembers }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message ?? "Failed to remove member.");
+      }
+
+      addToast({
+        title: "Member removed",
+        message: "Member removed from the project.",
+        variant: "success",
+      });
+
+      await loadProject();
+      if (canManageAssignments) {
+        const usersResponse = await fetch(
+          `/api/users?isActive=true&projectId=${projectId}`
+        );
+        const usersData = await usersResponse.json();
+        if (usersResponse.ok) {
+          setUsers(usersData?.users ?? []);
+        }
+      }
+    } catch (error) {
+      addToast({
+        title: "Action failed",
+        message: error instanceof Error ? error.message : "Failed to remove member.",
+        variant: "error",
+      });
     }
   };
 
@@ -846,8 +939,12 @@ export default function ProjectDetailView({
         {!status.loading && !status.error && project && (
           <div className="flex items-center gap-4 px-4 pb-2 sm:pb-0">
             {/* Members Avatars */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-[color:var(--color-text-subtle)]">
+            <div
+              className={`flex items-center gap-2 ${canManageAssignments ? "cursor-pointer group" : ""}`}
+              onClick={canManageAssignments ? () => setIsAddMemberModalOpen(true) : undefined}
+              title={canManageAssignments ? "Click to manage team members and project roles" : undefined}
+            >
+              <span className="text-xs font-semibold text-[color:var(--color-text-subtle)] group-hover:text-primary transition-colors">
                 Members:
               </span>
               <div className="flex items-center -space-x-1.5 overflow-hidden">
@@ -857,22 +954,25 @@ export default function ProjectDetailView({
                     src={member.image}
                     name={member.name}
                     alt={`${member.name} avatar`}
-                    className={`h-7 w-7 border-2 text-[10px] ${
-                      member.projectRole === "ADMIN" ? "border-amber-400 ring-1 ring-amber-400/30" : "border-card"
+                    className={`h-7 w-7 border-2 text-[10px] transition-transform group-hover:scale-105 ${
+                      member.projectRole === "ADMIN" ? "border-amber-400 ring-1 ring-amber-400/40" : "border-card"
                     }`}
                     fallbackClassName="text-[10px]"
                     title={member.projectRole === "ADMIN" ? `⭐ ${member.name} (Project Admin)` : `${member.name} (${member.role})`}
                   />
                 ))}
-                {/* Add Member Button */}
+                {/* Add / Manage Member Button */}
                 {canManageAssignments && (
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    onClick={() => setIsAddMemberModalOpen(true)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsAddMemberModalOpen(true);
+                    }}
                     className="ml-2 h-7 w-7 rounded-full border-dashed text-muted-foreground hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
-                    title="Add Member to Project"
+                    title="Manage Project Members & Roles"
                   ><UserPlus className="h-3.5 w-3.5" /></Button>
                 )}
               </div>
@@ -1291,131 +1391,201 @@ export default function ProjectDetailView({
         </DialogContent>
       </DialogRoot>
 
-      {/* Add Project Member Dialog */}
+      {/* Project Team Members & Roles Management Dialog */}
       <DialogRoot
         open={isAddMemberModalOpen}
         onOpenChange={(open) => {
           if (!open && !addingMember) {
             setIsAddMemberModalOpen(false);
             setSelectedAddUserId("");
+            setSelectedAddUserRole("MEMBER");
           }
         }}
       >
-        <DialogContent className="max-h-[80vh] overflow-hidden sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Add Member to Project</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <span>Project Team Members &amp; Roles</span>
+            </DialogTitle>
             <DialogDescription>
-              Search and assign a team member to this project.
+              Manage member assignments and grant project-level admin rights.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleAddMember} className="mt-6 space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="project-member" className="text-sm font-medium">
-                Select Team Member
-              </Label>
-              <Select
-                value={selectedAddUserId}
-                onValueChange={setSelectedAddUserId}
-                required
-              >
-                <SelectTrigger id="project-member" className="w-full">
-                  <SelectValue placeholder="Choose a member..." />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  side="bottom"
-                  align="start"
-                  sideOffset={6}
-                  avoidCollisions
-                  collisionPadding={8}
-                  className="w-[var(--radix-select-trigger-width)]"
-                >
-                  <ScrollArea
-                    type={shouldScrollMemberOptions ? "always" : "auto"}
-                    className={shouldScrollMemberOptions ? "h-[320px] max-h-[calc(100vh-12rem)] w-full" : "w-full"}
-                    viewportClassName="pr-2"
-                  >
-                    {nonMemberUsers.length ? (
-                      nonMemberUsers.map((user) => (
-                        <SelectItem
-                          key={user.id}
-                          value={user.id}
-                          textValue={`${user.name} ${user.email ?? ""} ${user.role ?? ""}`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <Avatar
-                              src={user.image}
-                              name={user.name}
-                              alt=""
-                              className="h-6 w-6 text-[10px]"
-                              fallbackClassName="text-[10px]"
-                            />
-                            <span className="min-w-0 truncate">
-                              {user.name}{user.role ? ` · ${user.role}` : ""}
+          <div className="mt-4 space-y-6">
+            {/* 1. Existing Project Members List */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <span>Current Members ({(project?.members ?? []).length})</span>
+                <span>Role &amp; Permissions</span>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {(project?.members ?? []).map((member) => {
+                  const isCreator = member.id === project?.createdById;
+                  const isAdmin = member.projectRole === "ADMIN" || isCreator;
+                  return (
+                    <div
+                      key={member.id}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                        isAdmin
+                          ? "bg-amber-500/5 border-amber-500/20"
+                          : "bg-muted/20 border-border/70"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar
+                          src={member.image}
+                          name={member.name}
+                          alt=""
+                          className="h-8 w-8 text-xs shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold truncate text-foreground">
+                              {member.name}
                             </span>
+                            {isCreator && (
+                              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                Creator
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-muted-foreground block truncate">
+                            {member.role?.replace(/_/g, " ")} &bull; {member.email}
                           </span>
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="__none__" disabled>
-                        No active members available
-                      </SelectItem>
-                    )}
-                  </ScrollArea>
-                </SelectContent>
-              </Select>
-              {nonMemberUsers.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  All active system members are already in this project.
-                </p>
-              )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isCreator ? (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/15 border border-amber-500/30 text-amber-400 cursor-default">
+                            👑 Creator (Admin)
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleMemberRole(member.id, member.projectRole)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                              member.projectRole === "ADMIN"
+                                ? "bg-amber-500/20 border-amber-500/40 text-amber-400 hover:bg-amber-500/30"
+                                : "bg-muted/40 border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
+                            title="Click to toggle between Project Admin and Standard Member"
+                          >
+                            {member.projectRole === "ADMIN" ? "⭐ Project Admin" : "Standard Member"}
+                          </button>
+                        )}
+
+                        {!isCreator && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMember(member.id)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            title="Remove from project"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            {selectedAddUserId && (
-              <div className="space-y-2">
-                <Label htmlFor="project-role" className="text-sm font-medium">
-                  Project Role / Permissions
-                </Label>
-                <Select
-                  value={selectedAddUserRole}
-                  onValueChange={setSelectedAddUserRole}
-                  required
-                >
-                  <SelectTrigger id="project-role" className="w-full">
-                    <SelectValue placeholder="Choose role..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MEMBER">Standard Member</SelectItem>
-                    <SelectItem value="ADMIN">⭐ Project Admin (Full Access)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Project Admins bypass standard developer role checks, allowing full creation, editing, and transition of tasks in this project.
-                </p>
+            {/* 2. Add New Member Form */}
+            <form onSubmit={handleAddMember} className="space-y-4 border-t border-border pt-4">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Add New Member
               </div>
-            )}
 
-            <DialogFooter className="flex-row flex-wrap justify-end gap-2 border-t border-border pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsAddMemberModalOpen(false);
-                  setSelectedAddUserId("");
-                }}
-                disabled={addingMember}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={addingMember || !selectedAddUserId}
-              >
-                {addingMember ? "Adding..." : "Add to Project"}
-              </Button>
-            </DialogFooter>
-          </form>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="project-member" className="text-xs font-medium">
+                    Team Member
+                  </Label>
+                  <Select
+                    value={selectedAddUserId}
+                    onValueChange={setSelectedAddUserId}
+                  >
+                    <SelectTrigger id="project-member" className="w-full text-xs">
+                      <SelectValue placeholder="Choose user..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {nonMemberUsers.length ? (
+                        nonMemberUsers.map((user) => (
+                          <SelectItem
+                            key={user.id}
+                            value={user.id}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Avatar
+                                src={user.image}
+                                name={user.name}
+                                className="h-5 w-5 text-[10px]"
+                              />
+                              <span>{user.name} ({user.role?.replace(/_/g, " ")})</span>
+                            </span>
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__none__" disabled>
+                          All active users are in project
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="project-role" className="text-xs font-medium">
+                    Project Role
+                  </Label>
+                  <Select
+                    value={selectedAddUserRole}
+                    onValueChange={setSelectedAddUserRole}
+                  >
+                    <SelectTrigger id="project-role" className="w-full text-xs">
+                      <SelectValue placeholder="Role..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MEMBER">Standard Member</SelectItem>
+                      <SelectItem value="ADMIN">⭐ Project Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-[11px] text-muted-foreground">
+                  ⭐ Project Admins have full access to manage milestones and tasks in this project.
+                </p>
+                <Button
+                  type="submit"
+                  disabled={addingMember || !selectedAddUserId}
+                  className="shrink-0"
+                >
+                  {addingMember ? "Adding..." : "Add Member"}
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          <DialogFooter className="mt-4 border-t border-border pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsAddMemberModalOpen(false);
+                setSelectedAddUserId("");
+                setSelectedAddUserRole("MEMBER");
+              }}
+            >
+              Done
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </DialogRoot>
 

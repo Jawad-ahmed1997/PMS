@@ -30,6 +30,7 @@ const normalizeProject = (project) => ({
   name: project.name,
   description: project.description ?? "",
   status: project.status ?? "Active",
+  createdById: project.createdById,
   members: project.members ?? [],
 });
 

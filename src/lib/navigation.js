@@ -29,6 +29,11 @@ export const navigationItems = [
     roles: [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD],
   },
   {
+    label: "AI Manager",
+    href: "/ai-manager",
+    roles: [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD, roles.SENIOR_DEV],
+  },
+  {
     label: "Members",
     href: "/users/create",
     roles: [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD],

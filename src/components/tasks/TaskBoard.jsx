@@ -108,14 +108,34 @@ const getProgressColor = (state) => {
 
 const getTypeBadge = (type) => {
   switch (type) {
+    case "UI":
+      return "bg-violet-500/20 text-violet-300 border-violet-500/30";
     case "AUTH":
       return "bg-amber-500/20 text-amber-300 border-amber-500/30";
     case "API":
       return "bg-sky-500/20 text-sky-300 border-sky-500/30";
     case "REFACTOR":
-      return "bg-rose-500/20 text-rose-300 border-rose-500/30";
+      return "bg-purple-500/20 text-purple-300 border-purple-500/30";
     case "CHART":
       return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+    case "FULL_STACK":
+      return "bg-indigo-500/20 text-indigo-300 border-indigo-500/30";
+    case "THIRD_PARTY":
+      return "bg-cyan-500/20 text-cyan-300 border-cyan-500/30";
+    case "BUSINESS_LOGIC":
+      return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+    case "DATABASE":
+      return "bg-teal-500/20 text-teal-300 border-teal-500/30";
+    case "BUG_FIX":
+      return "bg-rose-500/20 text-rose-300 border-rose-500/30";
+    case "DEVOPS":
+      return "bg-orange-500/20 text-orange-300 border-orange-500/30";
+    case "TESTING":
+      return "bg-lime-500/20 text-lime-300 border-lime-500/30";
+    case "PERFORMANCE":
+      return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30";
+    case "DOCUMENTATION":
+      return "bg-slate-500/20 text-slate-300 border-slate-500/30";
     default:
       return "bg-violet-500/20 text-violet-300 border-violet-500/30";
   }

@@ -35,8 +35,26 @@ export function normalizeRole(role) {
   return cleaned;
 }
 
+import { cookies } from "next/headers";
+import { verifySessionToken } from "@/lib/session";
+
 export async function getAuthContext() {
-  const session = await auth();
+  let session = await auth();
+
+  if (!session || !session.user) {
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get("pms-session")?.value;
+      if (token) {
+        const decoded = await verifySessionToken(token);
+        if (decoded) {
+          session = { user: decoded };
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
 
   if (!session || !session.user) {
     return { session: null, user: null, role: null, timezone: "Asia/Karachi" };
@@ -45,11 +63,11 @@ export async function getAuthContext() {
   const role = normalizeRole(session.user.role);
   const user = session.user.id
     ? await prisma.user.findUnique({ where: { id: session.user.id } })
-    : null;
+    : (session.user.email ? await prisma.user.findUnique({ where: { email: session.user.email } }) : null);
 
   const timezone = user?.timezone ?? session.user.timezone ?? "Asia/Karachi";
 
-  return { session, user, role, timezone };
+  return { session, user: user || session.user, role: role || normalizeRole(user?.role), timezone };
 }
 
 export function buildError(message, status = 400, details = null) {

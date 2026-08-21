@@ -39,6 +39,7 @@ export async function GET(request) {
       },
       members: {
         select: {
+          role: true,
           user: { select: { id: true, name: true, email: true, role: true, image: true } },
         },
       },
@@ -48,7 +49,10 @@ export async function GET(request) {
   return buildSuccess("Projects loaded.", {
     projects: projects.map((project) => ({
       ...project,
-      members: project.members.map((member) => member.user),
+      members: project.members.map((member) => ({
+        ...member.user,
+        projectRole: member.role ?? "MEMBER",
+      })),
     })),
   });
 }
@@ -70,6 +74,9 @@ export async function POST(request) {
   const description = body?.description?.trim();
   const incomingMemberIds = Array.isArray(body?.memberIds)
     ? body.memberIds.filter(Boolean)
+    : [];
+  const incomingAdminIds = Array.isArray(body?.adminIds)
+    ? body.adminIds.filter(Boolean)
     : [];
   const uniqueMemberIds = Array.from(
     new Set([context.user.id, ...incomingMemberIds])
@@ -94,7 +101,10 @@ export async function POST(request) {
       description: description || null,
       createdById: context.user.id,
       members: {
-        create: uniqueMemberIds.map((userId) => ({ userId })),
+        create: uniqueMemberIds.map((userId) => ({
+          userId,
+          role: userId === context.user.id || incomingAdminIds.includes(userId) ? "ADMIN" : "MEMBER",
+        })),
       },
     },
     include: {
@@ -103,6 +113,7 @@ export async function POST(request) {
       },
       members: {
         select: {
+          role: true,
           user: { select: { id: true, name: true, email: true, role: true, image: true } },
         },
       },
@@ -122,7 +133,10 @@ export async function POST(request) {
     {
       project: {
         ...project,
-        members: project.members.map((member) => member.user),
+        members: project.members.map((member) => ({
+          ...member.user,
+          projectRole: member.role ?? "MEMBER",
+        })),
       },
     },
     201
