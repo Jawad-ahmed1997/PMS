@@ -115,7 +115,7 @@ export async function PATCH(request, { params }) {
       return buildError("You do not have permission to update this log.", 403);
     }
 
-    const hasTimeUpdate = body?.startTime || body?.endTime || body?.date;
+    const hasTimeUpdate = Boolean((body?.startTime && body?.endTime) || (body?.endTime && String(body.endTime).trim() !== ""));
     if (
       hasTimeUpdate &&
       isManualLogInFuture({
@@ -150,13 +150,14 @@ export async function PATCH(request, { params }) {
     let extraSegments = [];
 
     if (hasTimeUpdate) {
-      if (!body?.startTime || !body?.endTime) {
-        return buildError("Start and end time are required.", 400);
+      const startParam = body?.startTime || (log.startAt ? new Date(log.startAt).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }) : null);
+      if (!startParam || !body?.endTime) {
+        return buildError("Start and end time are required when setting completion time.", 400);
       }
       const { startAt, endAt, durationSeconds, error: timeError } =
         buildManualLogTimes({
           date: targetDateInput,
-          startTime: body.startTime,
+          startTime: startParam,
           endTime: body.endTime,
         });
       if (timeError) {

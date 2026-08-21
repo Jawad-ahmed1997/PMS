@@ -12,7 +12,9 @@ import {
   ChevronUp, 
   Activity,
   AlertCircle,
-  X
+  X,
+  Pencil,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DialogRoot as Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -22,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 const STORAGE_KEY_POS_X = "activity_timer_pos_x";
 const STORAGE_KEY_POS_Y = "activity_timer_pos_y";
 const STORAGE_KEY_STATE = "activity_timer_state";
+const STORAGE_KEY_COLLAPSED = "activity_timer_collapsed";
 
 
 
@@ -125,6 +128,29 @@ export default function FloatingActivityTimer({ session }) {
   });
 
   // UI States
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY_COLLAPSED);
+      return stored === "true";
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const toggleCollapsed = (e) => {
+    e?.stopPropagation?.();
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(STORAGE_KEY_COLLAPSED, String(next));
+        } catch (err) {}
+      }
+      return next;
+    });
+  };
+
   const [activeSeconds, setActiveSeconds] = useState(0);
   const [breakSeconds, setBreakSeconds] = useState(0);
   const [showStartModal, setShowStartModal] = useState(false);
@@ -140,7 +166,10 @@ export default function FloatingActivityTimer({ session }) {
   const [startForm, setStartForm] = useState({ description: "" });
   const [stopForm, setStopForm] = useState({
     category: "LEARNING",
+    description: "",
   });
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descInput, setDescInput] = useState("");
   const [breakForm, setBreakForm] = useState({
     breakType: "NAMAZ",
     otherText: "",
@@ -187,6 +216,7 @@ export default function FloatingActivityTimer({ session }) {
   // Dragging logic
   const onPointerDownDrag = (event) => {
     if (event.button !== 0) return;
+    if (event.target.closest("button, input, select, textarea, a")) return;
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
     dragPointerIdRef.current = event.pointerId;
@@ -333,7 +363,7 @@ export default function FloatingActivityTimer({ session }) {
               paused: Boolean(runningBreak),
               startTime: runningBreak ? null : startAtMs,
               accumulatedSeconds,
-              description: runningLog.description || "Active manual activity",
+              description: runningLog.description || timerStateRef.current?.description || "Manual activity",
               currentBreak: activeBreakObj,
               breaks: [],
               dbLogId: runningLog.id
@@ -658,8 +688,50 @@ export default function FloatingActivityTimer({ session }) {
     }
   };
 
+  // Edit Description while Running
+  const handleStartEditDesc = () => {
+    setDescInput(timerState.description || "");
+    setEditingDesc(true);
+  };
+
+  const handleSaveDesc = async (e) => {
+    e?.preventDefault();
+    if (!descInput.trim()) return;
+    const newDesc = descInput.trim();
+    
+    // Update local state immediately
+    const updatedState = { ...timerState, description: newDesc };
+    saveState(updatedState);
+    setEditingDesc(false);
+
+    // Persist to server if dbLogId is present
+    if (timerState.dbLogId) {
+      try {
+        const res = await fetch(`/api/activity/manual/${timerState.dbLogId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: newDesc }),
+        });
+        if (res.ok) {
+          addToast({
+            title: "Description updated",
+            message: "Activity summary updated while running.",
+            variant: "success",
+          });
+          fetchTodayData();
+        }
+      } catch (err) {
+        console.error("Failed to update description on server:", err);
+      }
+    }
+  };
+
   // Stop Timer
   const handleStopClick = () => {
+    setStopForm({
+      category: "LEARNING",
+      description: timerState.description || "",
+    });
     setShowStopModal(true);
   };
 
@@ -699,13 +771,14 @@ export default function FloatingActivityTimer({ session }) {
       }
 
       // Save/PATCH manual activity log
+      const finalDescription = (stopForm.description || timerState.description || "").trim() || "Manual activity";
       const now = new Date();
       const endTimeStr = getTimeStrInTZ(now, userTimeZone);
       const res = await fetch(`/api/activity/manual/${timerState.dbLogId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          description: timerState.description.trim(),
+          description: finalDescription,
           categories: [stopForm.category],
           endTime: endTimeStr,
         }),
@@ -805,22 +878,61 @@ export default function FloatingActivityTimer({ session }) {
               {timerState.running ? "Active Activity" : "Activity Tracker"}
             </p>
           </div>
+
           <button 
             type="button" 
-            onClick={() => setHistoryOpen(!historyOpen)}
-            className="border-none border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none rounded p-0.5 hover:bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] transition-colors bg-transparent"
+            onClick={toggleCollapsed}
+            title={isCollapsed ? "Expand History & Summary" : "Collapse History"}
+            className="border-none border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none rounded p-1 hover:bg-[color:var(--color-input)] text-[color:var(--color-text-subtle)] hover:text-[color:var(--color-text)] transition-colors bg-transparent cursor-pointer"
           >
-            {historyOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {isCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
           </button>
         </div>
 
-        {/* Counter and Main UI */}
+        {/* Counter and Main UI (Always visible in collapsed & expanded state) */}
         <div className="space-y-3">
           {timerState.running ? (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-[color:var(--color-text)] truncate">
-                {timerState.description}
-              </p>
+              {editingDesc ? (
+                <form onSubmit={handleSaveDesc} className="flex items-center gap-1.5">
+                  <Input
+                    value={descInput}
+                    onChange={(e) => setDescInput(e.target.value)}
+                    placeholder="Activity description..."
+                    autoFocus
+                    className="h-7 text-xs rounded-lg border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text)]"
+                  />
+                  <button
+                    type="submit"
+                    className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 shrink-0"
+                    title="Save Description"
+                  >
+                    <Check size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDesc(false)}
+                    className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                    title="Cancel"
+                  >
+                    <X size={12} />
+                  </button>
+                </form>
+              ) : (
+                <div className="flex items-center justify-between gap-1 group">
+                  <p className="text-sm font-medium text-[color:var(--color-text)] truncate flex-1" title={timerState.description}>
+                    {timerState.description || "Manual activity"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleStartEditDesc}
+                    className="p-1 rounded text-[color:var(--color-text-subtle)] hover:text-primary hover:bg-[color:var(--color-input)] transition-all shrink-0"
+                    title="Edit Description"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                </div>
+              )}
               
               {/* Dynamic Break Selector / Indicators inside panel */}
               {selectingBreak ? (
@@ -927,56 +1039,66 @@ export default function FloatingActivityTimer({ session }) {
             </div>
           )}
 
-          {/* Today's summary label */}
-          <div className="flex items-center justify-between text-[11px] border-t pt-2 text-[color:var(--color-text-subtle)]" style={{ borderColor: "var(--color-border)" }}>
-            <span className="flex items-center gap-1">
-              <Clock size={11} />
-              Today Summary:
-            </span>
-            <span>
-              Work: {Math.round(totalWorkSeconds / 60)}m | Break: {Math.round(totalBreakSeconds / 60)}m
-            </span>
-          </div>
+          {/* Expanded Level: Today Summary & History Details */}
+          {!isCollapsed && (
+            <div className="space-y-2 border-t pt-2 animate-in fade-in slide-in-from-top-1 duration-200" style={{ borderColor: "var(--color-border)" }}>
+              {/* Today's summary row */}
+              <div 
+                onClick={() => setHistoryOpen(!historyOpen)}
+                className="flex items-center justify-between text-[11px] text-[color:var(--color-text-subtle)] hover:text-[color:var(--color-text)] cursor-pointer select-none transition-colors" 
+                title="Click to toggle today's activity history list"
+              >
+                <span className="flex items-center gap-1">
+                  <Clock size={11} />
+                  Today Summary:
+                </span>
+                <span className="flex items-center gap-1">
+                  <span>Work: {Math.round(totalWorkSeconds / 60)}m | Break: {Math.round(totalBreakSeconds / 60)}m</span>
+                  {historyOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </span>
+              </div>
 
-          {/* Expandable History Dropdown */}
-          {historyOpen && (
-            <div className="mt-2 border-t pt-2 max-h-[180px] overflow-y-auto space-y-2 text-xs text-[color:var(--color-text-muted)]" style={{ borderColor: "var(--color-border)" }}>
-              <p className="font-semibold text-[10px] uppercase tracking-wider text-[color:var(--color-text-subtle)] flex items-center gap-1">
-                <History size={11} />
-                Today&apos;s History
-              </p>
-              
-              {todayLogs.length === 0 && todayBreaks.length === 0 ? (
-                <p className="text-center text-[11px] py-4 text-[color:var(--color-text-subtle)]">
-                  No sessions recorded today.
-                </p>
-              ) : (
-                <div className="space-y-1.5">
-                  {/* Activity Logs */}
-                  {todayLogs.map(log => (
-                    <div key={log.id} className="rounded border bg-[color:var(--color-input)] px-2 py-1 flex flex-col gap-0.5 border-[color:var(--color-border)]">
-                      <div className="flex items-center justify-between font-medium">
-                        <span className="truncate max-w-[160px] text-[color:var(--color-text)]">{log.description}</span>
-                        <span className="text-[10px] text-emerald-400">Work ({Math.round(log.durationSeconds / 60)}m)</span>
-                      </div>
-                      <span className="text-[10px] text-[color:var(--color-text-subtle)]">
-                        {new Date(log.startAt).toLocaleTimeString("en-US", { timeZone: userTimeZone, hour: "2-digit", minute: "2-digit" })} - {new Date(log.endAt).toLocaleTimeString("en-US", { timeZone: userTimeZone, hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                  ))}
+              {/* History List */}
+              {historyOpen && (
+                <div className="mt-1.5 border-t pt-2 max-h-[160px] overflow-y-auto space-y-2 text-xs text-[color:var(--color-text-muted)]" style={{ borderColor: "var(--color-border)" }}>
+                  <p className="font-semibold text-[10px] uppercase tracking-wider text-[color:var(--color-text-subtle)] flex items-center gap-1">
+                    <History size={11} />
+                    Today&apos;s History
+                  </p>
+                  
+                  {todayLogs.length === 0 && todayBreaks.length === 0 ? (
+                    <p className="text-center text-[11px] py-3 text-[color:var(--color-text-subtle)]">
+                      No sessions recorded today.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {/* Activity Logs */}
+                      {todayLogs.map(log => (
+                        <div key={log.id} className="rounded border bg-[color:var(--color-input)] px-2 py-1 flex flex-col gap-0.5 border-[color:var(--color-border)]">
+                          <div className="flex items-center justify-between font-medium">
+                            <span className="truncate max-w-[160px] text-[color:var(--color-text)]">{log.description}</span>
+                            <span className="text-[10px] text-emerald-400">Work ({Math.round(log.durationSeconds / 60)}m)</span>
+                          </div>
+                          <span className="text-[10px] text-[color:var(--color-text-subtle)]">
+                            {new Date(log.startAt).toLocaleTimeString("en-US", { timeZone: userTimeZone, hour: "2-digit", minute: "2-digit" })} - {new Date(log.endAt).toLocaleTimeString("en-US", { timeZone: userTimeZone, hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      ))}
 
-                  {/* Attendance Breaks */}
-                  {todayBreaks.map(brk => (
-                    <div key={brk.id} className="rounded border bg-[color:var(--color-input)] px-2 py-1 flex flex-col gap-0.5 border-[color:var(--color-border)]">
-                      <div className="flex items-center justify-between font-medium">
-                        <span className="truncate max-w-[160px] text-[color:var(--color-text)]">{brk.notes || brk.type}</span>
-                        <span className="text-[10px] text-amber-400">Break ({brk.durationMinutes}m)</span>
-                      </div>
-                      <span className="text-[10px] text-[color:var(--color-text-subtle)]">
-                        {new Date(brk.startAt).toLocaleTimeString("en-US", { timeZone: userTimeZone, hour: "2-digit", minute: "2-digit" })} - {new Date(brk.endAt).toLocaleTimeString("en-US", { timeZone: userTimeZone, hour: "2-digit", minute: "2-digit" })}
-                      </span>
+                      {/* Attendance Breaks */}
+                      {todayBreaks.map(brk => (
+                        <div key={brk.id} className="rounded border bg-[color:var(--color-input)] px-2 py-1 flex flex-col gap-0.5 border-[color:var(--color-border)]">
+                          <div className="flex items-center justify-between font-medium">
+                            <span className="truncate max-w-[160px] text-[color:var(--color-text)]">{brk.notes || brk.type}</span>
+                            <span className="text-[10px] text-amber-400">Break ({brk.durationMinutes}m)</span>
+                          </div>
+                          <span className="text-[10px] text-[color:var(--color-text-subtle)]">
+                            {new Date(brk.startAt).toLocaleTimeString("en-US", { timeZone: userTimeZone, hour: "2-digit", minute: "2-digit" })} - {new Date(brk.endAt).toLocaleTimeString("en-US", { timeZone: userTimeZone, hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
@@ -1035,10 +1157,22 @@ export default function FloatingActivityTimer({ session }) {
             </div>
 
             <div className="space-y-2">
+              <label className="text-xs font-semibold text-[color:var(--color-text-muted)]">Activity Description</label>
+              <Textarea
+                value={stopForm.description}
+                onChange={(e) => setStopForm({ ...stopForm, description: e.target.value })}
+                placeholder="What did you work on?"
+                rows={2}
+                required
+                className="rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text)] text-xs resize-none"
+              />
+            </div>
+
+            <div className="space-y-2">
               <label className="text-xs font-semibold text-[color:var(--color-text-muted)]">Category</label>
               <select
                 value={stopForm.category}
-                onChange={(e) => setStopForm({ category: e.target.value })}
+                onChange={(e) => setStopForm({ ...stopForm, category: e.target.value })}
                 className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-2 text-xs text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)] transition-all cursor-pointer"
               >
                 {MANUAL_CATEGORIES.map((opt) => (

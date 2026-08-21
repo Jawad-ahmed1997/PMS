@@ -83,11 +83,7 @@ async function handleProjectUpdate(request, { params }) {
     return authError;
   }
 
-  const roleError = ensureRole(context.role, PROJECT_MANAGEMENT_ROLES);
-  if (roleError) {
-    return roleError;
-  }
-  const {id:projectId}= await params;
+  const { id: projectId } = await params;
   if (!projectId) {
     return buildError("Project id is required.", 400);
   }
@@ -97,7 +93,13 @@ async function handleProjectUpdate(request, { params }) {
     return buildError("Project not found.", 404);
   }
 
-  if (!canAccessProject(context, project)) {
+  const isProjectAdmin =
+    project.createdById === context.user.id ||
+    project.members?.some(
+      (member) => member.userId === context.user.id && member.role === "ADMIN"
+    );
+
+  if (!isManagementRole(context.role) && !isProjectAdmin) {
     return buildError("You do not have permission to update this project.", 403);
   }
 

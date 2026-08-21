@@ -133,7 +133,7 @@ function subtractIntervals(baseIntervals, subtractIntervalsList) {
   const result = [];
 
   baseIntervals.forEach((interval) => {
-    let segments = [{ start: interval.start, end: interval.end, meta: interval.meta }];
+    let segments = [{ ...interval }];
     subtracts.forEach((sub) => {
       segments = segments.flatMap((segment) => {
         if (sub.end <= segment.start || sub.start >= segment.end) {
@@ -201,6 +201,7 @@ function buildSegments({
       endAt: interval.end,
       type: "WORK",
       taskId: interval.taskId ?? null,
+      manualLogId: interval.manualLogId ?? null,
       isWFH: isIntervalOverlapping(interval, wfhIntervals),
     });
   });

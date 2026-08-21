@@ -118,19 +118,22 @@ export function computeAttendanceDurationsForRecord(attendance) {
     return {
       officeSeconds: 0,
       wfhSeconds: 0,
+      breakSeconds: 0,
       dutySeconds: 0,
       officeHHMM: "-",
       wfhHHMM: "-",
+      breakHHMM: "-",
       dutyHHMM: "-",
     };
   }
-  let officeSeconds = 0;
+  let rawOfficeSeconds = 0;
+  let breakSeconds = 0;
   if (attendance.inTime && attendance.outTime) {
     const start = new Date(attendance.inTime);
     const end = new Date(attendance.outTime);
     if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end > start) {
-      officeSeconds = Math.round((end - start) / 1000);
-      const breakSeconds = (attendance.breaks ?? []).reduce((total, brk) => {
+      rawOfficeSeconds = Math.round((end - start) / 1000);
+      breakSeconds = (attendance.breaks ?? []).reduce((total, brk) => {
         const breakStart = brk?.startAt ? new Date(brk.startAt) : null;
         const breakEnd = brk?.endAt ? new Date(brk.endAt) : null;
         if (!breakStart || !breakEnd) {
@@ -146,7 +149,6 @@ export function computeAttendanceDurationsForRecord(attendance) {
         }
         return total + Math.round((clampedEnd - clampedStart) / 1000);
       }, 0);
-      officeSeconds = Math.max(0, officeSeconds - breakSeconds);
     }
   }
   let wfhSeconds = 0;
@@ -162,13 +164,16 @@ export function computeAttendanceDurationsForRecord(attendance) {
       }
     });
   }
-  const dutySeconds = officeSeconds + wfhSeconds;
+  const netOfficeSeconds = Math.max(0, rawOfficeSeconds - breakSeconds);
+  const dutySeconds = netOfficeSeconds + wfhSeconds;
   return {
-    officeSeconds,
+    officeSeconds: rawOfficeSeconds,
     wfhSeconds,
+    breakSeconds,
     dutySeconds,
-    officeHHMM: formatDurationFromSeconds(officeSeconds),
+    officeHHMM: formatDurationFromSeconds(rawOfficeSeconds),
     wfhHHMM: formatDurationFromSeconds(wfhSeconds),
+    breakHHMM: formatDurationFromSeconds(breakSeconds),
     dutyHHMM: formatDurationFromSeconds(dutySeconds),
   };
 }

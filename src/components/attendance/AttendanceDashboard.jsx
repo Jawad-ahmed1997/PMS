@@ -1424,17 +1424,17 @@ export default function AttendanceDashboard({
                 <th className="px-4 py-3">Out time</th>
                 <th className="px-4 py-3">Office duration</th>
                 <th className="px-4 py-3">WFH duration</th>
-                <th className="px-4 py-3">Total duty</th>
                 <th className="px-4 py-3">Breaks</th>
+                <th className="px-4 py-3">Total duty</th>
                 <th className="px-4 py-3">Note</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredAttendance.map((record) => (
+              {filteredAttendance.map((record, recordIndex) => (
                 <tr
                   key={record.id}
-                  className="border-b border-[color:var(--color-border)] last:border-b-0"
+                  className="border-b border-[color:var(--color-border)] last:border-b-0 relative hover:z-30"
                 >
                   {(() => {
                     const durations = getRecordDurations(record);
@@ -1495,9 +1495,6 @@ export default function AttendanceDashboard({
                           {durations.wfh}
                         </td>
                         <td className="px-4 py-4 text-[color:var(--color-text)]">
-                          {durations.total}
-                        </td>
-                        <td className="px-4 py-4 text-[color:var(--color-text)]">
                           {(() => {
                             const breakInfo = getRecordBreaks(record, userTimeZone);
                             if (!breakInfo.count) {
@@ -1509,7 +1506,11 @@ export default function AttendanceDashboard({
                                   <span>{breakInfo.totalFormatted}</span>
                                   <span className="text-[10px] text-amber-400/70">({breakInfo.count})</span>
                                 </span>
-                                <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-3 text-xs shadow-2xl transition-all group-hover:block w-max max-w-xs space-y-2 text-[color:var(--color-text)]">
+                                <div
+                                  className={`pointer-events-none absolute ${
+                                    recordIndex < 2 ? "top-full mt-2" : "bottom-full mb-2"
+                                  } left-1/2 z-[9999] hidden -translate-x-1/2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-3 text-xs shadow-2xl transition-all group-hover:block w-max max-w-xs space-y-2 text-[color:var(--color-text)]`}
+                                >
                                   <div className="flex items-center justify-between border-b border-[color:var(--color-border)] pb-1.5 gap-4">
                                     <span className="font-semibold text-amber-400">Breaks ({breakInfo.count})</span>
                                     <span className="font-mono text-xs text-amber-300 font-bold">{breakInfo.totalFormatted} total</span>
@@ -1534,6 +1535,9 @@ export default function AttendanceDashboard({
                               </div>
                             );
                           })()}
+                        </td>
+                        <td className="px-4 py-4 text-[color:var(--color-text)]">
+                          {durations.total}
                         </td>
                         <td className="px-4 py-4 text-[color:var(--color-text-muted)]">
                           {record.note || "-"}

@@ -10,6 +10,8 @@ const protectedRoutes = [
   "/activity",
   "/attendance",
   "/reports",
+  "/ai-manager",
+  "/ai-doctor",
   "/users",
 ];
 

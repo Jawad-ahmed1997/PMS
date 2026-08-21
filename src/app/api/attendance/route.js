@@ -167,6 +167,71 @@ export async function GET(request) {
     });
   }
 
+  // Load Task Breaks for all returned attendances to ensure breaks from task timers/pauses are included
+  if (attendance.length > 0) {
+    const userIds = [...new Set(attendance.map((a) => a.userId))];
+    const dates = attendance.map((a) => new Date(a.date).getTime()).filter(Boolean);
+    const minTimestamp = Math.min(...dates) - 24 * 3600 * 1000;
+    const maxTimestamp = Math.max(...dates) + 48 * 3600 * 1000;
+
+    const taskBreaks = await prisma.taskBreak.findMany({
+      where: {
+        userId: { in: userIds },
+        startedAt: {
+          gte: new Date(minTimestamp),
+          lte: new Date(maxTimestamp),
+        },
+      },
+      include: {
+        task: { select: { id: true, title: true } },
+      },
+      orderBy: { startedAt: "asc" },
+    });
+
+    const now = new Date();
+
+    attendance = attendance.map((record) => {
+      const shiftIn = record.inTime ? new Date(record.inTime) : null;
+      const shiftOut = record.outTime ? new Date(record.outTime) : (shiftIn ? now : null);
+
+      let mergedBreaks = [...(record.breaks ?? [])];
+
+      if (shiftIn && shiftOut) {
+        const matchingTaskBreaks = taskBreaks.filter((tb) => {
+          if (tb.userId !== record.userId) return false;
+          const tbStart = new Date(tb.startedAt);
+          const tbEnd = tb.endedAt ? new Date(tb.endedAt) : now;
+          return tbStart < shiftOut && tbEnd > shiftIn;
+        }).map((tb) => {
+          const tbStart = new Date(tb.startedAt);
+          const tbEnd = tb.endedAt ? new Date(tb.endedAt) : now;
+          const startAt = tbStart > shiftIn ? tbStart : shiftIn;
+          const endAt = tbEnd < shiftOut ? tbEnd : shiftOut;
+          const durationMinutes = Math.max(0, Math.round((endAt.getTime() - startAt.getTime()) / (60 * 1000)));
+
+          return {
+            id: `task-break-${tb.id}`,
+            attendanceId: record.id,
+            type: tb.reason || "OTHER",
+            types: tb.reasons?.length ? tb.reasons : (tb.reason ? [tb.reason] : ["OTHER"]),
+            durationMinutes,
+            startAt,
+            endAt,
+            notes: tb.task?.title ? `Task: ${tb.task.title}` : null,
+            source: "TASK_PAUSE",
+          };
+        });
+
+        mergedBreaks = [...mergedBreaks, ...matchingTaskBreaks];
+      }
+
+      return {
+        ...record,
+        breaks: mergedBreaks,
+      };
+    });
+  }
+
   return buildSuccess("Attendance loaded.", {
     attendance: attendance.map((record) => attachComputedDurations(record)),
     presenceNow,

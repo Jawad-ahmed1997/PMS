@@ -5,6 +5,54 @@ import {
   ensureAuthenticated,
   getAuthContext,
 } from "@/lib/api";
+import { getUserDailyTimeline } from "@/lib/analytics/timeline";
+
+function getCutoffForUser(user) {
+  if (!user) return { cutoffHour: 15, cutoffMinute: 15 };
+  const nameLower = (user.name ?? "").toLowerCase();
+  const emailLower = (user.email ?? "").toLowerCase();
+
+  // Saad Raza: 6:30 PM shift start -> 6:45 PM cutoff (18:45 PKT)
+  if (nameLower.includes("saad") || emailLower.includes("saad")) {
+    return { cutoffHour: 18, cutoffMinute: 45 };
+  }
+  // Sabir: 9:00 PM shift start -> 9:15 PM cutoff (21:15 PKT)
+  if (nameLower.includes("sabir") || emailLower.includes("sabir")) {
+    return { cutoffHour: 21, cutoffMinute: 15 };
+  }
+  // Default: 3:00 PM shift start -> 3:15 PM cutoff (15:15 PKT)
+  return { cutoffHour: 15, cutoffMinute: 15 };
+}
+
+function isLateCheckIn(inTime, user, timeZone = "Asia/Karachi") {
+  if (!inTime) return false;
+  const date = inTime instanceof Date ? inTime : new Date(inTime);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const { cutoffHour, cutoffMinute } = getCutoffForUser(user);
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const lookup = parts.reduce((acc, part) => {
+    if (part.type !== "literal") {
+      acc[part.type] = Number(part.value);
+    }
+    return acc;
+  }, {});
+
+  const hour = lookup.hour ?? 0;
+  const minute = lookup.minute ?? 0;
+
+  if (hour > cutoffHour || (hour === cutoffHour && minute > cutoffMinute) || hour < 5) {
+    return true;
+  }
+  return false;
+}
 
 export async function GET(request) {
   const context = await getAuthContext();
@@ -33,8 +81,14 @@ export async function GET(request) {
     attendanceWhere.userId = userIdParam;
   }
 
+  const activityLogWhere = {};
+  if (userIdParam) {
+    activityLogWhere.userId = userIdParam;
+  }
+
+  let dateFilter = null;
   if (startDateParam || endDateParam) {
-    const dateFilter = {};
+    dateFilter = {};
     if (startDateParam) {
       const start = new Date(startDateParam);
       if (!Number.isNaN(start.getTime())) {
@@ -50,6 +104,8 @@ export async function GET(request) {
     }
     if (Object.keys(dateFilter).length > 0) {
       attendanceWhere.date = dateFilter;
+      activityLogWhere.date = dateFilter;
+      taskWhere.createdAt = dateFilter;
     }
   }
 
@@ -96,7 +152,7 @@ export async function GET(request) {
     const attendances = await prisma.attendance.findMany({
       where: attendanceWhere,
       include: {
-        user: { select: { id: true, name: true, image: true, role: true } },
+        user: { select: { id: true, name: true, email: true, image: true, role: true } },
         breaks: true,
         wfhIntervals: true,
       },
@@ -105,13 +161,29 @@ export async function GET(request) {
 
     // 4. Fetch Manual Activity Logs
     const activityLogs = await prisma.activityLog.findMany({
-      where: userIdParam ? { userId: userIdParam } : {},
+      where: activityLogWhere,
       select: {
         id: true,
         userId: true,
         categories: true,
         durationSeconds: true,
+        date: true,
+        startAt: true,
+        endAt: true,
         type: true,
+        workSession: { select: { id: true } },
+      },
+    });
+
+    // 4b. Fetch Task Work Sessions for period
+    const workSessionWhere = {};
+    if (userIdParam) workSessionWhere.userId = userIdParam;
+    if (dateFilter) workSessionWhere.startedAt = dateFilter;
+
+    const workSessions = await prisma.taskWorkSession.findMany({
+      where: workSessionWhere,
+      include: {
+        task: { select: { id: true, type: true } },
       },
     });
 
@@ -125,10 +197,10 @@ export async function GET(request) {
             id: true,
             title: true,
             status: true,
+            type: true,
             estimatedHours: true,
             totalTimeSpent: true,
             ownerId: true,
-            owner: { select: { id: true, name: true } },
           },
         },
       },
@@ -136,7 +208,8 @@ export async function GET(request) {
 
     // --- AGGREGATIONS ---
 
-    // Overall KPI Summaries
+    // Overall KPI Totals
+    let totalTasksAll = tasks.length;
     let totalCompletedTasks = 0;
     let totalCompletedLateTasks = 0;
     let totalReworkCount = 0;
@@ -144,7 +217,22 @@ export async function GET(request) {
     let totalEstimatedHoursAll = 0;
 
     // Stage-wise (TaskType) Time Utilization
-    const stageTypeHours = { UI: 0, AUTH: 0, API: 0, REFACTOR: 0, CHART: 0 };
+    const stageTypeHours = {
+      UI: 0,
+      AUTH: 0,
+      API: 0,
+      REFACTOR: 0,
+      CHART: 0,
+      FULL_STACK: 0,
+      THIRD_PARTY: 0,
+      BUSINESS_LOGIC: 0,
+      DATABASE: 0,
+      BUG_FIX: 0,
+      DEVOPS: 0,
+      TESTING: 0,
+      PERFORMANCE: 0,
+      DOCUMENTATION: 0,
+    };
     // Task Status Distribution
     const statusCounts = {
       BACKLOG: 0,
@@ -193,7 +281,23 @@ export async function GET(request) {
         totalSpentHours: 0,
         totalEstimatedHours: 0,
         totalManualHours: 0,
-        taskTypeHours: { UI: 0, AUTH: 0, API: 0, REFACTOR: 0, CHART: 0 },
+        lateManualDumpsCount: 0,
+        taskTypeHours: {
+          UI: 0,
+          AUTH: 0,
+          API: 0,
+          REFACTOR: 0,
+          CHART: 0,
+          FULL_STACK: 0,
+          THIRD_PARTY: 0,
+          BUSINESS_LOGIC: 0,
+          DATABASE: 0,
+          BUG_FIX: 0,
+          DEVOPS: 0,
+          TESTING: 0,
+          PERFORMANCE: 0,
+          DOCUMENTATION: 0,
+        },
         manualCategoryHours: { LEARNING: 0, RESEARCH: 0, OTHER: 0 },
         attendanceDays: 0,
         lateArrivals: 0,
@@ -204,19 +308,26 @@ export async function GET(request) {
       };
     });
 
-    // Aggregate Tasks per user
+    // Aggregate Task Work Sessions per user in period
+    workSessions.forEach((ws) => {
+      const card = userScorecardMap[ws.userId];
+      if (card) {
+        const hrs = Number(((ws.durationSeconds ?? 0) / 3600).toFixed(2));
+        card.totalSpentHours += hrs;
+        const type = ws.task?.type;
+        if (type && card.taskTypeHours[type] !== undefined) {
+          card.taskTypeHours[type] += hrs;
+        }
+      }
+    });
+
+    // Aggregate Tasks metadata per user
     tasks.forEach((t) => {
       const card = userScorecardMap[t.ownerId];
       if (card) {
         card.totalAssigned += 1;
-        const hrs = Number(((t.totalTimeSpent ?? 0) / 3600).toFixed(2));
-        card.totalSpentHours += hrs;
         card.totalEstimatedHours += t.estimatedHours ?? 0;
         card.reworkCount += t.reworkCount ?? 0;
-
-        if (t.type && card.taskTypeHours[t.type] !== undefined) {
-          card.taskTypeHours[t.type] += hrs;
-        }
 
         if (t.status === "DONE") {
           card.completedTasks += 1;
@@ -244,15 +355,10 @@ export async function GET(request) {
           totalAutoOffAll += 1;
         }
 
-        // Late arrival check (Office Shift: 3:00 PM - 1:00 AM, Grace Cutoff: 3:15 PM)
-        if (att.inTime) {
-          const inDate = new Date(att.inTime);
-          const hours = inDate.getHours();
-          const minutes = inDate.getMinutes();
-          if (hours > 15 || (hours === 15 && minutes > 15) || hours < 5) {
-            card.lateArrivals += 1;
-            totalLateArrivalsAll += 1;
-          }
+        // Late arrival check (custom cutoff per user/role)
+        if (att.inTime && isLateCheckIn(att.inTime, card.user, context.timezone ?? "Asia/Karachi")) {
+          card.lateArrivals += 1;
+          totalLateArrivalsAll += 1;
         }
 
         // Duration calculation
@@ -276,36 +382,86 @@ export async function GET(request) {
     const categoryHours = { LEARNING: 0, RESEARCH: 0, OTHER: 0 };
     activityLogs.forEach((act) => {
       const card = userScorecardMap[act.userId];
-      const hrs = Number(((act.durationSeconds ?? 0) / 3600).toFixed(2));
 
-      if (card) {
-        card.totalManualHours += hrs;
+      if (!act.workSessionId && act.type === "MANUAL") {
+        const hrs = Number(((act.durationSeconds ?? 0) / 3600).toFixed(2));
+
+        if (card) {
+          card.totalManualHours += hrs;
+
+          // Check if manual log was dumped retroactively late (entry created > 2 hrs after endAt)
+          if (act.date && act.endAt) {
+            const creationTime = new Date(act.date).getTime();
+            const activityEndTime = new Date(act.endAt).getTime();
+            if (creationTime - activityEndTime > 2 * 3600 * 1000) {
+              card.lateManualDumpsCount += 1;
+            }
+          }
+        }
+
+        (act.categories ?? []).forEach((cat) => {
+          if (categoryHours[cat] !== undefined) {
+            categoryHours[cat] += hrs;
+          }
+          if (card && card.manualCategoryHours[cat] !== undefined) {
+            card.manualCategoryHours[cat] += hrs;
+          }
+        });
       }
-
-      (act.categories ?? []).forEach((cat) => {
-        if (categoryHours[cat] !== undefined) {
-          categoryHours[cat] += hrs;
-        }
-        if (card && card.manualCategoryHours[cat] !== undefined) {
-          card.manualCategoryHours[cat] += hrs;
-        }
-      });
     });
 
-    // Calculate final metrics per user (Utilization %, Avg Duty/Day, Time Distribution %, Performance Score)
-    const userScorecards = Object.values(userScorecardMap).map((card) => {
-      const totalDutyHours = Number((card.officeHours + card.wfhHours).toFixed(2));
+    // Generate dates list for period
+    const now = new Date();
+    const effectiveStart = dateFilter?.gte ? new Date(dateFilter.gte) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const effectiveEnd = dateFilter?.lte ? new Date(dateFilter.lte) : new Date(now);
+
+    const datesList = [];
+    let cur = new Date(effectiveStart);
+    while (cur <= effectiveEnd && cur <= now) {
+      datesList.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    // Precompute timeline metrics for each user in parallel
+    const userTimelineTotalsMap = {};
+    await Promise.all(
+      users.map(async (u) => {
+        let dutySec = 0;
+        let workSec = 0;
+        let breakSec = 0;
+        let idleSec = 0;
+        for (const day of datesList) {
+          const t = await getUserDailyTimeline(prisma, u.id, day, now);
+          dutySec += t.totals?.dutySeconds ?? 0;
+          workSec += t.totals?.workSeconds ?? 0;
+          breakSec += t.totals?.breakSeconds ?? 0;
+          idleSec += t.totals?.idleSeconds ?? 0;
+        }
+        userTimelineTotalsMap[u.id] = { dutySec, workSec, breakSec, idleSec };
+      })
+    );
+
+    // Max attendance days in team
+    const maxAttendanceDaysInTeam = Math.max(
+      1,
+      ...Object.values(userScorecardMap).map((c) => c.attendanceDays)
+    );
+
+    // Calculate final metrics per user
+    const allScorecards = Object.values(userScorecardMap).map((card) => {
+      const timelineTotals = userTimelineTotalsMap[card.user.id] || { dutySec: 0, workSec: 0, breakSec: 0, idleSec: 0 };
+      const totalDutyHours = Number((timelineTotals.dutySec / 3600).toFixed(2));
+      const totalActiveHours = Number((timelineTotals.workSec / 3600).toFixed(2));
+
       const avgDutyHoursPerDay = card.attendanceDays > 0
         ? Number((totalDutyHours / card.attendanceDays).toFixed(1))
         : 0;
-
-      const totalActiveHours = Number((card.totalSpentHours + card.totalManualHours).toFixed(2));
 
       const utilizationPercent = totalDutyHours > 0
         ? Math.min(100, Math.round((totalActiveHours / totalDutyHours) * 100))
         : 0;
 
-      // Time distribution array for badges/percentages (e.g. 30% UI, 15% Refactor, 50% Learning)
+      // Time distribution array
       const distribution = [];
       const denom = totalActiveHours > 0 ? totalActiveHours : 1;
 
@@ -332,39 +488,110 @@ export async function GET(request) {
 
       distribution.sort((a, b) => b.percent - a.percent);
 
-      // Performance Score Calculation (0 - 100 pts)
-      const punctualityScore = card.attendanceDays > 0
-        ? Math.round(((card.attendanceDays - card.lateArrivals) / card.attendanceDays) * 30)
-        : 30;
+      const isUnranked = card.attendanceDays === 0 && card.totalActiveHours === 0 && card.totalAssigned === 0;
 
-      const taskOutputScore = card.totalAssigned > 0
-        ? Math.round(((card.completedOnTime + card.completedTasks * 0.5) / Math.max(1, card.totalAssigned)) * 40)
-        : (card.completedTasks > 0 ? 30 : 15);
+      if (isUnranked) {
+        return {
+          ...card,
+          totalDutyHours: 0,
+          avgDutyHoursPerDay: 0,
+          totalActiveHours: 0,
+          utilizationPercent: 0,
+          distribution: [],
+          performanceScore: 0,
+          professionalismPercent: 0,
+          manualRatioPercent: 0,
+          isUnranked: true,
+        };
+      }
 
+      // Professionalism Rating (0 - 100%)
+      // Pillar 1: Auto-Off Discipline (35% weight)
+      const autoOffRating = Math.max(0, 100 - card.autoOffCount * 25);
+
+      // Pillar 2: Check-In Punctuality (35% weight)
+      const punctualityRating = card.attendanceDays > 0
+        ? Math.round(((card.attendanceDays - card.lateArrivals) / card.attendanceDays) * 100)
+        : 100;
+
+      // Pillar 3: Log Timing Discipline (20% weight - penalizes end-of-day retroactive manual dumping)
+      const trackingRating = Math.max(0, 100 - card.lateManualDumpsCount * 25);
+
+      // Pillar 4: Quality & Low Rework (10% weight)
+      const qualityRating = Math.max(0, 100 - card.reworkCount * 20);
+
+      // Overall Professionalism Rating %
+      const professionalismPercent = Math.min(
+        100,
+        Math.max(
+          0,
+          Math.round(
+            autoOffRating * 0.35 +
+            punctualityRating * 0.35 +
+            trackingRating * 0.20 +
+            qualityRating * 0.10
+          )
+        )
+      );
+
+      // Overall Leaderboard Performance Score (0 - 100 pts)
+      // 1. Attendance Volume (25 pts Max)
+      const attendanceVolumeScore = Math.round((card.attendanceDays / maxAttendanceDaysInTeam) * 25);
+
+      // 2. Task Output & Delivery Velocity (35 pts Max)
+      let taskOutputScore = 0;
+      if (card.totalAssigned > 0) {
+        taskOutputScore = Math.round(((card.completedOnTime + card.completedTasks * 0.5) / card.totalAssigned) * 35);
+      } else if (card.completedTasks > 0) {
+        taskOutputScore = Math.min(35, card.completedTasks * 10);
+      } else if (totalActiveHours > 0) {
+        taskOutputScore = 10;
+      }
+
+      // 3. Work Utilization Rate (20 pts Max)
       const utilizationScore = Math.round((utilizationPercent / 100) * 20);
 
-      const qualityScore = Math.max(0, 10 - card.reworkCount * 2);
+      // 4. Dedicated Professionalism Pillar (20 pts Max)
+      const professionalismScore = Math.round((professionalismPercent / 100) * 20);
 
-      const performanceScore = Math.min(100, Math.max(0, punctualityScore + taskOutputScore + utilizationScore + qualityScore));
+      const performanceScore = Math.min(
+        100,
+        Math.max(0, attendanceVolumeScore + taskOutputScore + utilizationScore + professionalismScore)
+      );
 
       return {
         ...card,
+        totalEstimatedHours: Number(card.totalEstimatedHours.toFixed(2)),
+        totalSpentHours: Number(card.totalSpentHours.toFixed(2)),
+        totalManualHours: Number(card.totalManualHours.toFixed(2)),
         totalDutyHours,
         avgDutyHoursPerDay,
         totalActiveHours,
         utilizationPercent,
         distribution,
         performanceScore,
+        professionalismPercent,
+        manualRatioPercent: totalActiveHours > 0 ? Math.round((card.totalManualHours / totalActiveHours) * 100) : 0,
+        isUnranked: false,
       };
     });
 
-    // Sort user scorecards by Performance Score descending (Top Performers on Top!)
-    userScorecards.sort((a, b) => {
-      if (b.performanceScore !== a.performanceScore) {
+    // Separate main Developers from Junior Interns
+    const developerScorecards = allScorecards
+      .filter((s) => s.user.role !== "JUNIOR_INTERN")
+      .sort((a, b) => {
+        if (a.isUnranked !== b.isUnranked) return a.isUnranked ? 1 : -1;
         return b.performanceScore - a.performanceScore;
-      }
-      return b.completedTasks - a.completedTasks;
-    });
+      });
+
+    const internScorecards = allScorecards
+      .filter((s) => s.user.role === "JUNIOR_INTERN")
+      .sort((a, b) => {
+        if (a.isUnranked !== b.isUnranked) return a.isUnranked ? 1 : -1;
+        return b.performanceScore - a.performanceScore;
+      });
+
+    const userScorecards = [...developerScorecards, ...internScorecards];
 
     // Aggregate Milestone Impact Analysis
     const milestoneImpact = milestones.map((m) => {

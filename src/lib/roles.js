@@ -114,6 +114,8 @@ export const routeAccess = {
     roles.JUNIOR_INTERN,
   ],
   "/reports": [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD],
+  "/ai-manager": [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD, roles.SENIOR_DEV],
+  "/ai-doctor": [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD, roles.SENIOR_DEV],
   "/users": [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD],
 };
 

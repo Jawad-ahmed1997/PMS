@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import ActionButton from "@/components/ui/ActionButton";
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, RefreshCw, AlertTriangle, CheckCircle2, Clock, Calendar, Users, Briefcase, Trophy, Zap, Percent } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, CheckCircle2, Clock, Calendar, Users, Briefcase, Trophy, Zap, Percent, Mail } from "lucide-react";
 import { useToast } from "@/components/ui/ToastProvider";
 
 export default function ReportingDashboard({ session }) {
@@ -12,18 +12,38 @@ export default function ReportingDashboard({ session }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [selectedUser, setSelectedUser] = useState("");
-  const [dateRange, setDateRange] = useState("30"); // 7, 30, all
+  const [dateRange, setDateRange] = useState("month"); // "month", "week", "today", "30", "custom"
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
 
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
       let url = "/api/reports/analytics?";
       if (selectedUser) url += `userId=${selectedUser}&`;
-      if (dateRange !== "all") {
+
+      const now = new Date();
+      if (dateRange === "today") {
+        const todayStr = now.toISOString().slice(0, 10);
+        url += `startDate=${todayStr}&endDate=${todayStr}&`;
+      } else if (dateRange === "week") {
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(now);
+        monday.setDate(diff);
+        url += `startDate=${monday.toISOString().slice(0, 10)}&`;
+      } else if (dateRange === "month") {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        url += `startDate=${firstDay.toISOString().slice(0, 10)}&`;
+      } else if (dateRange === "30") {
         const start = new Date();
-        start.setDate(start.getDate() - Number(dateRange));
+        start.setDate(start.getDate() - 30);
         url += `startDate=${start.toISOString().slice(0, 10)}&`;
+      } else if (dateRange === "custom" && customStartDate) {
+        url += `startDate=${customStartDate}&`;
+        if (customEndDate) url += `endDate=${customEndDate}&`;
       }
+
       const response = await fetch(url);
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Failed to load analytics");
@@ -41,7 +61,12 @@ export default function ReportingDashboard({ session }) {
 
   useEffect(() => {
     fetchAnalytics();
-  }, [selectedUser, dateRange]);
+  }, [selectedUser, dateRange, customStartDate, customEndDate]);
+
+  const kpi = data?.kpi;
+  const userScorecards = data?.userScorecards ?? [];
+  const developerScorecards = data?.developerScorecards ?? userScorecards.filter((s) => s.user?.role !== "JUNIOR_INTERN");
+  const internScorecards = data?.internScorecards ?? userScorecards.filter((s) => s.user?.role === "JUNIOR_INTERN");
 
   // CSV Export handler
   const handleExportCSV = () => {
@@ -76,7 +101,7 @@ export default function ReportingDashboard({ session }) {
         ?.map((d) => `${d.percent}% ${d.label}`)
         .join(" | ");
       return [
-        index + 1,
+        item.isUnranked ? "Unranked" : index + 1,
         `"${item.user.name}"`,
         `"${item.user.role}"`,
         item.performanceScore ?? 0,
@@ -100,7 +125,7 @@ export default function ReportingDashboard({ session }) {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `PMS_Performance_Accountability_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `performance_report_${dateRange}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -112,8 +137,38 @@ export default function ReportingDashboard({ session }) {
     });
   };
 
-  const kpi = data?.kpi;
-  const userScorecards = data?.userScorecards ?? [];
+  const [sendingEmailUserId, setSendingEmailUserId] = useState(null);
+
+  const handleSendEmailReport = async (userId = null, userName = "All Team Members") => {
+    setSendingEmailUserId(userId || "all");
+    try {
+      const response = await fetch("/api/reports/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userId || undefined,
+          period: dateRange === "month" ? "monthly" : "weekly",
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Failed to send email report");
+
+      addToast({
+        title: "Email Report Sent",
+        message: `Performance email report sent successfully for ${userName}.`,
+        variant: "success",
+      });
+    } catch (err) {
+      addToast({
+        title: "Email Send Error",
+        message: err instanceof Error ? err.message : "Unable to send email report",
+        variant: "error",
+      });
+    } finally {
+      setSendingEmailUserId(null);
+    }
+  };
+
   const stageTypeHours = data?.stageTypeHours ?? {};
   const categoryHours = data?.categoryHours ?? {};
   const milestoneImpact = data?.milestoneImpact ?? [];
@@ -124,6 +179,213 @@ export default function ReportingDashboard({ session }) {
     const sum = userScorecards.reduce((acc, u) => acc + (u.utilizationPercent ?? 0), 0);
     return Math.round(sum / userScorecards.length);
   }, [userScorecards]);
+
+  // Render Leaderboard Table helper
+  const renderScorecardTable = (scorecards, title, subtitle) => (
+    <div className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-amber-400" />
+            <h2 className="text-base font-semibold text-[color:var(--color-text)]">{title}</h2>
+          </div>
+          <p className="text-xs text-[color:var(--color-text-muted)]">
+            {subtitle}
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="border-b border-[color:var(--color-border)] text-[11px] uppercase tracking-wider text-[color:var(--color-text-subtle)]">
+            <tr>
+              <th className="py-3 px-3">Rank & Team Member</th>
+              <th className="py-3 px-3">Completed</th>
+              <th className="py-3 px-3">Late Ratio</th>
+              <th className="py-3 px-3">Check-In (Days/Late)</th>
+              <th className="py-3 px-3">Professionalism & Discipline</th>
+              <th className="py-3 px-3">Utilization & Avg Duty</th>
+              <th className="py-3 px-3">Time Distribution Breakdown</th>
+              <th className="py-3 px-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[color:var(--color-border)]/50">
+            {scorecards.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="py-8 text-center text-xs text-[color:var(--color-text-subtle)] italic">
+                  No members in this section for the selected period.
+                </td>
+              </tr>
+            ) : (
+              scorecards.map((item, index) => {
+                const latePercent = item.completedTasks > 0
+                  ? Math.round((item.completedLate / item.completedTasks) * 100)
+                  : 0;
+
+                const rankBadge = item.isUnranked ? "# -" : `#${index + 1}`;
+                const rankStyle = "bg-[color:var(--color-muted-bg)] text-[color:var(--color-text-muted)] border-[color:var(--color-border)] font-semibold";
+
+                return (
+                  <tr key={item.user.id} className="hover:bg-[color:var(--color-muted-bg)]/40 transition">
+                    {/* Member & Rank */}
+                    <td className="py-3.5 px-3">
+                      <div className="flex items-center gap-3">
+                        <span className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] shrink-0 ${rankStyle}`}>
+                          {rankBadge}
+                        </span>
+                        <Avatar
+                          src={item.user.image}
+                          name={item.user.name}
+                          alt={`${item.user.name} avatar`}
+                          className="h-8 w-8 text-xs shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-semibold text-[color:var(--color-text)] truncate">{item.user.name}</p>
+                            {item.isUnranked ? (
+                              <span className="rounded border border-slate-500/30 bg-slate-500/10 px-1.5 py-0.2 text-[10px] font-bold text-slate-400">
+                                Unranked
+                              </span>
+                            ) : (
+                              <span className="rounded border border-[color:var(--color-accent)]/30 bg-[color:var(--color-accent)]/10 px-1.5 py-0.2 text-[10px] font-bold text-[color:var(--color-accent)]">
+                                {item.performanceScore ?? 0} pts
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-[color:var(--color-text-subtle)]">{item.user.role}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Completed Tasks */}
+                    <td className="py-3.5 px-3 font-semibold text-[color:var(--color-text)]">
+                      {item.completedTasks} / {item.totalAssigned}
+                    </td>
+
+                    {/* Late Delivery Ratio */}
+                    <td className="py-3.5 px-3">
+                      {item.completedLate > 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-400">
+                          🚨 {item.completedLate} ({latePercent}%)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                          ✓ On Time
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Check-In (Total Days / Late Days) */}
+                    <td className="py-3.5 px-3">
+                      <span className="font-semibold text-[color:var(--color-text)]" title={`${item.lateArrivals} late check-ins out of ${item.attendanceDays} days`}>
+                        {item.attendanceDays} /{" "}
+                        <span className={item.lateArrivals > 0 ? "text-rose-400 font-bold" : "text-emerald-400"}>
+                          {item.lateArrivals}
+                        </span>
+                      </span>
+                    </td>
+
+                    {/* Professionalism & Discipline Rating */}
+                    <td className="py-3.5 px-3">
+                      {item.isUnranked ? (
+                        <span className="text-[10px] text-[color:var(--color-text-subtle)] font-medium">N/A</span>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                                item.professionalismPercent >= 85
+                                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                                  : item.professionalismPercent >= 70
+                                  ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                                  : "border-rose-500/40 bg-rose-500/10 text-rose-400"
+                              }`}
+                            >
+                              {item.professionalismPercent >= 85 ? "⭐" : item.professionalismPercent >= 70 ? "⚡" : "⚠️"}{" "}
+                              {item.professionalismPercent}% Rating
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1 text-[10px]">
+                            {item.autoOffCount > 0 ? (
+                              <span className="rounded border border-rose-500/30 bg-rose-500/10 px-1 py-0.2 font-bold text-rose-400" title="Forgot to check out (System Auto-Off)">
+                                🚨 {item.autoOffCount} Auto-Off
+                              </span>
+                            ) : null}
+                            {item.lateArrivals > 0 ? (
+                              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 py-0.2 font-semibold text-amber-400" title="Check-ins past shift cutoff">
+                                ⏰ {item.lateArrivals} Late
+                              </span>
+                            ) : null}
+                            {item.lateManualDumpsCount > 0 ? (
+                              <span className="rounded border border-rose-500/30 bg-rose-500/10 px-1 py-0.2 font-bold text-rose-400" title="Manual activity retroactively logged long after completion / end of day">
+                                ⚠️ {item.lateManualDumpsCount} Late Dump
+                              </span>
+                            ) : null}
+                            {item.autoOffCount === 0 && item.lateArrivals === 0 && (item.lateManualDumpsCount ?? 0) === 0 ? (
+                              <span className="text-[10px] text-emerald-400 font-medium">✓ High Discipline</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Utilization Rate & Daily Avg Duty */}
+                    <td className="py-3.5 px-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`font-bold ${item.utilizationPercent >= 70 ? "text-emerald-400" : "text-amber-400"}`}>
+                            ⚡ {item.utilizationPercent}%
+                          </span>
+                          <span className="text-[10px] text-[color:var(--color-text-subtle)]">Utilized</span>
+                        </div>
+                        <div className="text-[11px] text-[color:var(--color-text-muted)] font-medium">
+                          {item.totalDutyHours ?? item.officeHours}h <span className="text-[color:var(--color-text-subtle)]">({item.avgDutyHoursPerDay ?? 0}h/day avg)</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Time Distribution Percentages */}
+                    <td className="py-3.5 px-3">
+                      {item.distribution?.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 max-w-xs">
+                          {item.distribution.map((d) => (
+                            <span
+                              key={d.label}
+                              className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--color-text)]"
+                              title={`${d.hours} hours logged`}
+                            >
+                              {d.percent}% {d.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[color:var(--color-text-subtle)] italic">No time breakdown</span>
+                      )}
+                    </td>
+
+                    {/* Send Individual Email Action */}
+                    <td className="py-3.5 px-3">
+                      <button
+                        type="button"
+                        onClick={() => handleSendEmailReport(item.user.id, item.user.name)}
+                        disabled={sendingEmailUserId === item.user.id}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--color-text)] hover:border-sky-500 hover:text-sky-400 transition disabled:opacity-50"
+                        title={`Send individual performance email report to ${item.user.name}`}
+                      >
+                        <Mail className="h-3.5 w-3.5 text-sky-400" />
+                        {sendingEmailUserId === item.user.id ? "Sending..." : "Send Email"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -137,12 +399,31 @@ export default function ReportingDashboard({ session }) {
               onChange={(e) => setDateRange(e.target.value)}
               className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-3 py-1.5 text-xs font-semibold text-[color:var(--color-text)] outline-none focus:border-[color:var(--color-accent)]"
             >
-              <option value="7">Last 7 Days</option>
+              <option value="month">Current Month</option>
+              <option value="week">This Week</option>
+              <option value="today">Today</option>
               <option value="30">Last 30 Days</option>
-              <option value="90">Last 90 Days</option>
-              <option value="all">All Time</option>
+              <option value="custom">Custom Date Range</option>
             </select>
           </div>
+
+          {dateRange === "custom" ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2.5 py-1 text-xs text-[color:var(--color-text)] outline-none"
+              />
+              <span className="text-xs text-[color:var(--color-text-subtle)]">to</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2.5 py-1 text-xs text-[color:var(--color-text)] outline-none"
+              />
+            </div>
+          ) : null}
 
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-[color:var(--color-text-muted)]" />
@@ -162,6 +443,16 @@ export default function ReportingDashboard({ session }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleSendEmailReport(null, "All Active Team Members")}
+            disabled={sendingEmailUserId === "all"}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-400 hover:bg-sky-500/20 transition disabled:opacity-50"
+            title="Bulk send individual performance email reports to all team members"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            {sendingEmailUserId === "all" ? "Sending Emails..." : "Send Bulk Team Emails"}
+          </button>
           <button
             type="button"
             onClick={fetchAnalytics}
@@ -259,146 +550,19 @@ export default function ReportingDashboard({ session }) {
         </div>
       )}
 
-      {/* User Performance Leaderboard Table */}
-      <div className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-amber-400" />
-              <h2 className="text-base font-semibold text-[color:var(--color-text)]">User Performance & Accountability Leaderboard</h2>
-            </div>
-            <p className="text-xs text-[color:var(--color-text-muted)]">
-              Automatically sorted by performance score (on-time delivery, punctuality, utilization, and low rework). Top performers rank on top.
-            </p>
-          </div>
-        </div>
+      {/* Main Developer Performance & Accountability Leaderboard */}
+      {renderScorecardTable(
+        developerScorecards,
+        "Team Performance & Accountability Leaderboard",
+        "Automatically sorted by performance score (attendance volume, punctuality, task velocity, utilization, low rework, and zero auto-offs). Top performers rank on top."
+      )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-[color:var(--color-border)] text-[11px] uppercase tracking-wider text-[color:var(--color-text-subtle)]">
-              <tr>
-                <th className="py-3 px-3">Rank & Team Member</th>
-                <th className="py-3 px-3">Completed</th>
-                <th className="py-3 px-3">Late Ratio</th>
-                <th className="py-3 px-3">Check-In (Days/Late)</th>
-                <th className="py-3 px-3">Utilization & Avg Duty</th>
-                <th className="py-3 px-3">Time Distribution Breakdown</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[color:var(--color-border)]/50">
-              {userScorecards.map((item, index) => {
-                const latePercent = item.completedTasks > 0
-                  ? Math.round((item.completedLate / item.completedTasks) * 100)
-                  : 0;
-
-                const rank = index + 1;
-                let rankBadge = `#${rank}`;
-                let rankStyle = "bg-[color:var(--color-muted-bg)] text-[color:var(--color-text-muted)] border-[color:var(--color-border)]";
-                if (rank === 1) {
-                  rankBadge = "🥇 1st";
-                  rankStyle = "bg-amber-500/15 text-amber-300 border-amber-500/40 font-bold";
-                } else if (rank === 2) {
-                  rankBadge = "🥈 2nd";
-                  rankStyle = "bg-slate-300/15 text-slate-200 border-slate-300/40 font-semibold";
-                } else if (rank === 3) {
-                  rankBadge = "🥉 3rd";
-                  rankStyle = "bg-amber-700/15 text-amber-400 border-amber-700/40 font-semibold";
-                }
-
-                return (
-                  <tr key={item.user.id} className="hover:bg-[color:var(--color-muted-bg)]/40 transition">
-                    {/* Member & Rank */}
-                    <td className="py-3.5 px-3">
-                      <div className="flex items-center gap-3">
-                        <span className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] shrink-0 ${rankStyle}`}>
-                          {rankBadge}
-                        </span>
-                        <Avatar
-                          src={item.user.image}
-                          name={item.user.name}
-                          alt={`${item.user.name} avatar`}
-                          className="h-8 w-8 text-xs shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-semibold text-[color:var(--color-text)] truncate">{item.user.name}</p>
-                            <span className="rounded border border-[color:var(--color-accent)]/30 bg-[color:var(--color-accent)]/10 px-1.5 py-0.2 text-[10px] font-bold text-[color:var(--color-accent)]">
-                              {item.performanceScore ?? 0} pts
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-[color:var(--color-text-subtle)]">{item.user.role}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Completed Tasks */}
-                    <td className="py-3.5 px-3 font-semibold text-[color:var(--color-text)]">
-                      {item.completedTasks} / {item.totalAssigned}
-                    </td>
-
-                    {/* Late Delivery Ratio */}
-                    <td className="py-3.5 px-3">
-                      {item.completedLate > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-400">
-                          🚨 {item.completedLate} ({latePercent}%)
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-                          ✓ On Time
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Check-In (Total Days / Late Days) */}
-                    <td className="py-3.5 px-3">
-                      <span className="font-semibold text-[color:var(--color-text)]" title={`${item.lateArrivals} late check-ins out of ${item.attendanceDays} days`}>
-                        {item.attendanceDays} /{" "}
-                        <span className={item.lateArrivals > 0 ? "text-rose-400 font-bold" : "text-emerald-400"}>
-                          {item.lateArrivals}
-                        </span>
-                      </span>
-                    </td>
-
-                    {/* Utilization Rate & Daily Avg Duty */}
-                    <td className="py-3.5 px-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`font-bold ${item.utilizationPercent >= 70 ? "text-emerald-400" : "text-amber-400"}`}>
-                            ⚡ {item.utilizationPercent}%
-                          </span>
-                          <span className="text-[10px] text-[color:var(--color-text-subtle)]">Utilized</span>
-                        </div>
-                        <div className="text-[11px] text-[color:var(--color-text-muted)] font-medium">
-                          {item.totalDutyHours ?? item.officeHours}h <span className="text-[color:var(--color-text-subtle)]">({item.avgDutyHoursPerDay ?? 0}h/day avg)</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Time Distribution Percentages */}
-                    <td className="py-3.5 px-3">
-                      {item.distribution?.length > 0 ? (
-                        <div className="flex flex-wrap gap-1 max-w-xs">
-                          {item.distribution.map((d) => (
-                            <span
-                              key={d.label}
-                              className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-muted-bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--color-text)]"
-                              title={`${d.hours} hours logged`}
-                            >
-                              {d.percent}% {d.label}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-[color:var(--color-text-subtle)] italic">No time breakdown</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Junior Interns Performance & Accountability Table */}
+      {renderScorecardTable(
+        internScorecards,
+        "Junior Interns Performance & Accountability",
+        "Evaluated against custom intern shift start times (e.g. Saad 6:30 PM, Sabir 9:00 PM)."
+      )}
 
       {/* Stage-Wise & Activity Breakdown */}
       <div className="grid gap-6 lg:grid-cols-3">
