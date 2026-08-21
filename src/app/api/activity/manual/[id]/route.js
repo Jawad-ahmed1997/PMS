@@ -88,16 +88,18 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  const hasTimeUpdate = Object.prototype.hasOwnProperty.call(body ?? {}, "endTime");
-  if (
-    hasTimeUpdate &&
-    isManualLogInFuture({
-      date: targetDateInput,
-      startTime: existingStartTime,
-      endTime: body.endTime,
-    }, new Date(), userTimeZone)
-  ) {
-    return buildError("Manual logs cannot be in the future.", 400);
+  const hasEndTimeProvided = body?.endTime !== undefined && body?.endTime !== null && String(body.endTime).trim() !== "";
+  
+  if (hasEndTimeProvided) {
+    if (
+      isManualLogInFuture({
+        date: targetDateInput,
+        startTime: existingStartTime,
+        endTime: body.endTime,
+      }, new Date(), userTimeZone)
+    ) {
+      return buildError("Manual logs cannot be in the future.", 400);
+    }
   }
 
   if (!isManualLogDateAllowed(log.date, new Date(), userTimeZone)) {
@@ -122,10 +124,7 @@ export async function PATCH(request, { params }) {
 
   let extraSegments = [];
 
-  if (hasTimeUpdate) {
-    if (!body?.endTime) {
-      return buildError("End time is required to complete this manual activity.", 400);
-    }
+  if (hasEndTimeProvided) {
     const { startAt, endAt, durationSeconds, error: timeError } =
       buildManualLogTimes({
         date: targetDateInput,

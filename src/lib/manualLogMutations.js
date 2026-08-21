@@ -323,7 +323,13 @@ export async function findRunningManualLog(prismaClient, { userId, excludeId }) 
       endAt: null,
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
-    select: { id: true, startAt: true },
+    select: {
+      id: true,
+      description: true,
+      categories: true,
+      startAt: true,
+      date: true,
+    },
     orderBy: { startAt: "desc" },
   });
 }
