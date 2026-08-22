@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchJson } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import RefreshButton from "@/components/ui/RefreshButton";
 import { Sheet } from "@/components/ui/sheet";
@@ -321,11 +322,7 @@ export default function ActivityDashboard({
       if (selectedUser?.id && isManager) {
         params.set("userId", selectedUser.id);
       }
-      const response = await fetch(`/api/activity?${params.toString()}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error ?? "Unable to load activity logs.");
-      }
+      const data = await fetchJson(`/api/activity?${params.toString()}`);
       return data?.activityLogs ?? [];
     },
     enabled: Boolean(isHydrated && selectedDate),
@@ -364,13 +361,9 @@ export default function ActivityDashboard({
 
     const loadCounts = async () => {
       try {
-        const response = await fetch(
+        const data = await fetchJson(
           `/api/comments?entityType=MANUAL_LOG&entityIds=${manualLogIds.join(",")}`
         );
-        const data = await response.json();
-        if (!response.ok) {
-          return;
-        }
         const counts = {};
         (data?.comments ?? []).forEach((comment) => {
           counts[comment.entityId] = (counts[comment.entityId] ?? 0) + 1;
@@ -470,13 +463,9 @@ export default function ActivityDashboard({
       return;
     }
     try {
-      const response = await fetch(`/api/activity-logs/${log.id}`, {
+      await fetchJson(`/api/activity-logs/${log.id}`, {
         method: "DELETE",
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error ?? "Unable to delete activity log.");
-      }
       addToast({
         title: "Log deleted",
         message: "Manual activity removed.",
@@ -563,7 +552,7 @@ export default function ActivityDashboard({
 
     setIsSavingLog(true);
     try {
-      const response = await fetch(
+      const data = await fetchJson(
         logDialog.mode === "edit" && activeLog
           ? `/api/activity/manual/${activeLog.id}`
           : "/api/activity/manual",
@@ -573,10 +562,6 @@ export default function ActivityDashboard({
           body: JSON.stringify(payload),
         }
       );
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error ?? "Unable to save activity log.");
-      }
       addToast({
         title: logDialog.mode === "edit" ? "Log updated" : "Log created",
         message:

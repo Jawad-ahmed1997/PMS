@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isNotificationSoundMuted } from "@/lib/notificationPreferences";
+import { fetchJson } from "@/lib/apiClient";
 
 const DEFAULT_COUNTS = {
   total: 0,
@@ -33,20 +34,29 @@ export function NotificationCountsProvider({ children }) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
       const audioCtx = new AudioContext();
-      fetch("/notification.mp3")
-        .then((response) => response.arrayBuffer())
-        .then((arrayBuffer) => audioCtx.decodeAudioData(arrayBuffer))
-        .then((audioBuffer) => {
-          const source = audioCtx.createBufferSource();
-          source.buffer = audioBuffer;
-          // Set playbackRate.value to 0.55 to lower pitch even further and soften the beep
-          source.playbackRate.value = 0.55;
-          source.connect(audioCtx.destination);
-          source.start(0);
-        })
-        .catch((err) => {
-          console.warn("AudioContext play blocked or failed:", err);
-        });
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.3);
+
+      // In case browser requires user interaction for audio context
+      if (audioCtx.state === "suspended") {
+        audioCtx
+          .resume()
+          .then(() => {
+            const source = audioCtx.createBufferSource();
+            source.start(0);
+          })
+          .catch((err) => {
+            console.warn("AudioContext play blocked or failed:", err);
+          });
+      }
     } catch (err) {
       console.error("Failed to play notification beep sound:", err);
     }
@@ -55,25 +65,24 @@ export function NotificationCountsProvider({ children }) {
   const { data: queryData } = useQuery({
     queryKey: ["notificationCounts"],
     queryFn: async () => {
-      const response = await fetch("/api/notifications/unread-counts", {
-        cache: "no-store",
-      });
-      if (response.status === 401) {
-        if (typeof window !== "undefined") {
-          window.location.href = "/login?denied=1&reason=Session%20expired.%20Please%20sign%20in%20again.";
+      try {
+        const data = await fetchJson("/api/notifications/unread-counts", {
+          cache: "no-store",
+        });
+        return {
+          total: data?.unreadCounts?.total ?? 0,
+          taskMovement: data?.unreadCounts?.taskMovement ?? 0,
+          creation: data?.unreadCounts?.creation ?? 0,
+          log: data?.unreadCounts?.log ?? 0,
+        };
+      } catch (err) {
+        if (err?.message?.includes("401") || err?.message?.includes("Session")) {
+          if (typeof window !== "undefined") {
+            window.location.href = "/login?denied=1&reason=Session%20expired.%20Please%20sign%20in%20again.";
+          }
         }
-        throw new Error("Session expired");
+        throw err;
       }
-      if (!response.ok) {
-        throw new Error("Failed to fetch unread counts");
-      }
-      const data = await response.json();
-      return {
-        total: data.unreadCounts?.total ?? 0,
-        taskMovement: data.unreadCounts?.taskMovement ?? 0,
-        creation: data.unreadCounts?.creation ?? 0,
-        log: data.unreadCounts?.log ?? 0,
-      };
     },
     refetchInterval: 15000, // Poll every 15 seconds (auto-paused when tab is inactive)
     staleTime: 5000,

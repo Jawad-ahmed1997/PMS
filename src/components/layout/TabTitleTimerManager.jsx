@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { useNotificationCounts } from "@/components/notifications/NotificationCountsContext";
+import { fetchJson } from "@/lib/apiClient";
 
 function formatHHMMSS(totalSeconds = 0) {
   const value = Math.max(0, Math.floor(Number(totalSeconds) || 0));
@@ -35,15 +36,10 @@ export default function TabTitleTimerManager({ session }) {
 
   // Fetch / Sync Task Session
   const fetchTaskSession = useCallback(async () => {
-    if (!session) return;
+    if (!session || (typeof document !== "undefined" && document.hidden)) return;
     try {
-      const res = await fetch("/api/tasks/active-session", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setTaskSession(data?.active ? data : null);
-      } else {
-        setTaskSession(null);
-      }
+      const data = await fetchJson("/api/tasks/active-session", { cache: "no-store" });
+      setTaskSession(data?.active ? data : null);
     } catch (e) {
       setTaskSession(null);
     }
@@ -98,11 +94,13 @@ export default function TabTitleTimerManager({ session }) {
     window.addEventListener("focus", fetchTaskSession);
     window.addEventListener("focus", syncManualState);
 
-    // Poll task session every 10 seconds
+    // Poll task session every 20 seconds (only if active/focused)
     const pollInterval = setInterval(() => {
-      fetchTaskSession();
-      syncManualState();
-    }, 10000);
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchTaskSession();
+        syncManualState();
+      }
+    }, 20000);
 
     return () => {
       window.removeEventListener("pms:timer-changed", handleTimerChange);
