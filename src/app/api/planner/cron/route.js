@@ -14,6 +14,8 @@ async function executeCronRunner(request) {
       }
     }
 
+    const { searchParams } = new URL(request.url);
+    const job = searchParams.get("job"); // e.g. "daily_ai_manager", "weekly_email_report"
     const now = new Date();
 
     // 2. Process Pending Custom Event Notifications
@@ -82,15 +84,18 @@ async function executeCronRunner(request) {
     let emailReportsSent = 0;
     let aiDoctorReportsRun = 0;
 
+    const shouldRunDailyAi = job === "daily_ai_manager" || (!job && hour === 2);
+    const shouldRunWeeklyEmail = job === "weekly_email_report" || (!job && day === "Sun" && hour === 14);
+
     // 4. Automated Daily AI Manager Reports at 2:00 AM PKT (or Saturday/Sunday audit)
-    if (hour === 2) {
+    if (shouldRunDailyAi) {
       const { runAiDoctorDiagnosis } = await import("@/lib/aiDoctorService");
       const activeUsers = await prisma.user.findMany({
         where: { status: "ACTIVE" },
         select: { id: true, name: true },
       });
 
-      // Target shift date is the completed day (e.g. yesterday relative to 2:00 AM)
+      // Target shift date is the completed day (yesterday relative to 2:00 AM)
       const targetDate = new Date(now.getTime() - 4 * 3600 * 1000);
       const isWeekendWeeklyAudit = day === "Sat" || day === "Sun";
       const periodType = isWeekendWeeklyAudit ? "WEEKLY" : "DAILY";
@@ -130,7 +135,7 @@ async function executeCronRunner(request) {
     }
 
     // 5. Automated Weekly Performance Email Reports on Sunday at 2:00 PM PKT (14:00)
-    if (day === "Sun" && hour === 14) {
+    if (shouldRunWeeklyEmail) {
       const { sendPerformanceReportEmail } = await import("@/lib/sendPerformanceReportEmail");
       const activeUsers = await prisma.user.findMany({
         where: { status: "ACTIVE" },
@@ -148,6 +153,7 @@ async function executeCronRunner(request) {
     }
 
     return buildSuccess("Planner cron processed successfully.", {
+      job: job || "auto",
       timePkt: `${day} ${hour}:00 PKT`,
       processedCount,
       emailReportsSent,
