@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sheet } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNotificationCounts } from "@/components/notifications/NotificationCountsContext";
+import { fetchJson } from "@/lib/apiClient";
 
 const TABS = [
   { id: "all", label: "All", query: null },
@@ -88,24 +89,24 @@ export default function NotificationSheet({ isOpen, onClose }) {
   const loadNotifications = async () => {
     setIsLoading(true);
     const query = activeQuery ? `?tab=${activeQuery}` : "";
-    const response = await fetch(`/api/notifications${query}`, {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      setIsLoading(false);
-      return;
-    }
-    const data = await response.json();
-    if (data?.ok) {
-      setNotifications(data.notifications ?? []);
-      setCounts({
-        total: data.unreadCounts?.total ?? 0,
-        taskMovement: data.unreadCounts?.taskMovement ?? 0,
-        creation: data.unreadCounts?.creation ?? 0,
-        log: data.unreadCounts?.log ?? 0,
+    try {
+      const data = await fetchJson(`/api/notifications${query}`, {
+        cache: "no-store",
       });
+      if (data?.ok) {
+        setNotifications(data.notifications ?? []);
+        setCounts({
+          total: data.unreadCounts?.total ?? 0,
+          taskMovement: data.unreadCounts?.taskMovement ?? 0,
+          creation: data.unreadCounts?.creation ?? 0,
+          log: data.unreadCounts?.log ?? 0,
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to load notifications", err);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -117,13 +118,14 @@ export default function NotificationSheet({ isOpen, onClose }) {
   }, [activeQuery, isOpen]);
 
   const handleMarkAllRead = async () => {
-    const response = await fetch("/api/notifications/mark-all-read", {
-      method: "PATCH",
-    });
-    if (!response.ok) {
-      return;
+    try {
+      await fetchJson("/api/notifications/mark-all-read", {
+        method: "PATCH",
+      });
+      await loadNotifications();
+    } catch (err) {
+      console.warn("Failed to mark all read", err);
     }
-    await loadNotifications();
   };
 
   const resolveNotificationLink = async (notification) => {
@@ -136,10 +138,9 @@ export default function NotificationSheet({ isOpen, onClose }) {
         return `/projects/${projectId}/milestones/${milestoneId}?taskId=${taskId}&tab=overview`;
       }
       try {
-        const response = await fetch(`/api/tasks/${taskId}`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/tasks/${taskId}`);
         const taskMilestone = data?.task?.milestone;
-        if (response.ok && taskMilestone?.projectId && taskMilestone?.id) {
+        if (taskMilestone?.projectId && taskMilestone?.id) {
           return `/projects/${taskMilestone.projectId}/milestones/${taskMilestone.id}?taskId=${taskId}&tab=overview`;
         }
       } catch (error) {
@@ -151,9 +152,8 @@ export default function NotificationSheet({ isOpen, onClose }) {
         return `/projects/${projectId}/milestones/${milestoneId}`;
       }
       try {
-        const response = await fetch(`/api/milestones/${milestoneId}`);
-        const data = await response.json();
-        if (response.ok && data?.milestone?.projectId) {
+        const data = await fetchJson(`/api/milestones/${milestoneId}`);
+        if (data?.milestone?.projectId) {
           return `/projects/${data.milestone.projectId}/milestones/${milestoneId}`;
         }
       } catch (error) {
@@ -168,10 +168,14 @@ export default function NotificationSheet({ isOpen, onClose }) {
 
   const handleNotificationClick = async (notification) => {
     if (!notification?.readAt) {
-      await fetch(`/api/notifications/${notification.id}/read`, {
-        method: "PATCH",
-      });
-      await loadNotifications();
+      try {
+        await fetchJson(`/api/notifications/${notification.id}/read`, {
+          method: "PATCH",
+        });
+        await loadNotifications();
+      } catch (err) {
+        console.warn("Failed to mark notification read", err);
+      }
     }
 
     const link = await resolveNotificationLink(notification);

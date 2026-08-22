@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { DialogRoot as Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchJson, safeFetch } from "@/lib/apiClient";
 
 const STORAGE_KEY_POS_X = "activity_timer_pos_x";
 const STORAGE_KEY_POS_Y = "activity_timer_pos_y";
@@ -254,32 +255,33 @@ export default function FloatingActivityTimer({ session }) {
 
     try {
       // 1. Fetch active attendance status (handles Auto-Off logic) first to get the correct duty date
-      const statusRes = await fetch(`/api/attendance/current-status`, { cache: "no-store" });
       let currentStatus = null;
       let targetDutyDate = getTodayDateStr(); // fallback
 
-      if (statusRes.ok) {
-        const statusData = await statusRes.json();
+      try {
+        const statusData = await fetchJson(`/api/attendance/current-status`, { cache: "no-store" });
         setOnDuty(Boolean(statusData?.onDuty));
         currentStatus = statusData;
         if (statusData?.dutyDate) {
           targetDutyDate = statusData.dutyDate;
           setDutyDate(statusData.dutyDate);
         }
+      } catch (err) {
+        console.warn("Failed to fetch current-status", err);
       }
 
       // 2. Fetch Activity logs using targetDutyDate
-      const actRes = await fetch(`/api/activity?startDate=${targetDutyDate}&endDate=${targetDutyDate}`, { cache: "no-store" });
-      if (actRes.ok) {
-        const actData = await actRes.json();
+      try {
+        const actData = await fetchJson(`/api/activity?startDate=${targetDutyDate}&endDate=${targetDutyDate}`, { cache: "no-store" });
         const logs = actData?.activityLogs || [];
         setTodayLogs(logs.filter(l => l.type === "MANUAL"));
+      } catch (err) {
+        console.warn("Failed to fetch activity logs", err);
       }
 
       // 3. Fetch Attendance records using targetDutyDate
-      const attRes = await fetch(`/api/attendance?from=${targetDutyDate}&to=${targetDutyDate}`, { cache: "no-store" });
-      if (attRes.ok) {
-        const attData = await attRes.json();
+      try {
+        const attData = await fetchJson(`/api/attendance?from=${targetDutyDate}&to=${targetDutyDate}`, { cache: "no-store" });
         const records = attData?.attendance || [];
         if (records.length > 0) {
           setActiveAttendanceId(records[0].id);
@@ -288,6 +290,8 @@ export default function FloatingActivityTimer({ session }) {
           setActiveAttendanceId(null);
           setTodayBreaks([]);
         }
+      } catch (err) {
+        console.warn("Failed to fetch attendance", err);
       }
 
       // Auto-off check
@@ -331,57 +335,55 @@ export default function FloatingActivityTimer({ session }) {
   useEffect(() => {
     const syncWithServer = async () => {
       try {
-        const res = await fetch("/api/activity/manual/running");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.runningLog) {
-            const runningLog = data.runningLog;
-            const startAtMs = new Date(runningLog.startAt).getTime();
-            
-            // Check if there's also a running break
-            const breakRes = await fetch("/api/attendance/breaks/running");
-            let runningBreak = null;
-            if (breakRes.ok) {
-              const breakData = await breakRes.json();
-              runningBreak = breakData.runningBreak;
-            }
+        const data = await fetchJson("/api/activity/manual/running");
+        if (data?.runningLog) {
+          const runningLog = data.runningLog;
+          const startAtMs = new Date(runningLog.startAt).getTime();
+          
+          // Check if there's also a running break
+          let runningBreak = null;
+          try {
+            const breakData = await fetchJson("/api/attendance/breaks/running");
+            runningBreak = breakData?.runningBreak || null;
+          } catch (err) {
+            console.warn("Failed to fetch running break", err);
+          }
 
-            const activeBreakObj = runningBreak ? {
-              type: runningBreak.types?.[0] || "OTHER",
-              notes: runningBreak.notes || "",
-              startAt: new Date(runningBreak.startAt).getTime(),
-              dbBreakId: runningBreak.id
-            } : null;
+          const activeBreakObj = runningBreak ? {
+            type: runningBreak.types?.[0] || "OTHER",
+            notes: runningBreak.notes || "",
+            startAt: new Date(runningBreak.startAt).getTime(),
+            dbBreakId: runningBreak.id
+          } : null;
 
             let accumulatedSeconds = 0;
             if (runningBreak) {
               accumulatedSeconds = Math.max(0, Math.floor((new Date(runningBreak.startAt).getTime() - startAtMs) / 1000));
             }
 
-            const state = {
-              running: true,
-              paused: Boolean(runningBreak),
-              startTime: runningBreak ? null : startAtMs,
-              accumulatedSeconds,
-              description: runningLog.description || timerStateRef.current?.description || "Manual activity",
-              currentBreak: activeBreakObj,
-              breaks: [],
-              dbLogId: runningLog.id
-            };
+          const state = {
+            running: true,
+            paused: Boolean(runningBreak),
+            startTime: runningBreak ? null : startAtMs,
+            accumulatedSeconds,
+            description: runningLog.description || timerStateRef.current?.description || "Manual activity",
+            currentBreak: activeBreakObj,
+            breaks: [],
+            dbLogId: runningLog.id
+          };
+          saveState(state);
+        } else {
+          // No running log on server. If frontend thinks it is running, clear it!
+          if (timerStateRef.current?.running) {
+            const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [] };
             saveState(state);
-          } else {
-            // No running log on server. If frontend thinks it is running, clear it!
-            if (timerStateRef.current?.running) {
-              const state = { running: false, paused: false, startTime: null, accumulatedSeconds: 0, description: "", currentBreak: null, breaks: [] };
-              saveState(state);
-              setActiveSeconds(0);
-              setBreakSeconds(0);
-              addToast({
-                title: "Timer Stopped",
-                message: "Your manual activity timer was stopped or auto-saved.",
-                variant: "info",
-              });
-            }
+            setActiveSeconds(0);
+            setBreakSeconds(0);
+            addToast({
+              title: "Timer Stopped",
+              message: "Your manual activity timer was stopped or auto-saved.",
+              variant: "info",
+            });
           }
         }
       } catch (e) {
@@ -440,11 +442,8 @@ export default function FloatingActivityTimer({ session }) {
   useEffect(() => {
     const checkTaskSession = async () => {
       try {
-        const res = await fetch("/api/tasks/active-session", { cache: "no-store" });
-        if (res.ok) {
-          const data = await res.json();
-          setIsTaskTimerActive(Boolean(data?.active));
-        }
+        const data = await fetchJson("/api/tasks/active-session", { cache: "no-store" });
+        setIsTaskTimerActive(Boolean(data?.active));
       } catch (e) {}
     };
     checkTaskSession();
@@ -511,17 +510,14 @@ export default function FloatingActivityTimer({ session }) {
 
     // Block if task timer is currently active on server
     try {
-      const activeTaskRes = await fetch("/api/tasks/active-session", { cache: "no-store" });
-      if (activeTaskRes.ok) {
-        const activeTaskData = await activeTaskRes.json();
-        if (activeTaskData?.active) {
-          addToast({
-            title: "Task Timer Running",
-            message: "Please pause or stop your active task timer before starting a manual activity.",
-            variant: "error"
-          });
-          return;
-        }
+      const activeTaskData = await fetchJson("/api/tasks/active-session", { cache: "no-store" });
+      if (activeTaskData?.active) {
+        addToast({
+          title: "Task Timer Running",
+          message: "Please pause or stop your active task timer before starting a manual activity.",
+          variant: "error"
+        });
+        return;
       }
     } catch (e) {
       console.error(e);
@@ -541,9 +537,8 @@ export default function FloatingActivityTimer({ session }) {
     try {
       const now = new Date();
       const startTimeStr = getTimeStrInTZ(now, userTimeZone);
-      const dateStr = getDateStrInTZ(now, userTimeZone);
 
-      const res = await fetch("/api/activity/manual", {
+      const data = await fetchJson("/api/activity/manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -554,11 +549,6 @@ export default function FloatingActivityTimer({ session }) {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to start activity on server.");
-      }
-
       const state = {
         running: true,
         paused: false,
@@ -567,7 +557,7 @@ export default function FloatingActivityTimer({ session }) {
         description: startForm.description.trim(),
         currentBreak: null,
         breaks: [],
-        dbLogId: data.activityLog.id
+        dbLogId: data.activityLog?.id
       };
       saveState(state);
       setShowStartModal(false);
@@ -591,7 +581,7 @@ export default function FloatingActivityTimer({ session }) {
   const handleConfirmPauseBreak = async () => {
     try {
       const notes = breakForm.breakType === "OTHER" ? breakForm.otherText.trim() : "";
-      const res = await fetch("/api/attendance/breaks/start", {
+      const data = await fetchJson("/api/attendance/breaks/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -600,11 +590,6 @@ export default function FloatingActivityTimer({ session }) {
           notes
         }),
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to start break in database.");
-      }
 
       const elapsed = Math.floor((Date.now() - timerState.startTime) / 1000);
       const state = {
@@ -616,7 +601,7 @@ export default function FloatingActivityTimer({ session }) {
           type: breakForm.breakType,
           notes,
           startAt: Date.now(),
-          dbBreakId: data.break.id
+          dbBreakId: data.break?.id
         }
       };
       saveState(state);
@@ -642,7 +627,7 @@ export default function FloatingActivityTimer({ session }) {
       // Discard break interval if less than 30 seconds
       if (breakDurationSeconds < 30) {
         if (dbBreakId) {
-          await fetch(`/api/attendance/breaks/${dbBreakId}`, { method: "DELETE" });
+          await safeFetch(`/api/attendance/breaks/${dbBreakId}`, { method: "DELETE" }).catch(() => null);
         }
 
         addToast({
@@ -664,11 +649,7 @@ export default function FloatingActivityTimer({ session }) {
       }
 
       // End active break in database
-      const res = await fetch("/api/attendance/breaks/end", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to end break in database.");
-      }
+      await fetchJson("/api/attendance/breaks/end", { method: "POST" });
 
       const state = {
         ...timerState,
@@ -707,19 +688,17 @@ export default function FloatingActivityTimer({ session }) {
     // Persist to server if dbLogId is present
     if (timerState.dbLogId) {
       try {
-        const res = await fetch(`/api/activity/manual/${timerState.dbLogId}`, {
+        await fetchJson(`/api/activity/manual/${timerState.dbLogId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ description: newDesc }),
         });
-        if (res.ok) {
-          addToast({
-            title: "Description updated",
-            message: "Activity summary updated while running.",
-            variant: "success",
-          });
-          fetchTodayData();
-        }
+        addToast({
+          title: "Description updated",
+          message: "Activity summary updated while running.",
+          variant: "success",
+        });
+        fetchTodayData();
       } catch (err) {
         console.error("Failed to update description on server:", err);
       }
@@ -763,10 +742,10 @@ export default function FloatingActivityTimer({ session }) {
         const dbBreakId = timerState.currentBreak.dbBreakId;
         if (breakDurationSeconds < 30) {
           if (dbBreakId) {
-            await fetch(`/api/attendance/breaks/${dbBreakId}`, { method: "DELETE" });
+            await safeFetch(`/api/attendance/breaks/${dbBreakId}`, { method: "DELETE" }).catch(() => null);
           }
         } else {
-          await fetch("/api/attendance/breaks/end", { method: "POST" });
+          await fetchJson("/api/attendance/breaks/end", { method: "POST" });
         }
       }
 
@@ -774,7 +753,7 @@ export default function FloatingActivityTimer({ session }) {
       const finalDescription = (stopForm.description || timerState.description || "").trim() || "Manual activity";
       const now = new Date();
       const endTimeStr = getTimeStrInTZ(now, userTimeZone);
-      const res = await fetch(`/api/activity/manual/${timerState.dbLogId}`, {
+      await fetchJson(`/api/activity/manual/${timerState.dbLogId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -783,11 +762,6 @@ export default function FloatingActivityTimer({ session }) {
           endTime: endTimeStr,
         }),
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to save activity log.");
-      }
 
       addToast({
         title: "Activity Saved",
@@ -827,10 +801,10 @@ export default function FloatingActivityTimer({ session }) {
   const handleConfirmDiscard = async () => {
     try {
       if (timerState.dbLogId) {
-        await fetch(`/api/activity-logs/${timerState.dbLogId}`, { method: "DELETE" });
+        await safeFetch(`/api/activity-logs/${timerState.dbLogId}`, { method: "DELETE" }).catch(() => null);
       }
       if (timerState.paused && timerState.currentBreak?.dbBreakId) {
-        await fetch(`/api/attendance/breaks/${timerState.currentBreak.dbBreakId}`, { method: "DELETE" });
+        await safeFetch(`/api/attendance/breaks/${timerState.currentBreak.dbBreakId}`, { method: "DELETE" }).catch(() => null);
       }
     } catch (e) {
       console.error("Failed to delete discarded log/breaks:", e);
