@@ -32,11 +32,12 @@ import {
   X,
 } from "lucide-react";
 import { useToast } from "@/components/ui/ToastProvider";
+import { fetchJson } from "@/lib/apiClient";
 import ReportPdfPrintView from "./ReportPdfPrintView";
 
 export default function AiManagerDashboard({ session, initialUsers = [], initialReports = [] }) {
   const { addToast } = useToast();
-  const [activeTab, setActiveTab] = useState("generator"); // "generator" | "grid"
+  const [activeTab, setActiveTab] = useState("grid"); // "grid" (Saved Reports) by default | "generator"
   const [loading, setLoading] = useState(false);
   const [runningDiagnosis, setRunningDiagnosis] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -64,6 +65,7 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
   // Modals state
   const [viewingReport, setViewingReport] = useState(null);
   const [printingReport, setPrintingReport] = useState(null);
+  const [reportToDelete, setReportToDelete] = useState(null);
 
   // Table filter states
   const [tableSearch, setTableSearch] = useState("");
@@ -79,10 +81,9 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
       if (type === "custom" && customStartDate) params.append("startDate", customStartDate);
       if (type === "custom" && customEndDate) params.append("endDate", customEndDate);
 
-      const res = await fetch(`/api/ai-manager?${params.toString()}`);
-      const data = await res.json();
+      const data = await fetchJson(`/api/ai-manager?${params.toString()}`);
 
-      if (data.ok) {
+      if (data?.ok) {
         const loadedReports = data.reports || data.data?.reports || [];
         const loadedUsers = data.teamUsers || data.data?.teamUsers || [];
         setReports(loadedReports);
@@ -101,7 +102,7 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
   };
 
   useEffect(() => {
-    if (selectedUserId) {
+    if (selectedUserId || activeTab === "grid") {
       fetchReports(selectedUserId, period);
     }
   }, [selectedUserId, period, activeTab]);
@@ -138,14 +139,13 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
         payload.customEndDate = customEndDate;
       }
 
-      const res = await fetch("/api/ai-manager", {
+      const data = await fetchJson("/api/ai-manager", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (data.ok) {
+      if (data?.ok) {
         const freshReport = data.report || data.data?.report || data;
         setSelectedReport(freshReport);
         setReports((prev) => [freshReport, ...prev.filter((r) => r.id !== freshReport.id)]);
@@ -157,7 +157,7 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
       } else {
         addToast({
           title: "Audit Failed",
-          message: data.message || "Unable to generate AI Manager report.",
+          message: data?.message || "Unable to generate AI Manager report.",
           variant: "error",
         });
       }
@@ -165,7 +165,7 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
       console.error("Error running diagnosis:", err);
       addToast({
         title: "Error",
-        message: "Network error while connecting to AI Manager.",
+        message: err instanceof Error ? err.message : "Network error while connecting to AI Manager.",
         variant: "error",
       });
     } finally {
@@ -173,20 +173,17 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
     }
   };
 
-  const handleDeleteReport = async (reportId, e) => {
-    if (e) e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this AI Manager report? This cannot be undone.")) {
-      return;
-    }
+  const handleConfirmDelete = async () => {
+    if (!reportToDelete?.id) return;
+    const reportId = reportToDelete.id;
 
     try {
       setDeletingId(reportId);
-      const res = await fetch(`/api/ai-manager?id=${reportId}`, {
+      const data = await fetchJson(`/api/ai-manager?id=${reportId}`, {
         method: "DELETE",
       });
-      const data = await res.json();
 
-      if (data.ok) {
+      if (data?.ok) {
         setReports((prev) => prev.filter((r) => r.id !== reportId));
         if (selectedReport?.id === reportId) {
           const remaining = reports.filter((r) => r.id !== reportId);
@@ -195,6 +192,7 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
         if (viewingReport?.id === reportId) {
           setViewingReport(null);
         }
+        setReportToDelete(null);
         addToast({
           title: "Report Deleted",
           message: "The audit report has been permanently removed.",
@@ -203,7 +201,7 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
       } else {
         addToast({
           title: "Delete Failed",
-          message: data.message || "Could not delete the report.",
+          message: data?.message || "Could not delete the report.",
           variant: "error",
         });
       }
@@ -211,7 +209,7 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
       console.error("Error deleting report:", err);
       addToast({
         title: "Error",
-        message: "Network error while deleting report.",
+        message: err instanceof Error ? err.message : "Network error while deleting report.",
         variant: "error",
       });
     } finally {
@@ -846,16 +844,15 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
 
                             {/* Delete */}
                             <button
-                              onClick={(e) => handleDeleteReport(report.id, e)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReportToDelete(report);
+                              }}
                               disabled={deletingId === report.id}
-                              className="inline-flex items-center justify-center rounded-lg border border-slate-700/80 bg-slate-800/60 p-1.5 text-slate-400 hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-rose-300 transition-all"
+                              className="inline-flex items-center justify-center rounded-lg border border-slate-700/80 bg-slate-800/60 p-1.5 text-slate-400 hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-rose-300 transition-all cursor-pointer"
                               title="Delete Report"
                             >
-                              {deletingId === report.id ? (
-                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
-                              )}
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </td>
@@ -899,6 +896,15 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
                 >
                   <Printer className="h-3.5 w-3.5" />
                   <span>Print PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReportToDelete(viewingReport)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-500 hover:text-white transition-all cursor-pointer shadow"
+                  title="Delete Report"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete</span>
                 </button>
                 <button
                   type="button"
@@ -978,6 +984,72 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ================= CONFIRM DELETE REPORT MODAL ================= */}
+      {reportToDelete && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !deletingId) setReportToDelete(null);
+          }}
+          className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/95 p-6 shadow-2xl space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/15 text-rose-400">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-100">Delete Audit Report</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Are you sure you want to delete the <span className="font-bold text-slate-200">{reportToDelete.type}</span> audit report for <strong className="text-indigo-400">{reportToDelete.user?.name || "Developer"}</strong>?
+                </p>
+                <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/70 p-2.5 text-[11px] text-slate-400">
+                  <div className="flex justify-between">
+                    <span>Audit Date:</span>
+                    <strong className="text-slate-200">{reportToDelete.date ? new Date(reportToDelete.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A"}</strong>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span>Productivity Score:</span>
+                    <strong className="text-emerald-400">{reportToDelete.healthScore ?? 0}/100</strong>
+                  </div>
+                </div>
+                <p className="text-[11px] text-rose-400/90 font-medium pt-1">
+                  This action is permanent and cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-800/80 pt-4">
+              <button
+                type="button"
+                disabled={Boolean(deletingId)}
+                onClick={() => setReportToDelete(null)}
+                className="rounded-xl border border-slate-700 bg-slate-800/90 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(deletingId)}
+                onClick={handleConfirmDelete}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500 active:scale-95 transition-all shadow-lg shadow-rose-600/30 disabled:opacity-50 cursor-pointer"
+              >
+                {deletingId ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete Report</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
