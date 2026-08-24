@@ -67,29 +67,46 @@ export async function runAiManagerDiagnosis({
     endDate.setHours(23, 59, 59, 999);
   }
 
-  const dateFilter = { gte: startDate, lte: endDate };
+  const daysList = [];
+  let curr = new Date(startDate);
+  while (curr <= endDate) {
+    daysList.push(new Date(curr));
+    curr.setDate(curr.getDate() + 1);
+  }
+
+  // Expanded query bounds (covers timezone offsets like UTC+5 where midnight is previous day 19:00 UTC)
+  const expandedDateFilter = {
+    gte: new Date(startDate.getTime() - 24 * 3600 * 1000),
+    lte: new Date(endDate.getTime() + 24 * 3600 * 1000),
+  };
 
   // 1. Gather all attendance, activity logs, and timer work sessions
   const [attendances, activityLogs, workSessions, ownedTasks, statusChanges] = await Promise.all([
     prisma.attendance.findMany({
-      where: { userId, date: dateFilter },
+      where: { userId, date: expandedDateFilter },
       include: { breaks: true, wfhIntervals: true },
-      orderBy: { date: "asc" },
+      orderBy: { inTime: "asc" },
     }),
     prisma.activityLog.findMany({
-      where: { userId, date: dateFilter },
+      where: {
+        userId,
+        OR: [
+          { date: expandedDateFilter },
+          { startAt: expandedDateFilter },
+        ],
+      },
       include: { task: { select: { id: true, title: true, type: true, status: true } } },
       orderBy: { date: "asc" },
     }),
     prisma.taskWorkSession.findMany({
-      where: { userId, startedAt: dateFilter },
+      where: { userId, startedAt: expandedDateFilter },
       include: { task: { select: { id: true, title: true, type: true, status: true } } },
       orderBy: { startedAt: "asc" },
     }),
     prisma.task.findMany({
       where: {
         ownerId: userId,
-        updatedAt: dateFilter,
+        updatedAt: expandedDateFilter,
       },
       select: {
         id: true,
@@ -105,7 +122,7 @@ export async function runAiManagerDiagnosis({
     prisma.taskStatusHistory.findMany({
       where: {
         changedById: userId,
-        changedAt: dateFilter,
+        changedAt: expandedDateFilter,
       },
       include: {
         task: { select: { id: true, title: true } },
@@ -114,25 +131,23 @@ export async function runAiManagerDiagnosis({
     }),
   ]);
 
-  // 2. Compute Timeline Totals
-  const daysList = [];
-  let curr = new Date(startDate);
-  while (curr <= endDate && curr <= now) {
-    daysList.push(new Date(curr));
-    curr.setDate(curr.getDate() + 1);
-  }
-
+  // 2. Compute Timeline Totals using unified timeline engine
+  const executionNow = new Date();
   let totalDutySeconds = 0;
   let totalWorkSeconds = 0;
   let totalBreakSeconds = 0;
   let totalIdleSeconds = 0;
+  const allTimelineSegments = [];
 
   for (const day of daysList) {
-    const dailyTimeline = await getUserDailyTimeline(prisma, userId, day, now);
+    const dailyTimeline = await getUserDailyTimeline(prisma, userId, day, executionNow);
     totalDutySeconds += dailyTimeline.totals?.dutySeconds ?? 0;
     totalWorkSeconds += dailyTimeline.totals?.workSeconds ?? 0;
     totalBreakSeconds += dailyTimeline.totals?.breakSeconds ?? 0;
     totalIdleSeconds += dailyTimeline.totals?.idleSeconds ?? 0;
+    if (Array.isArray(dailyTimeline.segments)) {
+      allTimelineSegments.push(...dailyTimeline.segments);
+    }
   }
 
   const totalDutyHours = Number((totalDutySeconds / 3600).toFixed(2));
@@ -300,6 +315,7 @@ ${logEntriesSummary || "No distinct activity logs recorded."}
     const modelsToTry = [
       "gemini-3.6-flash",
       "gemini-3.7-flash",
+      "gemini-2.0-flash",
     ];
 
     for (const model of modelsToTry) {

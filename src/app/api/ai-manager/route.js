@@ -9,6 +9,9 @@ import {
 } from "@/lib/api";
 import { runAiManagerDiagnosis } from "@/lib/aiManagerService";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 export async function GET(request) {
   const context = await getAuthContext();
   const authError = ensureAuthenticated(context);

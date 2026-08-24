@@ -264,7 +264,20 @@ export default function ActivityDashboard({
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState("");
   const [isSavingLog, setIsSavingLog] = useState(false);
+  const [expandedLogIds, setExpandedLogIds] = useState(new Set());
   const queryClient = useQueryClient();
+
+  const toggleExpandLog = (id) => {
+    setExpandedLogIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const [logForm, setLogForm] = useState({
     categories: ["LEARNING"],
@@ -768,7 +781,10 @@ export default function ActivityDashboard({
                   .map((category) => manualCategoryLabelMap.get(category) ?? category)
                   .filter(Boolean)
                 : [];
-              const badgeLabel = isManualLog
+              const isStatusJourney = Boolean(log.isStatusJourney);
+              const badgeLabel = isStatusJourney
+                ? "TASK STAGE"
+                : isManualLog
                 ? manualCategoryLabels.join(", ") || "Manual"
                 : "TASK";
               const commentCount = isManualLog
@@ -776,16 +792,18 @@ export default function ActivityDashboard({
                 : 0;
               const manualStatus = getManualStatus(log);
               const isRunningManual = isManualLog && manualStatus === "RUNNING";
-              const isRunningTask = !isManualLog && log.startAt !== undefined && log.startAt !== null && log.endAt === null;
+              const isRunningTask = !isManualLog && !isStatusJourney && log.startAt !== undefined && log.startAt !== null && log.endAt === null;
               const isPausedTask = isRunningTask && log.isPaused;
               const isRunning = isRunningManual || (isRunningTask && !isPausedTask);
               const runningDurationLabel = (isRunningManual || isRunningTask)
                 ? getRunningDurationLabel(log.startAt)
                 : null;
+              const isExpanded = expandedLogIds.has(log.id);
+
               return (
                 <div
                   key={log.id}
-                  className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5"
+                  className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-5 transition-all"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -871,36 +889,130 @@ export default function ActivityDashboard({
                       />
                     </div>
                   </div>
+
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[color:var(--color-text-subtle)]">
                     <span suppressHydrationWarning>
                       {isHydrated ? formatDateTime(log.date, userTimeZone) : ""}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm text-[color:var(--color-text)]">
+
+                  <p className="mt-2 text-sm text-[color:var(--color-text)] font-medium">
                     {log.description}
                   </p>
-                  {log.task ? (
+
+                  {/* 1. RENDER STATUS JOURNEY STEPPER & TIMELINE */}
+                  {isStatusJourney && Array.isArray(log.stages) && log.stages.length > 0 ? (
+                    <div className="mt-3">
+                      <div className="flex flex-wrap items-center gap-1.5 py-1">
+                        {log.stages.map((stage, idx) => {
+                          const isLast = idx === log.stages.length - 1;
+                          return (
+                            <div key={idx} className="inline-flex items-center gap-1.5">
+                              <span
+                                className={`rounded-md px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase ${
+                                  isLast
+                                    ? "border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 shadow-sm"
+                                    : "border border-[color:var(--color-border)] bg-[color:var(--color-input)] text-[color:var(--color-text-muted)]"
+                                }`}
+                              >
+                                {stage.replace(/_/g, " ")}
+                              </span>
+                              {!isLast ? (
+                                <span className="text-xs font-bold text-[color:var(--color-text-subtle)]">➔</span>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {log.stageHistory && log.stageHistory.length > 1 ? (
+                        <div className="mt-2.5">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandLog(log.id)}
+                            className="inline-flex items-center gap-1.5 text-xs text-[color:var(--color-accent)] hover:underline"
+                          >
+                            <span>{isExpanded ? "Hide transition history" : `View transition history (${log.stageHistory.length} updates)`}</span>
+                            <span className="text-[10px]">{isExpanded ? "▲" : "▼"}</span>
+                          </button>
+
+                          {isExpanded ? (
+                            <div className="mt-2 space-y-2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] p-3 text-xs">
+                              {log.stageHistory.map((step, sIdx) => (
+                                <div key={sIdx} className="flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--color-border)]/50 pb-1.5 last:border-0 last:pb-0">
+                                  <span className="text-[color:var(--color-text-muted)]">{step.description}</span>
+                                  <span className="font-mono text-[11px] text-[color:var(--color-text-subtle)]">
+                                    {formatTimeOnly(step.date, userTimeZone)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {/* 2. RENDER GROUPED WORK SESSIONS */}
+                  {log.isGroupedSessions && Array.isArray(log.sessions) && log.sessions.length > 1 ? (
+                    <div className="mt-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[color:var(--color-accent-muted)] px-2.5 py-0.5 text-xs font-medium text-[color:var(--color-accent)]">
+                          Total: {Math.floor((log.durationSeconds || 0) / 3600)}h {Math.floor(((log.durationSeconds || 0) % 3600) / 60)}m ({log.sessions.length} intervals)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandLog(log.id)}
+                          className="inline-flex items-center gap-1 text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text)] hover:underline"
+                        >
+                          <span>{isExpanded ? "Hide sessions" : "View session details"}</span>
+                          <span className="text-[10px]">{isExpanded ? "▲" : "▼"}</span>
+                        </button>
+                      </div>
+
+                      {isExpanded ? (
+                        <div className="mt-2 space-y-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] p-3 text-xs">
+                          {log.sessions.map((sess, sessIdx) => (
+                            <div key={sessIdx} className="flex items-center justify-between text-[color:var(--color-text-muted)]">
+                              <span>
+                                Interval {sessIdx + 1}: {formatTimeOnly(sess.startAt, userTimeZone)} - {sess.endAt ? formatTimeOnly(sess.endAt, userTimeZone) : "Now"}
+                              </span>
+                              <span className="font-mono text-[11px] text-[color:var(--color-text-subtle)]">
+                                {Math.floor((sess.durationSeconds || 0) / 60)} min
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {log.task && !isStatusJourney ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
                       Task: {log.task.title}
                     </p>
                   ) : null}
-                  {isManualLog && log.startAt && log.endAt ? (
+
+                  {!log.isGroupedSessions && isManualLog && log.startAt && log.endAt ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
                       Time: {formatTimeOnly(log.startAt, userTimeZone)} -{" "}
                       {formatTimeOnly(log.endAt, userTimeZone)}
                     </p>
                   ) : null}
-                  {(isRunningManual || isRunningTask) && log.startAt ? (
+
+                  {!log.isGroupedSessions && (isRunningManual || isRunningTask) && log.startAt ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
                       Time: {formatTimeOnly(log.startAt, userTimeZone)} • {isPausedTask ? "Paused" : "Running"}
                       {runningDurationLabel ? ` • ${runningDurationLabel}` : ""}
                     </p>
                   ) : null}
+
                   {isManualLog && manualCategoryLabels.length ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-muted)]">
                       Categories: {manualCategoryLabels.join(", ")}
                     </p>
                   ) : null}
+
                   {isManualLog ? (
                     <p className="mt-2 text-xs text-[color:var(--color-text-subtle)]">
                       Status: {manualStatus === "RUNNING" ? "Running" : "Completed"}

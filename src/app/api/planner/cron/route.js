@@ -2,6 +2,24 @@ import { prisma } from "@/lib/prisma";
 import { buildSuccess, buildError } from "@/lib/api";
 import { createNotification } from "@/lib/notifications";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+function getWeeklyBoundsForCron(now = new Date()) {
+  const dayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+  const startDate = new Date(now);
+  startDate.setDate(now.getDate() + distanceToMonday);
+  startDate.setHours(0, 0, 0, 0);
+
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + 5); // Monday + 5 days = Saturday
+  endDate.setHours(23, 59, 59, 999);
+
+  return { startDate, endDate };
+}
+
 async function executeCronRunner(request) {
   try {
     // 1. Verify cron authorization if CRON_SECRET is configured
@@ -82,12 +100,13 @@ async function executeCronRunner(request) {
     const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0); // 0-23
 
     let emailReportsSent = 0;
+    let skippedInactiveUsers = 0;
     let aiDoctorReportsRun = 0;
 
     const shouldRunDailyAi = job === "daily_ai_manager" || (!job && hour === 2);
     const shouldRunWeeklyEmail = job === "weekly_email_report" || (!job && day === "Sun" && hour === 14);
 
-    // 4. Automated Daily AI Manager Reports at 2:00 AM PKT (or Saturday/Sunday audit)
+    // 4. Automated Daily AI Manager Reports (Generated & Saved to DB only, every day for completed shift)
     if (shouldRunDailyAi) {
       const { runAiDoctorDiagnosis } = await import("@/lib/aiDoctorService");
       const activeUsers = await prisma.user.findMany({
@@ -95,24 +114,21 @@ async function executeCronRunner(request) {
         select: { id: true, name: true },
       });
 
-      // Target shift date is the completed day (yesterday relative to 2:00 AM)
-      const targetDate = new Date(now.getTime() - 4 * 3600 * 1000);
-      const isWeekendWeeklyAudit = day === "Sat" || day === "Sun";
-      const periodType = isWeekendWeeklyAudit ? "WEEKLY" : "DAILY";
-
-      // Start of target day for deduplication
+      // Target shift date is the completed day (yesterday relative to 2:00 AM PKT)
+      const targetDate = new Date(now.getTime() - 10 * 3600 * 1000);
       const startOfDay = new Date(targetDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(targetDate);
       endOfDay.setHours(23, 59, 59, 999);
 
-      for (const u of activeUsers) {
-        try {
-          // Check if report already exists for target date to prevent duplicate creation
+      // Process users concurrently to prevent serverless function timeouts
+      const results = await Promise.allSettled(
+        activeUsers.map(async (u) => {
+          // Check if DAILY report already exists for target date to prevent duplicates
           const existing = await prisma.aiDoctorReport.findFirst({
             where: {
               userId: u.id,
-              type: periodType,
+              type: "DAILY",
               date: {
                 gte: startOfDay,
                 lte: endOfDay,
@@ -123,33 +139,77 @@ async function executeCronRunner(request) {
           if (!existing) {
             await runAiDoctorDiagnosis({
               userId: u.id,
-              period: isWeekendWeeklyAudit ? "weekly" : "daily",
+              period: "daily",
               targetDate,
             });
-            aiDoctorReportsRun++;
+            return { userId: u.id, created: true };
           }
-        } catch (err) {
-          console.error(`[Cron] Failed automated AI Manager diagnosis for ${u.name || u.id}:`, err);
+          return { userId: u.id, created: false };
+        })
+      );
+
+      results.forEach((res, idx) => {
+        if (res.status === "fulfilled" && res.value?.created) {
+          aiDoctorReportsRun++;
+        } else if (res.status === "rejected") {
+          console.error(`[Cron] Failed daily AI Manager diagnosis for user ${activeUsers[idx]?.name || activeUsers[idx]?.id}:`, res.reason);
         }
-      }
+      });
     }
 
     // 5. Automated Weekly Performance Email Reports on Sunday at 2:00 PM PKT (14:00)
+    // Sent ONLY to users who logged attendance or activity during the week (Mon-Sat)
     if (shouldRunWeeklyEmail) {
       const { sendPerformanceReportEmail } = await import("@/lib/sendPerformanceReportEmail");
-      const activeUsers = await prisma.user.findMany({
-        where: { status: "ACTIVE" },
-        select: { id: true, name: true, email: true },
-      });
+      const { startDate, endDate } = getWeeklyBoundsForCron(now);
+      const weeklyDateFilter = { gte: startDate, lte: endDate };
 
-      for (const u of activeUsers) {
-        try {
-          await sendPerformanceReportEmail({ userId: u.id, period: "weekly" });
+      // Identify users who actually logged something during the week
+      const [weeklyAttendances, weeklyActivityLogs, weeklyWorkSessions, activeUsers] = await Promise.all([
+        prisma.attendance.findMany({
+          where: { date: weeklyDateFilter },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+        prisma.activityLog.findMany({
+          where: { date: weeklyDateFilter },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+        prisma.taskWorkSession.findMany({
+          where: { startedAt: weeklyDateFilter },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+        prisma.user.findMany({
+          where: { status: "ACTIVE" },
+          select: { id: true, name: true, email: true },
+        }),
+      ]);
+
+      const activeUserIdsWithLogs = new Set([
+        ...weeklyAttendances.map((a) => a.userId),
+        ...weeklyActivityLogs.map((a) => a.userId),
+        ...weeklyWorkSessions.map((w) => w.userId),
+      ]);
+
+      const eligibleUsers = activeUsers.filter((u) => activeUserIdsWithLogs.has(u.id));
+      skippedInactiveUsers = activeUsers.length - eligibleUsers.length;
+
+      // Process weekly email dispatch with concurrency
+      const emailResults = await Promise.allSettled(
+        eligibleUsers.map(async (u) => {
+          return sendPerformanceReportEmail({ userId: u.id, period: "weekly" });
+        })
+      );
+
+      emailResults.forEach((res, idx) => {
+        if (res.status === "fulfilled") {
           emailReportsSent++;
-        } catch (err) {
-          console.error(`[Cron] Failed automated weekly report email for ${u.name || u.id}:`, err);
+        } else {
+          console.error(`[Cron] Failed automated weekly report email for ${eligibleUsers[idx]?.name || eligibleUsers[idx]?.id}:`, res.reason);
         }
-      }
+      });
     }
 
     return buildSuccess("Planner cron processed successfully.", {
@@ -157,6 +217,7 @@ async function executeCronRunner(request) {
       timePkt: `${day} ${hour}:00 PKT`,
       processedCount,
       emailReportsSent,
+      skippedInactiveUsers,
       aiDoctorReportsRun,
     });
   } catch (error) {
