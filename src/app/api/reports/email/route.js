@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { buildError, buildSuccess, ensureAuthenticated, getAuthContext } from "@/lib/api";
 import { sendPerformanceReportEmail } from "@/lib/sendPerformanceReportEmail";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 export async function POST(request) {
   const authHeader = request.headers.get("x-cron-secret");
   const isInternalCron = authHeader && authHeader === (process.env.CRON_SECRET || "internal_cron");
@@ -27,7 +30,7 @@ export async function POST(request) {
       const result = await sendPerformanceReportEmail({ userId, period, recipientEmail });
       return buildSuccess(`Performance report email sent to ${result.user} (${result.recipient}).`, result);
     } else {
-      // Bulk send to all active users
+      // Bulk send to all active users with logged activity/attendance
       const activeUsers = await prisma.user.findMany({
         where: { status: "ACTIVE" },
         select: { id: true, name: true, email: true },
@@ -36,7 +39,7 @@ export async function POST(request) {
       const results = [];
       const errors = [];
 
-      for (const u of activeUsers) {
+      const emailPromises = activeUsers.map(async (u) => {
         try {
           const res = await sendPerformanceReportEmail({ userId: u.id, period });
           results.push(res);
@@ -44,7 +47,9 @@ export async function POST(request) {
           console.error(`Failed to send report email to ${u.name}:`, err);
           errors.push({ user: u.name, error: err instanceof Error ? err.message : String(err) });
         }
-      }
+      });
+
+      await Promise.allSettled(emailPromises);
 
       return buildSuccess(`Sent ${results.length} performance report emails.`, {
         sentCount: results.length,

@@ -16,12 +16,37 @@ function toDate(value) {
   return parsed;
 }
 
-export function getAttendanceAutoOffTime(inTime) {
+export function getShift1AmCutoff(inTime, timeZone = "Asia/Karachi") {
+  const date = toDate(inTime);
+  if (!date) return null;
+
+  const parts = getTimeZoneParts(date, timeZone);
+  if (!parts) return null;
+
+  const year = Number(parts.year);
+  const month = Number(parts.month);
+  const day = Number(parts.day);
+  const hour = Number(parts.hour);
+
+  // If check-in is before 11:00 AM, it belongs to the previous day's shift
+  const shiftDay = hour < 11 ? day - 1 : day;
+  // 1:00 AM PKT next day = 20:00 UTC of shiftDay
+  const cutoffUtc = Date.UTC(year, month - 1, shiftDay, 20, 0, 0, 0);
+  return new Date(cutoffUtc);
+}
+
+export function getAttendanceAutoOffTime(inTime, timeZone = "Asia/Karachi") {
   const start = toDate(inTime);
   if (!start) {
     return null;
   }
-  return new Date(start.getTime() + ATTENDANCE_AUTO_OFF_MS);
+  const tenHours = new Date(start.getTime() + ATTENDANCE_AUTO_OFF_MS);
+  const oneAmCutoff = getShift1AmCutoff(start, timeZone);
+
+  if (oneAmCutoff && oneAmCutoff < tenHours && start < oneAmCutoff) {
+    return oneAmCutoff;
+  }
+  return tenHours;
 }
 
 export function resolveAttendanceOutTime(attendance, now = new Date()) {
@@ -51,20 +76,15 @@ export function shouldAutoOffAttendance(attendance, now = new Date(), timeZone =
   if (!attendance?.inTime || attendance?.outTime) {
     return false;
   }
-  const autoOffAt = getAttendanceAutoOffTime(attendance.inTime);
+  const resolvedTimeZone = timeZone ?? attendance.user?.timezone ?? "Asia/Karachi";
+  const autoOffAt = getAttendanceAutoOffTime(attendance.inTime, resolvedTimeZone);
   const nowDate = toDate(now) ?? new Date();
 
-  // Restrict auto-off checking to between 1:00 AM and 10:00 AM local time
-  const resolvedTimeZone = timeZone ?? attendance.user?.timezone ?? "Asia/Karachi";
-  const parts = getTimeZoneParts(nowDate, resolvedTimeZone);
-  if (parts) {
-    const localHour = Number(parts.hour);
-    if (localHour < 1 || localHour > 10) {
-      return false;
-    }
+  if (!autoOffAt || nowDate <= autoOffAt) {
+    return false;
   }
 
-  return Boolean(autoOffAt && nowDate > autoOffAt);
+  return true;
 }
 
 export async function normalizeAttendanceAutoOff(prismaClient, attendance, now = new Date(), timeZone = null) {
@@ -72,7 +92,8 @@ export async function normalizeAttendanceAutoOff(prismaClient, attendance, now =
     return null;
   }
 
-  const autoOffAt = getAttendanceAutoOffTime(attendance.inTime);
+  const resolvedTimeZone = timeZone ?? attendance.user?.timezone ?? "Asia/Karachi";
+  const autoOffAt = getAttendanceAutoOffTime(attendance.inTime, resolvedTimeZone);
   if (!autoOffAt) {
     return null;
   }
@@ -88,14 +109,42 @@ export async function normalizeAttendanceAutoOff(prismaClient, attendance, now =
           include: { breaks: true },
         });
 
-        if (!fresh || !shouldAutoOffAttendance(fresh, now)) {
+        if (!fresh || !shouldAutoOffAttendance(fresh, now, resolvedTimeZone)) {
           return null;
+        }
+
+        // Check if user manually completed any task work session belonging to this shift past autoOffAt before leaving
+        const lastCompletedSession = await tx.taskWorkSession.findFirst({
+          where: {
+            userId: fresh.userId,
+            startedAt: { gte: fresh.inTime },
+            endedAt: { gt: autoOffAt, lte: new Date(autoOffAt.getTime() + 10 * 3600 * 1000) },
+          },
+          orderBy: { endedAt: "desc" },
+        });
+
+        // Check if user manually completed any activity log belonging to this shift past autoOffAt before leaving
+        const lastCompletedLog = await tx.activityLog.findFirst({
+          where: {
+            userId: fresh.userId,
+            startAt: { gte: fresh.inTime },
+            endAt: { gt: autoOffAt, lte: new Date(autoOffAt.getTime() + 10 * 3600 * 1000) },
+          },
+          orderBy: { endAt: "desc" },
+        });
+
+        let effectiveOutTime = autoOffAt;
+        if (lastCompletedSession?.endedAt && lastCompletedSession.endedAt > effectiveOutTime) {
+          effectiveOutTime = lastCompletedSession.endedAt;
+        }
+        if (lastCompletedLog?.endAt && lastCompletedLog.endAt > effectiveOutTime) {
+          effectiveOutTime = lastCompletedLog.endAt;
         }
 
         await tx.attendance.update({
           where: { id: fresh.id },
           data: {
-            outTime: autoOffAt,
+            outTime: effectiveOutTime,
             autoOff: true,
             autoOffReason: ATTENDANCE_AUTO_OFF_REASON,
           },
@@ -104,14 +153,15 @@ export async function normalizeAttendanceAutoOff(prismaClient, attendance, now =
         await tx.attendanceBreak.updateMany({
           where: {
             attendanceId: fresh.id,
-            OR: [{ endAt: null }, { endAt: { gt: autoOffAt } }],
+            OR: [{ endAt: null }, { endAt: { gt: effectiveOutTime } }],
           },
           data: {
-            endAt: autoOffAt,
+            endAt: effectiveOutTime,
             endedBy: "AUTO_OFF",
           },
         });
 
+        // 1. Terminate running task sessions at the 1:00 AM cutoff (so ghost hours after 1:00 AM are excluded)
         const activeSessions = await tx.taskWorkSession.findMany({
           where: {
             userId: fresh.userId,
@@ -130,6 +180,7 @@ export async function normalizeAttendanceAutoOff(prismaClient, attendance, now =
           });
         }
 
+        // 2. Terminate running manual activity logs at the 1:00 AM cutoff
         const runningManualLogs = await tx.activityLog.findMany({
           where: {
             userId: fresh.userId,
@@ -158,7 +209,7 @@ export async function normalizeAttendanceAutoOff(prismaClient, attendance, now =
           });
         }
 
-        return { id: fresh.id, outTime: autoOffAt };
+        return { id: fresh.id, outTime: effectiveOutTime };
       });
     } catch (error) {
       const isWriteConflict =
@@ -209,7 +260,6 @@ export async function normalizeAutoOffForUser(prismaClient, userId, now = new Da
     where: {
       userId,
       outTime: null,
-      inTime: { lt: new Date((toDate(now) ?? new Date()).getTime() - ATTENDANCE_AUTO_OFF_MS) },
     },
     select: { id: true, inTime: true, outTime: true, userId: true },
   });

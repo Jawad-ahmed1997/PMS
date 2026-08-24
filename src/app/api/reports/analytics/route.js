@@ -378,37 +378,9 @@ export async function GET(request) {
       }
     });
 
-    // Aggregate Manual Activity Categories
-    const categoryHours = { LEARNING: 0, RESEARCH: 0, OTHER: 0 };
-    activityLogs.forEach((act) => {
-      const card = userScorecardMap[act.userId];
-
-      if (!act.workSessionId && act.type === "MANUAL") {
-        const hrs = Number(((act.durationSeconds ?? 0) / 3600).toFixed(2));
-
-        if (card) {
-          card.totalManualHours += hrs;
-
-          // Check if manual log was dumped retroactively late (entry created > 2 hrs after endAt)
-          if (act.date && act.endAt) {
-            const creationTime = new Date(act.date).getTime();
-            const activityEndTime = new Date(act.endAt).getTime();
-            if (creationTime - activityEndTime > 2 * 3600 * 1000) {
-              card.lateManualDumpsCount += 1;
-            }
-          }
-        }
-
-        (act.categories ?? []).forEach((cat) => {
-          if (categoryHours[cat] !== undefined) {
-            categoryHours[cat] += hrs;
-          }
-          if (card && card.manualCategoryHours[cat] !== undefined) {
-            card.manualCategoryHours[cat] += hrs;
-          }
-        });
-      }
-    });
+    // 4c. Create quick lookup maps
+    const taskMap = new Map(tasks.map((t) => [t.id, t]));
+    const manualLogMap = new Map(activityLogs.map((a) => [a.id, a]));
 
     // Generate dates list for period
     const now = new Date();
@@ -417,10 +389,16 @@ export async function GET(request) {
 
     const datesList = [];
     let cur = new Date(effectiveStart);
-    while (cur <= effectiveEnd && cur <= now) {
+    cur.setHours(0, 0, 0, 0);
+    const endBoundary = new Date(effectiveEnd);
+    endBoundary.setHours(23, 59, 59, 999);
+
+    while (cur <= endBoundary) {
       datesList.push(new Date(cur));
       cur.setDate(cur.getDate() + 1);
     }
+
+    const categoryHours = { LEARNING: 0, RESEARCH: 0, OTHER: 0 };
 
     // Precompute timeline metrics for each user in parallel
     const userTimelineTotalsMap = {};
@@ -430,12 +408,57 @@ export async function GET(request) {
         let workSec = 0;
         let breakSec = 0;
         let idleSec = 0;
+        const card = userScorecardMap[u.id];
+
         for (const day of datesList) {
           const t = await getUserDailyTimeline(prisma, u.id, day, now);
           dutySec += t.totals?.dutySeconds ?? 0;
           workSec += t.totals?.workSeconds ?? 0;
           breakSec += t.totals?.breakSeconds ?? 0;
           idleSec += t.totals?.idleSeconds ?? 0;
+
+          (t.segments ?? []).forEach((segment) => {
+            if (segment.type === "WORK" && segment.startAt && segment.endAt) {
+              const sec = Math.max(
+                0,
+                Math.floor((new Date(segment.endAt).getTime() - new Date(segment.startAt).getTime()) / 1000)
+              );
+              if (sec <= 0) return;
+
+              const hrs = Number((sec / 3600).toFixed(2));
+
+              if (segment.taskId) {
+                const task = taskMap.get(segment.taskId);
+                const type = task?.type || "UI";
+                if (card && card.taskTypeHours[type] !== undefined) {
+                  card.taskTypeHours[type] += hrs;
+                }
+                if (stageTypeHours[type] !== undefined) {
+                  stageTypeHours[type] += hrs;
+                }
+              } else if (segment.manualLogId) {
+                const log = manualLogMap.get(segment.manualLogId);
+                const cats = log?.categories?.length ? log.categories : ["LEARNING"];
+                const share = Number((hrs / cats.length).toFixed(2));
+                if (card) {
+                  card.totalManualHours += hrs;
+                  cats.forEach((cat) => {
+                    if (card.manualCategoryHours[cat] !== undefined) {
+                      card.manualCategoryHours[cat] += share;
+                    }
+                    if (categoryHours[cat] !== undefined) {
+                      categoryHours[cat] += share;
+                    }
+                  });
+                }
+              } else {
+                if (card) {
+                  card.manualCategoryHours.OTHER += hrs;
+                  categoryHours.OTHER += hrs;
+                }
+              }
+            }
+          });
         }
         userTimelineTotalsMap[u.id] = { dutySec, workSec, breakSec, idleSec };
       })

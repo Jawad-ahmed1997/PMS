@@ -6,6 +6,7 @@ import {
 } from "@/lib/api";
 import { withManualLogStatus } from "@/lib/manualLogMutations";
 import { makeZonedDateTime } from "@/lib/manualLogDateTime";
+import { aggregateActivityLogs } from "@/lib/activityAggregation";
 
 export async function GET(request) {
   const context = await getAuthContext();
@@ -147,10 +148,11 @@ export async function GET(request) {
 
   const mappedLogs = activityLogs.map((log) => (log.taskId ? log : withManualLogStatus(log)));
   const combinedLogs = [...virtualTaskLogs, ...mappedLogs];
-  combinedLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const tz = context.timezone || "Asia/Karachi";
+  const finalLogs = aggregateActivityLogs(combinedLogs, tz);
 
   return buildSuccess("Activity logs loaded.", {
-    activityLogs: combinedLogs,
+    activityLogs: finalLogs,
   });
 }
 
