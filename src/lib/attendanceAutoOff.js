@@ -49,7 +49,30 @@ export function getAttendanceAutoOffTime(inTime, timeZone = "Asia/Karachi") {
   return tenHours;
 }
 
-export function resolveAttendanceOutTime(attendance, now = new Date()) {
+export function getAttendanceAutoOffTriggerTime(inTime, timeZone = "Asia/Karachi") {
+  const start = toDate(inTime);
+  if (!start) return null;
+
+  const parts = getTimeZoneParts(start, timeZone);
+  if (!parts) return null;
+
+  const year = Number(parts.year);
+  const month = Number(parts.month);
+  const day = Number(parts.day);
+  const hour = Number(parts.hour);
+
+  const shiftDay = hour < 11 ? day - 1 : day;
+  // 3:00 AM PKT of the morning after shiftDay = 22:00 UTC of shiftDay
+  const shiftEnd3AmUtc = Date.UTC(year, month - 1, shiftDay, 22, 0, 0, 0);
+  const shiftEnd3Am = new Date(shiftEnd3AmUtc);
+
+  const tenHours = new Date(start.getTime() + ATTENDANCE_AUTO_OFF_MS);
+
+  // Shift buffer allows working late up to 3:00 AM PKT or 10 hours, whichever is later
+  return shiftEnd3Am > tenHours ? shiftEnd3Am : tenHours;
+}
+
+export function resolveAttendanceOutTime(attendance, now = new Date(), timeZone = "Asia/Karachi") {
   if (!attendance?.inTime) {
     return null;
   }
@@ -61,15 +84,17 @@ export function resolveAttendanceOutTime(attendance, now = new Date()) {
   if (explicitOut) {
     return explicitOut;
   }
-  const autoOffAt = getAttendanceAutoOffTime(inAt);
   const nowDate = toDate(now) ?? new Date();
-  if (!autoOffAt) {
-    return nowDate > inAt ? nowDate : null;
-  }
   if (nowDate <= inAt) {
     return null;
   }
-  return nowDate > autoOffAt ? autoOffAt : nowDate;
+  const triggerAt = getAttendanceAutoOffTriggerTime(inAt, timeZone);
+  if (!triggerAt || nowDate < triggerAt) {
+    // Currently within active shift window / working hours
+    return nowDate;
+  }
+  const autoOffAt = getAttendanceAutoOffTime(inAt, timeZone);
+  return autoOffAt || nowDate;
 }
 
 export function shouldAutoOffAttendance(attendance, now = new Date(), timeZone = null) {
@@ -77,10 +102,11 @@ export function shouldAutoOffAttendance(attendance, now = new Date(), timeZone =
     return false;
   }
   const resolvedTimeZone = timeZone ?? attendance.user?.timezone ?? "Asia/Karachi";
-  const autoOffAt = getAttendanceAutoOffTime(attendance.inTime, resolvedTimeZone);
+  const triggerAt = getAttendanceAutoOffTriggerTime(attendance.inTime, resolvedTimeZone);
   const nowDate = toDate(now) ?? new Date();
 
-  if (!autoOffAt || nowDate <= autoOffAt) {
+  // Do NOT auto-off while within the 3:00 AM shift buffer!
+  if (!triggerAt || nowDate <= triggerAt) {
     return false;
   }
 
