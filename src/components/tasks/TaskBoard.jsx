@@ -19,9 +19,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import ScrollArea from "@/components/ui/ScrollArea";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DialogRoot,
+  DialogPortal,
+  DialogOverlay,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { BREAK_TYPES, formatBreakTypes } from "@/lib/breakTypes";
 import { useNotificationSound } from "@/lib/useNotificationSound";
 
@@ -613,7 +623,15 @@ export default function TaskBoard({
   const [newSubtaskText, setNewSubtaskText] = useState("");
   const [pendingCoverFile, setPendingCoverFile] = useState(null);
   const [pendingCoverPreview, setPendingCoverPreview] = useState(null);
-  
+
+  // Status Change Dialog States
+  const [holdModalTask, setHoldModalTask] = useState(null);
+  const [holdReason, setHoldReason] = useState("SWITCH_TASK");
+  const [holdNote, setHoldNote] = useState("");
+
+  const [blockedModalTask, setBlockedModalTask] = useState(null);
+  const [blockedType, setBlockedType] = useState("CLIENT");
+  const [blockedReason, setBlockedReason] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -1303,7 +1321,7 @@ export default function TaskBoard({
     return buckets;
   }, [filteredTasks]);
 
-  const handleStatusChange = async (task, nextStatus) => {
+  const handleStatusChange = async (task, nextStatus, extraPayload = null) => {
     if (!nextStatus) {
       return;
     }
@@ -1329,36 +1347,21 @@ export default function TaskBoard({
       return;
     }
 
-    const payload = { toStatus: nextStatus };
-    if (nextStatus === "BLOCKED") {
-      const typeInput = window
-        .prompt("Blocked type (CLIENT | TEAM | OTHER)", "CLIENT")
-        ?.toUpperCase();
-      const reasonInput = window.prompt("Blocked reason", "")?.trim();
-      if (!typeInput || !reasonInput) {
-        addToast({
-          title: "Blocked reason required",
-          message: "Please provide blocked type and reason.",
-          variant: "error",
-        });
-        return;
-      }
-      payload.blockedType = typeInput;
-      payload.blockedReason = reasonInput;
+    if (nextStatus === "BLOCKED" && !extraPayload) {
+      setBlockedModalTask(task);
+      setBlockedType("CLIENT");
+      setBlockedReason("");
+      return;
     }
 
-    if (nextStatus === "ON_HOLD") {
-      const holdReasonInput = window
-        .prompt("Hold reason (SWITCH_TASK | BREAK | WAITING | OTHER) optional", "")
-        ?.toUpperCase();
-      const holdNoteInput = window.prompt("Optional hold note", "")?.trim();
-      if (holdReasonInput) {
-        payload.holdReason = holdReasonInput;
-      }
-      if (holdNoteInput) {
-        payload.note = holdNoteInput;
-      }
+    if (nextStatus === "ON_HOLD" && !extraPayload) {
+      setHoldModalTask(task);
+      setHoldReason("SWITCH_TASK");
+      setHoldNote("");
+      return;
     }
+
+    const payload = { toStatus: nextStatus, ...(extraPayload || {}) };
 
     const previousTaskItems = [...taskItems];
 
@@ -1428,7 +1431,7 @@ export default function TaskBoard({
       }
 
       // Timer status toasts
-      if (nextStatus === "DEV_TEST") {
+      if (nextStatus === "DEV_TEST" && task.status === "IN_PROGRESS") {
         addToast({
           title: "⏱ Timer stopped",
           message: "Task moved to Dev Test — timer has been paused.",
@@ -1464,7 +1467,7 @@ export default function TaskBoard({
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("pms:refresh-notifications"));
         
-        let activeSessionPayload = null;
+        let activeSessionPayload = undefined;
         if (nextStatus === "IN_PROGRESS" && data?.task) {
           activeSessionPayload = {
             active: true,
@@ -1482,13 +1485,19 @@ export default function TaskBoard({
             activeBreak: null,
             serverNow: new Date().toISOString(),
           };
+        } else if (task.status === "IN_PROGRESS") {
+          activeSessionPayload = null;
         }
 
-        window.dispatchEvent(
-          new CustomEvent("pms:timer-changed", {
-            detail: { activeSession: activeSessionPayload },
-          })
-        );
+        if (activeSessionPayload !== undefined) {
+          window.dispatchEvent(
+            new CustomEvent("pms:timer-changed", {
+              detail: { activeSession: activeSessionPayload },
+            })
+          );
+        } else {
+          window.dispatchEvent(new CustomEvent("pms:timer-changed"));
+        }
       }
     } catch (error) {
       setTaskItems(previousTaskItems);
@@ -3334,6 +3343,201 @@ export default function TaskBoard({
         </div>,
         document.body
       ) : null}
+
+      {/* Put Task On Hold Dialog Modal */}
+      <DialogRoot open={Boolean(holdModalTask)} onOpenChange={(open) => !open && setHoldModalTask(null)}>
+        <DialogPortal>
+          <DialogOverlay />
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-base">
+                  ⏸
+                </span>
+                <div className="text-left">
+                  <DialogTitle>Put Task On Hold</DialogTitle>
+                  <DialogDescription className="mt-0.5 text-xs text-[color:var(--color-text-subtle)]">
+                    {holdModalTask?.title ? (
+                      <span className="font-medium text-[color:var(--color-text)] line-clamp-1">
+                        {holdModalTask.title}
+                      </span>
+                    ) : (
+                      "Specify reason and optional note for holding this task."
+                    )}
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!holdModalTask) return;
+                const task = holdModalTask;
+                const extra = {
+                  holdReason: holdReason || "SWITCH_TASK",
+                  note: holdNote.trim() || undefined,
+                };
+                setHoldModalTask(null);
+                handleStatusChange(task, "ON_HOLD", extra);
+              }}
+              className="mt-4 space-y-4 text-left"
+            >
+              <div>
+                <Label className="mb-1.5 block text-xs font-semibold text-[color:var(--color-text-muted)]">
+                  Hold Reason
+                </Label>
+                <Select value={holdReason} onValueChange={setHoldReason}>
+                  <SelectTrigger className="w-full rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs">
+                    <SelectValue placeholder="Select hold reason" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SWITCH_TASK">Switching to Another Task</SelectItem>
+                    <SelectItem value="BREAK">Taking a Break</SelectItem>
+                    <SelectItem value="WAITING">Waiting on Feedback / Dependency</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="mb-1.5 block text-xs font-semibold text-[color:var(--color-text-muted)]">
+                  Note <span className="font-normal text-[color:var(--color-text-subtle)]">(Optional)</span>
+                </Label>
+                <Textarea
+                  value={holdNote}
+                  onChange={(e) => setHoldNote(e.target.value)}
+                  placeholder="Add details about why this task is being paused..."
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] p-3 text-xs text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-subtle)] focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => setHoldModalTask(null)}
+                  className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-muted-bg)] transition"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  type="submit"
+                  className="rounded-xl px-4 py-2 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow"
+                >
+                  Put On Hold
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
+
+      {/* Mark Task As Blocked Dialog Modal */}
+      <DialogRoot open={Boolean(blockedModalTask)} onOpenChange={(open) => !open && setBlockedModalTask(null)}>
+        <DialogPortal>
+          <DialogOverlay />
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-base">
+                  🚫
+                </span>
+                <div className="text-left">
+                  <DialogTitle>Mark Task as Blocked</DialogTitle>
+                  <DialogDescription className="mt-0.5 text-xs text-[color:var(--color-text-subtle)]">
+                    {blockedModalTask?.title ? (
+                      <span className="font-medium text-[color:var(--color-text)] line-clamp-1">
+                        {blockedModalTask.title}
+                      </span>
+                    ) : (
+                      "Specify the blockage type and reason."
+                    )}
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!blockedModalTask) return;
+                if (!blockedReason.trim()) {
+                  addToast({
+                    title: "Blocked reason required",
+                    message: "Please enter a reason explaining what is blocking this task.",
+                    variant: "error",
+                  });
+                  return;
+                }
+                const task = blockedModalTask;
+                const extra = {
+                  blockedType: blockedType || "CLIENT",
+                  blockedReason: blockedReason.trim(),
+                };
+                setBlockedModalTask(null);
+                handleStatusChange(task, "BLOCKED", extra);
+              }}
+              className="mt-4 space-y-4 text-left"
+            >
+              <div>
+                <Label className="mb-1.5 block text-xs font-semibold text-[color:var(--color-text-muted)]">
+                  Blocker Type
+                </Label>
+                <Select value={blockedType} onValueChange={setBlockedType}>
+                  <SelectTrigger className="w-full rounded-xl border-[color:var(--color-border)] bg-[color:var(--color-input)] text-xs">
+                    <SelectValue placeholder="Select blocker type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CLIENT">Client Blocked</SelectItem>
+                    <SelectItem value="TEAM">Team / Internal Dependency</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="mb-1.5 block text-xs font-semibold text-[color:var(--color-text-muted)]">
+                  Reason for Blockage <span className="text-rose-400">*</span>
+                </Label>
+                <Textarea
+                  value={blockedReason}
+                  onChange={(e) => setBlockedReason(e.target.value)}
+                  placeholder="Explain what is blocking progress on this task..."
+                  rows={3}
+                  required
+                  className="w-full resize-none rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-input)] p-3 text-xs text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-subtle)] focus:outline-none focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => setBlockedModalTask(null)}
+                  className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-muted-bg)] transition"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  type="submit"
+                  disabled={!blockedReason.trim()}
+                  className="rounded-xl px-4 py-2 text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow"
+                >
+                  Confirm Blocked
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
     </div>
   );
 }

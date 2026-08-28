@@ -21,6 +21,8 @@ export const DEVELOPER_ONLY_TRANSITIONS = [
   { from: "READY",       to: "IN_PROGRESS" },
   { from: "IN_PROGRESS", to: "DEV_TEST"    },
   { from: "DEV_TEST",    to: "TESTING"     },
+  { from: "DEV_TEST",    to: "IN_PROGRESS" },
+  { from: "ON_HOLD",     to: "DEV_TEST"    },
   { from: "REJECTED",    to: "IN_PROGRESS" },
 ];
 
@@ -43,8 +45,8 @@ export const TASK_TRANSITIONS = {
   BACKLOG:     ["READY", "BLOCKED"],
   READY:       ["IN_PROGRESS", "ON_HOLD", "BLOCKED"],
   IN_PROGRESS: ["DEV_TEST", "ON_HOLD", "BLOCKED"],
-  ON_HOLD:     ["READY", "IN_PROGRESS", "BLOCKED"],
-  DEV_TEST:    ["TESTING", "ON_HOLD", "BLOCKED"],
+  ON_HOLD:     ["READY", "IN_PROGRESS", "DEV_TEST", "BLOCKED"],
+  DEV_TEST:    ["TESTING", "IN_PROGRESS", "ON_HOLD", "BLOCKED"],
   TESTING:     ["DONE", "REJECTED", "ON_HOLD", "BLOCKED"],
   REJECTED:    ["READY", "IN_PROGRESS", "ON_HOLD", "BLOCKED"],
   BLOCKED:     ["READY", "IN_PROGRESS", "ON_HOLD"],

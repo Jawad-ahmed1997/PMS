@@ -164,8 +164,8 @@ export async function PATCH(request, { params }) {
   const nextStatus = body?.toStatus ?? body?.status;
   const blockedReason = body?.blockedReason?.trim?.() || "";
   const blockedType = body?.blockedType || null;
-  const holdReason = body?.holdReason || null;
-  const holdNote = body?.note?.trim?.() || null;
+  let holdReason = body?.holdReason ? String(body.holdReason).trim().toUpperCase() : null;
+  let holdNote = body?.note?.trim?.() || body?.holdNote?.trim?.() || null;
 
   if (!nextStatus) {
     return buildError("Task status is required.", 400);
@@ -221,8 +221,16 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  if (nextStatus === "ON_HOLD" && holdReason && !HOLD_REASONS.has(holdReason)) {
-    return buildError("Hold reason is invalid.", 400);
+  if (nextStatus === "ON_HOLD") {
+    if (holdReason && !HOLD_REASONS.has(holdReason)) {
+      // If user typed custom text as holdReason, treat enum as OTHER and store the text in holdNote
+      if (!holdNote) {
+        holdNote = String(body.holdReason).trim();
+      } else {
+        holdNote = `${String(body.holdReason).trim()} - ${holdNote}`;
+      }
+      holdReason = "OTHER";
+    }
   }
 
   const updates = {
@@ -392,7 +400,7 @@ export async function PATCH(request, { params }) {
             },
           });
           transactionUpdates.lastStartedAt = now;
-        } else if (!shouldTrackWork && wasTrackingWork) {
+        } else if (!shouldTrackWork && (wasTrackingWork || Boolean(currentTask?.workSessions?.length))) {
           const activeSession = currentTask?.workSessions?.[0] ?? null;
           if (activeSession) {
             let durationSeconds = 0;
