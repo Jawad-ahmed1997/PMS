@@ -6,6 +6,7 @@ import {
   normalizeTimeString,
   toDateKeyInTZ,
 } from "@/lib/manualLogDateTime";
+import { getDutyDate } from "@/lib/dutyHours";
 
 export const MANUAL_LOG_CATEGORIES = ["LEARNING", "RESEARCH", "OTHER"];
 
@@ -34,14 +35,14 @@ function normalizeManualDate(value, timeZone = MANUAL_LOG_TIME_ZONE) {
 }
 
 export function getManualTodayDateKey(baseDate = new Date(), timeZone = MANUAL_LOG_TIME_ZONE) {
-  return toDateKeyInTZ(baseDate, timeZone);
+  return getDutyDate(baseDate, timeZone) ?? toDateKeyInTZ(baseDate, timeZone);
 }
 
 export function getManualLogDateBounds(
   baseDate = new Date(),
   timeZone = MANUAL_LOG_TIME_ZONE
 ) {
-  const max = toDateKeyInTZ(baseDate, timeZone);
+  const max = getManualTodayDateKey(baseDate, timeZone);
   if (!max) {
     return { min: null, max: null };
   }

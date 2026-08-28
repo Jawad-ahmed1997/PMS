@@ -34,6 +34,7 @@ import {
 import { useToast } from "@/components/ui/ToastProvider";
 import { fetchJson } from "@/lib/apiClient";
 import ReportPdfPrintView from "./ReportPdfPrintView";
+import { getDutyDate } from "@/lib/dutyHours";
 
 export default function AiManagerDashboard({ session, initialUsers = [], initialReports = [] }) {
   const { addToast } = useToast();
@@ -49,7 +50,7 @@ export default function AiManagerDashboard({ session, initialUsers = [], initial
   );
   const [period, setPeriod] = useState("daily"); // "daily" | "weekly" | "monthly" | "custom"
   
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayStr = useMemo(() => getDutyDate(new Date()) ?? new Date().toISOString().slice(0, 10), []);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [customStartDate, setCustomStartDate] = useState(() => {
     const d = new Date();
