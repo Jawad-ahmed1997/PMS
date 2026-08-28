@@ -47,6 +47,7 @@ enum TaskType {
   UI
   AUTH
   API
+  BACKEND
   REFACTOR
   CHART
   FULL_STACK

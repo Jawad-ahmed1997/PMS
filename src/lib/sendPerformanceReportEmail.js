@@ -186,7 +186,7 @@ export async function sendPerformanceReportEmail({ userId, period = "weekly", re
   let totalTimelineIdleSeconds = 0;
 
   const taskTypeSeconds = {
-    UI: 0, AUTH: 0, API: 0, REFACTOR: 0, CHART: 0,
+    UI: 0, AUTH: 0, API: 0, BACKEND: 0, REFACTOR: 0, CHART: 0,
     FULL_STACK: 0, THIRD_PARTY: 0, BUSINESS_LOGIC: 0,
     DATABASE: 0, BUG_FIX: 0, DEVOPS: 0, TESTING: 0,
     PERFORMANCE: 0, DOCUMENTATION: 0,
