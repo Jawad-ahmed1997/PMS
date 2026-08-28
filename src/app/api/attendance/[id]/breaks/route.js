@@ -6,9 +6,26 @@ import {
   getAuthContext,
   isManagementRole,
 } from "@/lib/api";
-import { computeAttendanceDurationsForRecord, getCutoffTime } from "@/lib/dutyHours";
+import {
+  computeAttendanceDurationsForRecord,
+  getCutoffTime,
+  getDutyDate,
+} from "@/lib/dutyHours";
 import { combineShiftDateAndTime, getTimeZoneNow } from "@/lib/attendanceTimes";
 import { normalizeBreakTypes } from "@/lib/breakTypes";
+
+function normalizeDateOnly(value) {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
+  );
+}
 
 function normalizeNotes(value) {
   if (value === undefined) {
@@ -54,14 +71,13 @@ function canManageBreak({ context, attendance, now }) {
   if (!attendance || attendance.userId !== context.user.id) {
     return false;
   }
-  if (!attendance.inTime || attendance.outTime) {
+  const dutyDate = getDutyDate(now, context.timezone);
+  const today = normalizeDateOnly(dutyDate ?? now);
+  const attendanceDate = normalizeDateOnly(attendance.date);
+  if (!today || !attendanceDate || attendanceDate.getTime() !== today.getTime()) {
     return false;
   }
-  const window = getAttendanceWindow(attendance);
-  if (!window) {
-    return false;
-  }
-  return now >= window.start && now <= window.end;
+  return true;
 }
 
 function attachComputedDurations(attendance) {

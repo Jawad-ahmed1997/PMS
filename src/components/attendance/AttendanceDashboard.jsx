@@ -818,13 +818,13 @@ export default function AttendanceDashboard({
     if (!targetUserId) {
       return null;
     }
+    const userRecords = attendance.filter(
+      (record) => (record.userId ?? record.user?.id) === targetUserId
+    );
     return (
-      attendance.find(
-        (record) =>
-          (record.userId ?? record.user?.id) === targetUserId &&
-          record.inTime &&
-          !record.outTime
-      ) ?? null
+      userRecords.find((record) => record.inTime && !record.outTime) ??
+      userRecords.find((record) => isTodayDate(record.date)) ??
+      null
     );
   }, [attendance, currentUser?.id, selectedUser?.id]);
 
@@ -835,7 +835,7 @@ export default function AttendanceDashboard({
     if (isLeader) {
       return true;
     }
-    return isAttendanceRunning(activeBreakRecord, new Date());
+    return isTodayDate(activeBreakRecord.date);
   }, [activeBreakRecord, isLeader]);
 
   const notifyAttendanceUpdated = (userId) => {
@@ -1386,8 +1386,12 @@ export default function AttendanceDashboard({
                   <BreakMenuShadcn
                     onEdit={() => openBreakModalForm({ mode: "edit", breakItem: item })}
                     onDelete={() => requestBreakDelete(item)}
-                    disabled={!canManageBreaks}
-                    tooltip="Breaks can only be edited while duty is running."
+                    disabled={!canManageBreaks || Boolean(item.source === "TASK_PAUSE" || item.id?.toString().startsWith("task-break-"))}
+                    tooltip={
+                      item.source === "TASK_PAUSE" || item.id?.toString().startsWith("task-break-")
+                        ? "Task breaks are managed via task timer."
+                        : "Breaks can only be edited for today's duty."
+                    }
                   />
                 </li>
               ))}
@@ -1738,7 +1742,7 @@ export default function AttendanceDashboard({
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-subtle)]">
                     Breaks
                   </p>
-                  {isLeader || isAttendanceRunning(activeRecord, new Date()) ? (
+                  {isLeader || isTodayDate(activeRecord.date) ? (
                     <ActionButton
                       label="Add break"
                       variant="secondary"
@@ -1772,13 +1776,18 @@ export default function AttendanceDashboard({
                           </div>
                           {item.notes ? <p>{item.notes}</p> : null}
                         </div>
-                        {isLeader || isAttendanceRunning(activeRecord, new Date()) ? (
+                        {isLeader || isTodayDate(activeRecord.date) ? (
                           <BreakMenuShadcn
                             onEdit={() =>
                               openBreakModalForm({ mode: "edit", breakItem: item })
                             }
                             onDelete={() => requestBreakDelete(item)}
-                            disabled={false}
+                            disabled={Boolean(item.source === "TASK_PAUSE" || item.id?.toString().startsWith("task-break-"))}
+                            tooltip={
+                              item.source === "TASK_PAUSE" || item.id?.toString().startsWith("task-break-")
+                                ? "Task breaks are managed via task timer."
+                                : "Breaks can only be edited for today's duty."
+                            }
                           />
                         ) : null}
                       </li>
@@ -1789,9 +1798,9 @@ export default function AttendanceDashboard({
                     No breaks recorded.
                   </p>
                 )}
-                {!isLeader && !isAttendanceRunning(activeRecord, new Date()) ? (
+                {!isLeader && !isTodayDate(activeRecord.date) ? (
                   <p className="mt-2 text-xs text-[color:var(--color-text-subtle)]">
-                    Breaks can be edited while duty is running.
+                    Breaks can only be edited for today&apos;s duty.
                   </p>
                 ) : null}
               </div>

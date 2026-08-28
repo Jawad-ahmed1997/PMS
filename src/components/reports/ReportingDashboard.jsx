@@ -6,6 +6,7 @@ import Avatar from "@/components/ui/Avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Download, RefreshCw, AlertTriangle, CheckCircle2, Clock, Calendar, Users, Briefcase, Trophy, Zap, Percent, Mail } from "lucide-react";
 import { useToast } from "@/components/ui/ToastProvider";
+import { getDutyDate } from "@/lib/dutyHours";
 
 export default function ReportingDashboard({ session }) {
   const { addToast } = useToast();
@@ -24,7 +25,7 @@ export default function ReportingDashboard({ session }) {
 
       const now = new Date();
       if (dateRange === "today") {
-        const todayStr = now.toISOString().slice(0, 10);
+        const todayStr = getDutyDate(now) ?? now.toISOString().slice(0, 10);
         url += `startDate=${todayStr}&endDate=${todayStr}&`;
       } else if (dateRange === "week") {
         const day = now.getDay();

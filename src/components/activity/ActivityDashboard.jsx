@@ -296,10 +296,10 @@ export default function ActivityDashboard({
 
   useEffect(() => {
     setIsHydrated(true);
-    const today = getManualTodayDateKey();
+    const today = getManualTodayDateKey(new Date(), userTimeZone);
     setSelectedDate(today);
     setLogForm((prev) => ({ ...prev, date: today }));
-  }, []);
+  }, [userTimeZone]);
 
   const filteredUsers = useMemo(() => {
     const query = userQuery.toLowerCase();
