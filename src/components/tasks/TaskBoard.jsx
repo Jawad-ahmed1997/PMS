@@ -124,6 +124,8 @@ const getTypeBadge = (type) => {
       return "bg-amber-500/20 text-amber-300 border-amber-500/30";
     case "API":
       return "bg-sky-500/20 text-sky-300 border-sky-500/30";
+    case "BACKEND":
+      return "bg-blue-600/20 text-blue-300 border-blue-500/30";
     case "REFACTOR":
       return "bg-purple-500/20 text-purple-300 border-purple-500/30";
     case "CHART":

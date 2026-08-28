@@ -27,6 +27,7 @@ export function buildCtoTechnicalReportEmailHtml({
   const getTypeColor = (type) => {
     switch (type) {
       case "FULL_STACK": return "#6366f1";
+      case "BACKEND": return "#2563eb";
       case "BUSINESS_LOGIC": return "#3b82f6";
       case "API": return "#0ea5e9";
       case "THIRD_PARTY": return "#06b6d4";

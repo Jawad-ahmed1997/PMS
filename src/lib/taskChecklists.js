@@ -17,6 +17,12 @@ export const TASK_TYPE_CHECKLISTS = {
     "Confirm error handling and status codes",
     "Review performance impact and logs",
   ],
+  BACKEND: [
+    "Verify backend business logic and service contracts",
+    "Confirm data validation and error handling",
+    "Test API endpoints and database queries",
+    "Ensure security, auth, and permission checks",
+  ],
   REFACTOR: [
     "Document impacted modules",
     "Confirm no functional regressions",
