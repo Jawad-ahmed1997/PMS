@@ -369,6 +369,9 @@ export default function TaskBoard({
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [hasSavedPrefs, setHasSavedPrefs] = useState(false);
 
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
+
   const scrollContainerRef = useRef(null);
 
   useEffect(() => {
@@ -1997,16 +2000,6 @@ export default function TaskBoard({
     setPendingChecklistId(null);
     invalidateAllTaskQueries();
   };
-
-  const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
-  const isManager = useMemo(
-    () => [roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole),
-    [normalizedRole]
-  );
-  const isTaskOwner = useCallback((task) => task?.ownerId === currentUserId, [currentUserId]);
-
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeletingTask, setIsDeletingTask] = useState(false);
 
   const canDeleteTask = (task) => {
     if (!task) return false;
