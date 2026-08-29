@@ -149,15 +149,10 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const context = await getAuthContext();
-    const {id:milestoneId}= await params
+  const { id: milestoneId } = await params;
   const authError = ensureAuthenticated(context);
   if (authError) {
     return authError;
-  }
-
-  const roleError = ensureRole(context.role, ADMIN_ROLES);
-  if (roleError) {
-    return roleError;
   }
 
   if (!milestoneId) {
@@ -169,7 +164,13 @@ export async function DELETE(request, { params }) {
     return buildError("Milestone not found.", 404);
   }
 
-  if (!canAccessMilestone(context, milestone)) {
+  const isProjectAdmin =
+    milestone.project?.createdById === context.user.id ||
+    milestone.project?.members?.some(
+      (m) => m.userId === context.user.id && m.role === "ADMIN"
+    );
+
+  if (!isManagementRole(context.role) && !isProjectAdmin) {
     return buildError("You do not have permission to delete this milestone.", 403);
   }
 

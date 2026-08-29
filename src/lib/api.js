@@ -134,5 +134,5 @@ export function isAdminRole(role) {
 }
 
 export function isManagementRole(role) {
-  return ["PM", "CTO", "TEAM_LEAD"].includes(role);
+  return ["CEO", "PM", "CTO", "TEAM_LEAD"].includes(role);
 }

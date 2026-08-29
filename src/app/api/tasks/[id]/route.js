@@ -451,3 +451,116 @@ export async function PATCH(request, { params }) {
     },
   });
 }
+
+export async function DELETE(request, { params }) {
+  const { id: taskId } = await params;
+
+  const context = await getAuthContext();
+  const authError = ensureAuthenticated(context);
+  if (authError) {
+    return authError;
+  }
+
+  if (!taskId) {
+    return buildError("Task id is required.", 400);
+  }
+
+  const task = await getTask(taskId);
+  if (!task) {
+    return buildError("Task not found.", 404);
+  }
+
+  const projectMembers = task.project?.members || task.milestone?.project?.members || [];
+  const isProjectAdmin =
+    task.project?.createdById === context.user.id ||
+    task.milestone?.project?.createdById === context.user.id ||
+    projectMembers.some(
+      (member) => member.userId === context.user.id && member.role === "ADMIN"
+    );
+
+  const isAssignee = task.ownerId === context.user.id;
+
+  if (!isManagementRole(context.role) && !isProjectAdmin && !isAssignee) {
+    return buildError("You do not have permission to delete this task.", 403);
+  }
+
+  // Deletion is strictly blocked for tasks from TESTING onwards (TESTING, REJECTED, DONE)
+  const NON_DELETABLE_STATUSES = ["TESTING", "REJECTED", "DONE"];
+  if (NON_DELETABLE_STATUSES.includes(task.status)) {
+    return buildError(
+      `Tasks in ${task.status} status cannot be deleted. Once a task enters testing, rejection, or completion, it must be retained for history and metrics.`,
+      400
+    );
+  }
+
+  try {
+    // 1. Clean up S3 attachments if any
+    const attachments = await prisma.taskAttachment.findMany({
+      where: { taskId },
+      select: { key: true },
+    });
+
+    if (attachments.length > 0) {
+      try {
+        const { DeleteObjectsCommand } = await import("@aws-sdk/client-s3");
+        const { s3Client } = await import("@/lib/s3");
+        if (process.env.AWS_S3_BUCKET_NAME) {
+          await s3Client.send(
+            new DeleteObjectsCommand({
+              Bucket: process.env.AWS_S3_BUCKET_NAME,
+              Delete: {
+                Objects: attachments.filter((a) => a.key).map((a) => ({ Key: a.key })),
+              },
+            })
+          );
+        }
+      } catch (s3Err) {
+        console.error("Failed to delete task attachments from S3:", s3Err);
+      }
+    }
+
+    // 2. Clean up cover image from S3 if present
+    if (task.coverImage) {
+      try {
+        const s3Marker = ".amazonaws.com/";
+        const markerIndex = task.coverImage.indexOf(s3Marker);
+        if (markerIndex !== -1) {
+          const key = decodeURIComponent(task.coverImage.substring(markerIndex + s3Marker.length));
+          const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+          const { s3Client } = await import("@/lib/s3");
+          if (process.env.AWS_S3_BUCKET_NAME) {
+            await s3Client.send(
+              new DeleteObjectCommand({
+                Bucket: process.env.AWS_S3_BUCKET_NAME,
+                Key: key,
+              })
+            );
+          }
+        }
+      } catch (coverErr) {
+        console.error("Failed to delete cover image from S3:", coverErr);
+      }
+    }
+
+    // 3. Transactional cascade deletion of all related entities and the task
+    await prisma.$transaction([
+      prisma.taskAttachment.deleteMany({ where: { taskId } }),
+      prisma.checklistItem.deleteMany({ where: { taskId } }),
+      prisma.taskStatusHistory.deleteMany({ where: { taskId } }),
+      prisma.taskTimeLog.deleteMany({ where: { taskId } }),
+      prisma.taskTimeRequest.deleteMany({ where: { taskId } }),
+      prisma.taskBreak.deleteMany({ where: { taskId } }),
+      prisma.taskWorkSession.deleteMany({ where: { taskId } }),
+      prisma.personalTodo.deleteMany({ where: { taskId } }),
+      prisma.personalNote.deleteMany({ where: { taskId } }),
+      prisma.activityLog.deleteMany({ where: { taskId } }),
+      prisma.notification.deleteMany({ where: { taskId } }),
+      prisma.task.delete({ where: { id: taskId } }),
+    ]);
+
+    return buildSuccess("Task deleted successfully.");
+  } catch (error) {
+    console.error("Failed to delete task:", error);
+    return buildError("Unable to delete task.", 500);
+  }
+}

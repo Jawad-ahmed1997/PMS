@@ -1998,6 +1998,56 @@ export default function TaskBoard({
     invalidateAllTaskQueries();
   };
 
+  const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
+  const isManager = useMemo(
+    () => [roles.PM, roles.CTO, roles.CEO, roles.TEAM_LEAD].includes(normalizedRole),
+    [normalizedRole]
+  );
+  const isTaskOwner = useCallback((task) => task?.ownerId === currentUserId, [currentUserId]);
+
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
+
+  const canDeleteTask = (task) => {
+    if (!task) return false;
+    const NON_DELETABLE_STATUSES = ["TESTING", "REJECTED", "DONE"];
+    if (NON_DELETABLE_STATUSES.includes(task.status)) {
+      return false;
+    }
+    return isManager || isTaskOwner(task);
+  };
+
+  const handleDeleteTask = async (task) => {
+    if (!task?.id || isDeletingTask) return;
+    setIsDeletingTask(true);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || "Failed to delete task.");
+      }
+      addToast({
+        title: "Task deleted",
+        message: `Task "${task.title}" has been deleted.`,
+        variant: "success",
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedTaskId(null);
+      setTaskItems((prev) => prev.filter((item) => item.id !== task.id));
+      invalidateAllTaskQueries();
+    } catch (err) {
+      addToast({
+        title: "Deletion failed",
+        message: err instanceof Error ? err.message : "Unable to delete task.",
+        variant: "error",
+      });
+    } finally {
+      setIsDeletingTask(false);
+    }
+  };
+
   const isChecklistComplete = (task) =>
     task.checklistItems?.length > 0 &&
     task.checklistItems.every((item) => item.isCompleted);
@@ -3201,6 +3251,14 @@ export default function TaskBoard({
                       }}
                     />
                   ) : null}
+                  {canDeleteTask(selectedTask) ? (
+                    <ActionButton
+                      label="Delete task"
+                      size="sm"
+                      variant="danger"
+                      onClick={() => setIsDeleteDialogOpen(true)}
+                    />
+                  ) : null}
                   {(() => {
                     const isAllowedStatus = ["IN_PROGRESS"].includes(selectedTask.status);
                     const canControl = canControlBreaks(selectedTask);
@@ -3537,6 +3595,53 @@ export default function TaskBoard({
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
+
+      {/* Task Delete Confirmation Dialog */}
+      <DialogRoot
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingTask) {
+            setIsDeleteDialogOpen(false);
+          }
+        }}
+      >
+        <DialogPortal>
+          <DialogOverlay className="fixed inset-0 z-[10002] bg-black/60 backdrop-blur-sm transition-opacity" />
+          <DialogContent className="fixed left-1/2 top-1/2 z-[10003] w-[95vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 shadow-2xl transition-all">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-rose-400">
+                Delete Task
+              </DialogTitle>
+              <DialogDescription className="mt-2 text-xs leading-relaxed text-[color:var(--color-text-muted)]">
+                Are you sure you want to delete <span className="font-semibold text-[color:var(--color-text)]">"{selectedTask?.title}"</span>? All checklists, attachments, and logs associated with this task will be permanently removed. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={isDeletingTask}
+                onClick={() => setIsDeleteDialogOpen(false)}
+                className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-muted-bg)] transition"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                type="button"
+                disabled={isDeletingTask}
+                onClick={() => handleDeleteTask(selectedTask)}
+                className="rounded-xl px-4 py-2 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow"
+              >
+                {isDeletingTask ? "Deleting..." : "Delete Permanently"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </DialogPortal>
       </DialogRoot>
