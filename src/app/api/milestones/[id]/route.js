@@ -20,9 +20,11 @@ async function getMilestone(milestoneId) {
         select: {
           id: true,
           name: true,
+          createdById: true,
           members: {
             select: {
               userId: true,
+              role: true,
               user: { select: { id: true, name: true, email: true, role: true, image: true } },
             },
           },
@@ -41,9 +43,12 @@ function canAccessMilestone(context, milestone) {
     return true;
   }
 
-  return milestone.project.members?.some(
+  const isCreator = milestone.project?.createdById === context.user.id;
+  const isMember = milestone.project?.members?.some(
     (member) => member.userId === context.user.id
   );
+
+  return isCreator || isMember;
 }
 
 export async function GET(request, { params }) {
@@ -72,7 +77,14 @@ export async function GET(request, { params }) {
     ...milestone,
     project: {
       ...milestone.project,
-      members: milestone.project.members.map((m) => m.user).filter(Boolean),
+      members: milestone.project.members.map((m) => ({
+        ...(m.user || {}),
+        id: m.user?.id || m.userId,
+        userId: m.userId,
+        role: m.role || m.user?.role || "MEMBER",
+        projectRole: m.role || "MEMBER",
+        systemRole: m.user?.role,
+      })).filter((m) => m.id),
     },
   };
 

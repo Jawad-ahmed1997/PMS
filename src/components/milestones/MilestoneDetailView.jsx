@@ -116,7 +116,21 @@ export default function MilestoneDetailView({
     [milestone?.endDate, milestone?.startDate]
   );
   const normalizedRole = useMemo(() => normalizeRoleId(role), [role]);
-  const canCreateTask = useMemo(() => canCreateTasks(normalizedRole), [normalizedRole]);
+  const isProjectAdmin = useMemo(() => {
+    return (
+      milestone?.project?.createdById === currentUserId ||
+      (milestone?.project?.members ?? []).some(
+        (m) =>
+          (m.userId === currentUserId || m.id === currentUserId) &&
+          (m.role === "ADMIN" || m.projectRole === "ADMIN")
+      )
+    );
+  }, [milestone?.project, currentUserId]);
+
+  const canCreateTask = useMemo(
+    () => canCreateTasks(normalizedRole) || isProjectAdmin,
+    [normalizedRole, isProjectAdmin]
+  );
   const milestoneCapacity = useMemo(() => {
     const plannedMinutes = tasks.reduce(
       (sum, task) => sum + getTaskEstimatedMinutes(task),
@@ -130,8 +144,9 @@ export default function MilestoneDetailView({
   }, [milestone?.endDate, milestone?.startDate, tasks]);
   const canManageAssignments = useMemo(
     () =>
-      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole),
-    [normalizedRole]
+      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole) ||
+      isProjectAdmin,
+    [normalizedRole, isProjectAdmin]
   );
 
   const nonMemberUsers = useMemo(() => {
@@ -567,7 +582,7 @@ export default function MilestoneDetailView({
           ),
         }
       );
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
         throw new Error(buildErrorMessage(data));
@@ -719,7 +734,7 @@ export default function MilestoneDetailView({
             {tasks.length ? (
               <TaskBoard
                 tasks={tasks}
-                role={role}
+                role={isProjectAdmin ? "PM" : role}
                 currentUserId={currentUserId}
                 onEditTask={openEditTask}
               />

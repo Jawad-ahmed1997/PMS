@@ -780,7 +780,7 @@ export default function ProjectDetailView({
           ),
         }
       );
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
         throw new Error(buildErrorMessage(data));

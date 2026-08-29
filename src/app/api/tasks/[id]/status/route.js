@@ -53,7 +53,8 @@ async function getTask(taskId) {
       project: {
         select: {
           id: true,
-          members: { select: { userId: true } },
+          createdById: true,
+          members: { select: { userId: true, role: true } },
         },
       },
       estimatedHours: true,
@@ -71,7 +72,13 @@ async function getTask(taskId) {
           id: true,
           title: true,
           projectId: true,
-          project: { select: { members: { select: { userId: true } } } },
+          project: {
+            select: {
+              id: true,
+              createdById: true,
+              members: { select: { userId: true, role: true } },
+            },
+          },
         },
       },
       checklistItems: true,
@@ -83,27 +90,27 @@ async function getTask(taskId) {
   });
 }
 
-function canAccessTask(context, task) {
+function canAccessTask(context, task, isProjectAdmin = false) {
   if (!task) {
     return false;
   }
 
-  if (isManagementRole(context.role)) {
+  if (isManagementRole(context.role) || isProjectAdmin) {
     return true;
   }
 
-  // Task owners always have access to their own tasks,
-  // regardless of whether they are in the project members list.
+  // Task owners always have access to their own tasks
   if (task.ownerId === context.user.id) {
     return true;
   }
 
-  // Other project members (e.g. viewing/managing) must be listed explicitly.
-  return (
-    task.project?.members?.some(
-      (member) => member.userId === context.user.id
-    ) ?? false
-  );
+  const projectMembers = task.project?.members || task.milestone?.project?.members || [];
+  const isMember = projectMembers.some((member) => member.userId === context.user.id);
+  const isCreator =
+    task.project?.createdById === context.user.id ||
+    task.milestone?.project?.createdById === context.user.id;
+
+  return isMember || isCreator;
 }
 
 function canMoveTask(context, task, toStatus = null, isProjectAdmin = false) {
@@ -156,7 +163,15 @@ export async function PATCH(request, { params }) {
     return buildError("Task not found.", 404);
   }
 
-  if (!canAccessTask(context, task)) {
+  const projectMembers = task.project?.members || task.milestone?.project?.members || [];
+  const isProjectAdmin =
+    task.project?.createdById === context.user.id ||
+    task.milestone?.project?.createdById === context.user.id ||
+    projectMembers.some(
+      (member) => member.userId === context.user.id && member.role === "ADMIN"
+    );
+
+  if (!canAccessTask(context, task, isProjectAdmin)) {
     return buildError("You do not have permission to update this task.", 403);
   }
 
@@ -170,11 +185,6 @@ export async function PATCH(request, { params }) {
   if (!nextStatus) {
     return buildError("Task status is required.", 400);
   }
-
-  const projectMember = await prisma.projectMember.findFirst({
-    where: { projectId: task.projectId, userId: context.user.id },
-  });
-  const isProjectAdmin = projectMember?.role === "ADMIN";
 
   if (!canMoveTask(context, task, nextStatus, isProjectAdmin)) {
     return buildError(
