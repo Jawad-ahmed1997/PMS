@@ -24,7 +24,8 @@ async function getTask(taskId, userId) {
       select: {
         id: true,
         name: true,
-        members: { select: { userId: true } },
+        createdById: true,
+        members: { select: { userId: true, role: true } },
       },
     },
     estimatedHours: true,
@@ -44,7 +45,14 @@ async function getTask(taskId, userId) {
         id: true,
         title: true,
         projectId: true,
-        project: { select: { members: { select: { userId: true } } } },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            createdById: true,
+            members: { select: { userId: true, role: true } },
+          },
+        },
       },
     },
     checklistItems: true,
@@ -72,16 +80,26 @@ async function getTask(taskId, userId) {
   });
 }
 
-function canAccessTask(context, task) {
+function canAccessTask(context, task, isProjectAdmin = false) {
   if (!task) {
     return false;
   }
 
-  if (isManagementRole(context.role)) {
+  if (isManagementRole(context.role) || isProjectAdmin) {
     return true;
   }
 
-  return task.ownerId === context.user.id;
+  if (task.ownerId === context.user.id) {
+    return true;
+  }
+
+  const projectMembers = task.project?.members || task.milestone?.project?.members || [];
+  const isMember = projectMembers.some((member) => member.userId === context.user.id);
+  const isCreator =
+    task.project?.createdById === context.user.id ||
+    task.milestone?.project?.createdById === context.user.id;
+
+  return isMember || isCreator;
 }
 
 export async function GET(request, { params }) {
@@ -102,7 +120,15 @@ export async function GET(request, { params }) {
     return buildError("Task not found.", 404);
   }
 
-  if (!canAccessTask(context, task)) {
+  const projectMembers = task.project?.members || task.milestone?.project?.members || [];
+  const isProjectAdmin =
+    task.project?.createdById === context.user.id ||
+    task.milestone?.project?.createdById === context.user.id ||
+    projectMembers.some(
+      (member) => member.userId === context.user.id && member.role === "ADMIN"
+    );
+
+  if (!canAccessTask(context, task, isProjectAdmin)) {
     return buildError("You do not have permission to view this task.", 403);
   }
 
@@ -146,10 +172,13 @@ export async function PATCH(request, { params }) {
     return buildError("Task not found.", 404);
   }
 
-  const projectMember = task.projectId ? await prisma.projectMember.findFirst({
-    where: { projectId: task.projectId, userId: context.user.id }
-  }) : null;
-  const isProjectAdmin = projectMember?.role === "ADMIN";
+  const projectMembers = task.project?.members || task.milestone?.project?.members || [];
+  const isProjectAdmin =
+    task.project?.createdById === context.user.id ||
+    task.milestone?.project?.createdById === context.user.id ||
+    projectMembers.some(
+      (member) => member.userId === context.user.id && member.role === "ADMIN"
+    );
 
   const body = await request.json();
   const updates = {};
@@ -166,7 +195,7 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  if (!canAccessTask(context, task)) {
+  if (!canAccessTask(context, task, isProjectAdmin)) {
     return buildError("You do not have permission to update this task.", 403);
   }
 
@@ -211,9 +240,11 @@ export async function PATCH(request, { params }) {
         return buildError("Task owner not found.", 404);
       }
 
-      const isOwnerProjectMember = task.project?.members?.some(
-        (member) => member.userId === body.ownerId
-      );
+      const isOwnerProjectMember =
+        projectMembers.some((member) => member.userId === body.ownerId) ||
+        task.project?.createdById === body.ownerId ||
+        task.milestone?.project?.createdById === body.ownerId;
+
       if (!isOwnerProjectMember) {
         return buildError(
           "The assigned user is not a member of this project.",
@@ -342,6 +373,15 @@ export async function PATCH(request, { params }) {
         type: true,
         ownerId: true,
         milestoneId: true,
+        projectId: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            createdById: true,
+            members: { select: { userId: true, role: true } },
+          },
+        },
         estimatedHours: true,
         blockedReason: true,
         ktLink: true,
