@@ -242,7 +242,8 @@ export async function DELETE(request, { params }) {
     return buildError("Project not found.", 404);
   }
 
-  if (!canAccessProject(context, project)) {
+  const isCreator = project.createdById === context.user.id;
+  if (!isManagementRole(context.role) && !isCreator) {
     return buildError("You do not have permission to delete this project.", 403);
   }
 

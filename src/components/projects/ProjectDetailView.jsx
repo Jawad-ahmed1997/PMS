@@ -9,6 +9,8 @@ import { UserPlus, Users, Trash2, Shield, ShieldCheck, Crown } from "lucide-reac
 import {
   Dialog,
   DialogRoot,
+  DialogPortal,
+  DialogOverlay,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -142,7 +144,7 @@ export default function ProjectDetailView({
 
   const canManageAssignments = useMemo(
     () =>
-      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole) || isProjectAdmin,
+      [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD, roles.SENIOR_DEV].includes(normalizedRole) || isProjectAdmin,
     [normalizedRole, isProjectAdmin]
   );
 
@@ -150,6 +152,45 @@ export default function ProjectDetailView({
     () => canManageMilestones || isProjectAdmin,
     [canManageMilestones, isProjectAdmin]
   );
+
+  const [isDeleteProjectOpen, setIsDeleteProjectOpen] = useState(false);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+
+  const canDeleteProject = useMemo(() => {
+    return (
+      [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD].includes(normalizedRole) ||
+      project?.createdById === currentUserId
+    );
+  }, [normalizedRole, project?.createdById, currentUserId]);
+
+  const handleDeleteProject = async () => {
+    if (!projectId || isDeletingProject) return;
+    setIsDeletingProject(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || "Failed to delete project.");
+      }
+      addToast({
+        title: "Project deleted",
+        message: `Project "${project?.name}" and its data have been deleted.`,
+        variant: "success",
+      });
+      setIsDeleteProjectOpen(false);
+      router.push("/projects");
+    } catch (err) {
+      addToast({
+        title: "Deletion failed",
+        message: err instanceof Error ? err.message : "Unable to delete project.",
+        variant: "error",
+      });
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
 
   // Load project details & milestones
   const loadProject = useCallback(async () => {
@@ -876,6 +917,19 @@ export default function ProjectDetailView({
               }}
               ariaLabel="Refresh project data"
             />
+            {canDeleteProject && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => setIsDeleteProjectOpen(true)}
+                className="rounded-xl px-3 text-xs font-semibold gap-1.5 bg-rose-600 hover:bg-rose-700 text-white"
+                title="Delete project"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </Button>
+            )}
             {effectiveCanManageMilestones && (
               activeTab === "milestones" ? (
                 <ActionButton
@@ -1659,6 +1713,53 @@ export default function ProjectDetailView({
         </div>,
         document.body
       ) : null}
+
+      {/* Delete Project Confirmation Dialog */}
+      <DialogRoot
+        open={isDeleteProjectOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingProject) {
+            setIsDeleteProjectOpen(false);
+          }
+        }}
+      >
+        <DialogPortal>
+          <DialogOverlay className="fixed inset-0 z-[10002] bg-black/60 backdrop-blur-sm transition-opacity" />
+          <DialogContent className="fixed left-1/2 top-1/2 z-[10003] w-[95vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 shadow-2xl transition-all">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-rose-400">
+                Delete Project
+              </DialogTitle>
+              <DialogDescription className="mt-2 text-xs leading-relaxed text-[color:var(--color-text-muted)]">
+                Are you sure you want to delete <span className="font-semibold text-[color:var(--color-text)]">"{project?.name}"</span>? All milestones ({milestones?.length ?? 0}), tasks ({tasks?.length ?? 0}), and attachments within this project will be permanently erased. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={isDeletingProject}
+                onClick={() => setIsDeleteProjectOpen(false)}
+                className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-muted-bg)] transition"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                type="button"
+                disabled={isDeletingProject}
+                onClick={handleDeleteProject}
+                className="rounded-xl px-4 py-2 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow"
+              >
+                {isDeletingProject ? "Deleting..." : "Delete Project"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
     </div>
   );
 }

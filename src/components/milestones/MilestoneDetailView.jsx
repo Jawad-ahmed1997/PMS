@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import RefreshButton from "@/components/ui/RefreshButton";
 import {
   DialogRoot,
+  DialogPortal,
+  DialogOverlay,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -36,7 +39,7 @@ import {
   getMilestoneStatus,
   getTaskEstimatedMinutes,
 } from "@/lib/milestoneProgress";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Trash2 } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 
 const buildErrorMessage = (data) =>
@@ -47,12 +50,15 @@ export default function MilestoneDetailView({
   role,
   currentUserId,
 }) {
+  const router = useRouter();
   const { addToast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [initialTaskForm, setInitialTaskForm] = useState(null);
   const [users, setUsers] = useState([]);
+  const [isDeleteMilestoneOpen, setIsDeleteMilestoneOpen] = useState(false);
+  const [isDeletingMilestone, setIsDeletingMilestone] = useState(false);
 
   // Query for milestone details and tasks
   const { data: milestone = null, isLoading: milestoneLoading, error: milestoneError, refetch: refetchMilestone } = useQuery({
@@ -144,10 +150,47 @@ export default function MilestoneDetailView({
   }, [milestone?.endDate, milestone?.startDate, tasks]);
   const canManageAssignments = useMemo(
     () =>
-      [roles.CEO, roles.PM, roles.CTO, roles.SENIOR_DEV].includes(normalizedRole) ||
+      [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD, roles.SENIOR_DEV].includes(normalizedRole) ||
       isProjectAdmin,
     [normalizedRole, isProjectAdmin]
   );
+  const canDeleteMilestone = useMemo(
+    () => [roles.CEO, roles.PM, roles.CTO, roles.TEAM_LEAD].includes(normalizedRole) || isProjectAdmin,
+    [normalizedRole, isProjectAdmin]
+  );
+
+  const handleDeleteMilestone = async () => {
+    if (!milestoneId || isDeletingMilestone) return;
+    setIsDeletingMilestone(true);
+    try {
+      const response = await fetch(`/api/milestones/${milestoneId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || "Failed to delete milestone.");
+      }
+      addToast({
+        title: "Milestone deleted",
+        message: "Milestone and its associated tasks have been deleted.",
+        variant: "success",
+      });
+      setIsDeleteMilestoneOpen(false);
+      if (milestone?.project?.id) {
+        router.push(`/projects/${milestone.project.id}`);
+      } else {
+        router.push("/milestones");
+      }
+    } catch (err) {
+      addToast({
+        title: "Deletion failed",
+        message: err instanceof Error ? err.message : "Unable to delete milestone.",
+        variant: "error",
+      });
+    } finally {
+      setIsDeletingMilestone(false);
+    }
+  };
 
   const nonMemberUsers = useMemo(() => {
     const memberIds = new Set((milestone?.project?.members ?? []).map((m) => m.id));
@@ -665,6 +708,19 @@ export default function MilestoneDetailView({
                   )}
                 </div>
               </div>
+            )}
+            {canDeleteMilestone && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => setIsDeleteMilestoneOpen(true)}
+                className="rounded-xl px-3 text-xs font-semibold gap-1.5 bg-rose-600 hover:bg-rose-700 text-white"
+                title="Delete milestone"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </Button>
             )}
             {canCreateTask && (
               <Button
@@ -1277,6 +1333,53 @@ export default function MilestoneDetailView({
         </div>,
         document.body
       ) : null}
+
+      {/* Delete Milestone Confirmation Dialog */}
+      <DialogRoot
+        open={isDeleteMilestoneOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingMilestone) {
+            setIsDeleteMilestoneOpen(false);
+          }
+        }}
+      >
+        <DialogPortal>
+          <DialogOverlay className="fixed inset-0 z-[10002] bg-black/60 backdrop-blur-sm transition-opacity" />
+          <DialogContent className="fixed left-1/2 top-1/2 z-[10003] w-[95vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-6 shadow-2xl transition-all">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-rose-400">
+                Delete Milestone
+              </DialogTitle>
+              <DialogDescription className="mt-2 text-xs leading-relaxed text-[color:var(--color-text-muted)]">
+                Are you sure you want to delete <span className="font-semibold text-[color:var(--color-text)]">"{milestone?.title}"</span>? All tasks ({tasks?.length ?? 0} tasks) and attachments in this milestone will be permanently removed. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={isDeletingMilestone}
+                onClick={() => setIsDeleteMilestoneOpen(false)}
+                className="rounded-xl border border-[color:var(--color-border)] bg-transparent px-4 py-2 text-xs font-semibold text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-muted-bg)] transition"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                type="button"
+                disabled={isDeletingMilestone}
+                onClick={handleDeleteMilestone}
+                className="rounded-xl px-4 py-2 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow"
+              >
+                {isDeletingMilestone ? "Deleting..." : "Delete Milestone"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
     </div>
   );
 }
