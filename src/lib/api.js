@@ -39,7 +39,12 @@ import { cookies } from "next/headers";
 import { verifySessionToken } from "@/lib/session";
 
 export async function getAuthContext() {
-  let session = await auth();
+  let session = null;
+  try {
+    session = await auth();
+  } catch (err) {
+    // ignore stale or invalid JWT cookies
+  }
 
   if (!session || !session.user) {
     try {

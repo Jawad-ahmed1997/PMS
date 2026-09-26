@@ -10,7 +10,7 @@ const SESSION_DURATION_MS = 1000 * 60 * 60 * 8;
 const encoder = new TextEncoder();
 
 function getSessionSecret() {
-  return process.env.SESSION_SECRET ?? "dev-session-secret-change-me";
+  return process.env.SESSION_SECRET ?? process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "dev-session-secret-change-me";
 }
 
 function toBase64(data) {

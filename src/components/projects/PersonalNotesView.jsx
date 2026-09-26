@@ -66,7 +66,7 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
 
   const textareaRef = useRef(null);
 
-  const { data: queryNotes = [], isLoading: loading, error: notesError } = useQuery({
+  const { data: queryNotes, isLoading: loading, error: notesError } = useQuery({
     queryKey: ["notes"],
     queryFn: async () => {
       const response = await fetch("/api/notes");
@@ -90,7 +90,8 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
   }, [notesError, addToast]);
 
   useEffect(() => {
-    const projectTasksMap = new Map(tasks.map((t) => [t.id, t]));
+    if (!queryNotes) return;
+    const projectTasksMap = new Map((tasks || []).map((t) => [t.id, t]));
     const filtered = queryNotes.filter((note) => {
       if (!note.taskId) {
         return true; // General note
@@ -101,14 +102,17 @@ export default function PersonalNotesView({ projectId, tasks = [] }) {
     setNotes(filtered);
 
     // Select first note by default if none active
-    if (filtered.length > 0 && !activeNoteId) {
-      const first = filtered[0];
-      setActiveNoteId(first.id);
-      setEditTitle(first.title);
-      setEditContent(first.content);
-      setEditTaskId(first.taskId || "");
-    }
-  }, [queryNotes, tasks, activeNoteId]);
+    setActiveNoteId((prevId) => {
+      if (!prevId && filtered.length > 0) {
+        const first = filtered[0];
+        setEditTitle(first.title);
+        setEditContent(first.content);
+        setEditTaskId(first.taskId || "");
+        return first.id;
+      }
+      return prevId;
+    });
+  }, [queryNotes, tasks]);
 
   const activeNote = useMemo(() => {
     return notes.find((n) => n.id === activeNoteId) ?? null;

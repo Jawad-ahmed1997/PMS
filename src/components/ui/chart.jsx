@@ -27,7 +27,37 @@ export function ChartTooltip({ content, ...props }) {
   return <Tooltip {...props} content={content ?? <ChartTooltipContent />} />;
 }
 
-export function ChartTooltipContent({ active, payload, label, className, labelFormatter, formatter, ...props }) {
+export function ChartTooltipContent({
+  active,
+  payload,
+  label,
+  className,
+  labelFormatter,
+  formatter,
+  color,
+  hideLabel,
+  hideIndicator,
+  indicator,
+  nameKey,
+  labelKey,
+  accessibilityLayer,
+  allowEscapeViewBox,
+  animationDuration,
+  animationEasing,
+  coordinate,
+  content,
+  contentStyle,
+  cursor,
+  filterNull,
+  isAnimationActive,
+  itemStyle,
+  offset,
+  position,
+  reverseDirection,
+  viewBox,
+  wrapperStyle,
+  ...props
+}) {
   const config = useContext(ChartContext);
   if (!active || !payload?.length) return null;
   return (

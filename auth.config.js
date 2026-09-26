@@ -3,6 +3,7 @@ const authConfig = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 8 },
   pages: { signIn: "/login" },
   trustHost: true,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {
       console.log("[auth.config.js] jwt callback: start token =", token, "user =", user);

@@ -13,6 +13,23 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { Trash2, Bell, Link2, CheckCircle2, Circle, Edit2, ClipboardList, Zap, Check } from "lucide-react";
 import SearchableTaskSelector from "@/components/ui/SearchableTaskSelector";
 
+function parseTodo(todo) {
+  let status = "TODO";
+  let cleanContent = todo.content;
+  
+  if (todo.isCompleted) {
+    status = "COMPLETED";
+  } else if (todo.content.startsWith("[IN_PROGRESS] ")) {
+    status = "IN_PROGRESS";
+    cleanContent = todo.content.substring("[IN_PROGRESS] ".length);
+  } else if (todo.content.startsWith("[TODO] ")) {
+    status = "TODO";
+    cleanContent = todo.content.substring("[TODO] ".length);
+  }
+  
+  return { ...todo, status, cleanContent };
+}
+
 export default function PersonalTodoView({ tasks = [] }) {
   const { addToast } = useToast();
   const [todos, setTodos] = useState([]);
@@ -37,24 +54,7 @@ export default function PersonalTodoView({ tasks = [] }) {
   const [editCustomReminder, setEditCustomReminder] = useState("");
   const [updating, setUpdating] = useState(false);
 
-  const parseTodo = (todo) => {
-    let status = "TODO";
-    let cleanContent = todo.content;
-    
-    if (todo.isCompleted) {
-      status = "COMPLETED";
-    } else if (todo.content.startsWith("[IN_PROGRESS] ")) {
-      status = "IN_PROGRESS";
-      cleanContent = todo.content.substring("[IN_PROGRESS] ".length);
-    } else if (todo.content.startsWith("[TODO] ")) {
-      status = "TODO";
-      cleanContent = todo.content.substring("[TODO] ".length);
-    }
-    
-    return { ...todo, status, cleanContent };
-  };
-
-  const { data: queryTodos = [], isLoading: loading, error: todosError } = useQuery({
+  const { data: queryTodos, isLoading: loading, error: todosError } = useQuery({
     queryKey: ["todos"],
     queryFn: async () => {
       const response = await fetch("/api/todos");
@@ -68,7 +68,9 @@ export default function PersonalTodoView({ tasks = [] }) {
   });
 
   useEffect(() => {
-    setTodos(queryTodos);
+    if (queryTodos) {
+      setTodos(queryTodos);
+    }
   }, [queryTodos]);
 
   useEffect(() => {

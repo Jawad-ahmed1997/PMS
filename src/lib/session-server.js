@@ -3,8 +3,12 @@ import { auth } from "../../auth";
 import { verifySessionToken } from "@/lib/session";
 
 export async function getSession() {
-  const session = await auth();
-  if (session?.user) return session.user;
+  try {
+    const session = await auth();
+    if (session?.user) return session.user;
+  } catch (err) {
+    // Stale or corrupted JWT session token in cookies
+  }
 
   try {
     const cookieStore = await cookies();
