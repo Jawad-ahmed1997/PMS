@@ -314,120 +314,131 @@ export async function PATCH(request, { params }) {
   const ownerChanged =
     body?.ownerId !== undefined && body.ownerId !== task.ownerId;
 
-  const updatedTask = await prisma.$transaction(async (tx) => {
-    const updated = await tx.task.update({
-      where: { id: taskId },
-      data: updates,
-    });
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.task.update({
+        where: { id: taskId },
+        data: updates,
+      });
 
-    if (checklistItems) {
-      const normalizedItems = checklistItems
-        .map((item) => ({
-          id: item.id,
-          label: item.label?.trim() ?? "",
-          isCompleted: Boolean(item.isCompleted),
-        }))
-        .filter((item) => item.label);
+      if (checklistItems) {
+        const normalizedItems = checklistItems
+          .map((item) => ({
+            id: item.id,
+            label: item.label?.trim() ?? "",
+            isCompleted: Boolean(item.isCompleted),
+          }))
+          .filter((item) => item.label);
 
-      const existingIds = new Set(task.checklistItems.map((item) => item.id));
-      const incomingIds = new Set(
-        normalizedItems.filter((item) => item.id).map((item) => item.id)
-      );
+        const existingIds = new Set(task.checklistItems.map((item) => item.id));
+        const incomingIds = new Set(
+          normalizedItems.filter((item) => item.id).map((item) => item.id)
+        );
 
-      const deleteIds = Array.from(existingIds).filter(
-        (id) => !incomingIds.has(id)
-      );
+        const deleteIds = Array.from(existingIds).filter(
+          (id) => !incomingIds.has(id)
+        );
 
-      if (deleteIds.length > 0) {
-        await tx.checklistItem.deleteMany({
-          where: { id: { in: deleteIds } },
-        });
-      }
-
-      await Promise.all(
-        normalizedItems.map((item) => {
-          if (item.id && existingIds.has(item.id)) {
-            return tx.checklistItem.update({
-              where: { id: item.id },
-              data: { label: item.label, isCompleted: item.isCompleted },
-            });
-          }
-          return tx.checklistItem.create({
-            data: {
-              taskId,
-              label: item.label,
-              isCompleted: item.isCompleted,
-            },
+        if (deleteIds.length > 0) {
+          await tx.checklistItem.deleteMany({
+            where: { id: { in: deleteIds } },
           });
-        })
-      );
-    }
+        }
 
-    const nextTask = await tx.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        status: true,
-        type: true,
-        ownerId: true,
-        milestoneId: true,
-        projectId: true,
-        project: {
-          select: {
-            id: true,
-            name: true,
-            createdById: true,
-            members: { select: { userId: true, role: true } },
-          },
-        },
-        estimatedHours: true,
-        blockedReason: true,
-        ktLink: true,
-        blockedType: true,
-        holdReason: true,
-        holdNote: true,
-        reworkCount: true,
-        totalTimeSpent: true,
-        lastStartedAt: true,
-        createdAt: true,
-        owner: { select: { id: true, name: true, email: true, role: true } },
-        milestone: {
-          select: { id: true, title: true, projectId: true },
-        },
-        checklistItems: true,
-        statusHistory: true,
-        activityLogs: true,
-        timeLogs: true,
-        workSessions: { orderBy: { startedAt: "desc" } },
-        breaks: { orderBy: { startedAt: "desc" } },
-        personalTodos: {
-          where: { userId: context.user.id },
-          select: { id: true, content: true, isCompleted: true, reminderAt: true },
-        },
-        personalNotes: {
-          where: { userId: context.user.id },
-          select: { id: true, title: true, content: true },
+        await Promise.all(
+          normalizedItems.map((item) => {
+            if (item.id && existingIds.has(item.id)) {
+              return tx.checklistItem.update({
+                where: { id: item.id },
+                data: { label: item.label, isCompleted: item.isCompleted },
+              });
+            }
+            return tx.checklistItem.create({
+              data: {
+                taskId,
+                label: item.label,
+                isCompleted: item.isCompleted,
+              },
+            });
+          })
+        );
+      }
+    },
+    {
+      maxWait: 5000,
+      timeout: 15000,
+    }
+  );
+
+  const updatedTask = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      type: true,
+      ownerId: true,
+      milestoneId: true,
+      projectId: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          createdById: true,
+          members: { select: { userId: true, role: true } },
         },
       },
-    });
+      estimatedHours: true,
+      blockedReason: true,
+      ktLink: true,
+      blockedType: true,
+      holdReason: true,
+      holdNote: true,
+      reworkCount: true,
+      totalTimeSpent: true,
+      lastStartedAt: true,
+      createdAt: true,
+      owner: { select: { id: true, name: true, email: true, role: true } },
+      milestone: {
+        select: { id: true, title: true, projectId: true },
+      },
+      checklistItems: true,
+      statusHistory: true,
+      activityLogs: true,
+      timeLogs: true,
+      workSessions: { orderBy: { startedAt: "desc" } },
+      breaks: { orderBy: { startedAt: "desc" } },
+      personalTodos: {
+        where: { userId: context.user.id },
+        select: { id: true, content: true, isCompleted: true, reminderAt: true },
+      },
+      personalNotes: {
+        where: { userId: context.user.id },
+        select: { id: true, title: true, content: true },
+      },
+    },
+  });
 
-    if (ownerChanged && nextTask?.ownerId && nextTask.ownerId !== context.user.id) {
+  if (!updatedTask) {
+    return buildError("Task not found.", 404);
+  }
+
+  if (ownerChanged && updatedTask?.ownerId && updatedTask.ownerId !== context.user.id) {
+    try {
       await createNotification({
-        prismaClient: tx,
         type: "TASK_ASSIGNED",
         actorId: context.user.id,
-        message: `${context.user?.name || context.user?.email || "A leader"} assigned you task ${nextTask.title}.`,
-        taskId: nextTask.id,
-        projectId: nextTask.projectId,
-        milestoneId: nextTask.milestoneId,
-        recipientIds: [nextTask.ownerId],
+        message: `${context.user?.name || context.user?.email || "A leader"} assigned you task ${updatedTask.title}.`,
+        taskId: updatedTask.id,
+        projectId: updatedTask.projectId,
+        milestoneId: updatedTask.milestoneId,
+        recipientIds: [updatedTask.ownerId],
       });
+    } catch (notifErr) {
+      console.error("Failed to send task assignment notification:", notifErr);
     }
-
-    return nextTask;
-  });
+  }
 
   const computed = await computeTaskSpentTime(
     prisma,

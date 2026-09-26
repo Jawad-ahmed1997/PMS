@@ -394,8 +394,13 @@ export async function POST(request) {
       },
     });
 
-    return task;
-  });
+      return task;
+    },
+    {
+      maxWait: 5000,
+      timeout: 15000,
+    }
+  );
 
   const memberIds = await getProjectMemberIds(createdTask.projectId);
   // Exclude the assignee from the general project members notification list to prevent duplicate notifications
